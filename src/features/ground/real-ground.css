@@ -367,6 +367,33 @@
   border: 1px solid #dce5eb;
   background: #eef2f5;
 }
+.real-volume-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 22px;
+  padding: 14px 16px;
+  margin: 0 0 12px;
+  border: 1px solid #dce5eb;
+  border-radius: 10px;
+  background: #f8fafb;
+  color: #52697e;
+  font-size: 12px;
+}
+.real-opacity-control,
+.real-cutaway-control {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  white-space: nowrap;
+}
+.real-opacity-control input {
+  width: 112px;
+  accent-color: #176ce0;
+}
+.real-cutaway-control input {
+  accent-color: #176ce0;
+}
 .real-ground-scene > div:first-child {
   position: absolute;
   inset: 0;

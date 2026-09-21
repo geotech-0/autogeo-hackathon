@@ -7,6 +7,7 @@ import {
   createRealModel,
   realGrid,
   restoreRealGround,
+  REAL_GROUND_VERSION,
 } from "./real-engine.mjs";
 const data = JSON.parse(
     fs.readFileSync(
@@ -122,4 +123,99 @@ test("Restoration checks real-site frame and known source IDs", () => {
   assert.throws(() =>
     restoreRealGround({ ...payload, holeIds: ["unknown"] }, ids),
   );
+});
+
+function savedGround(view = {}) {
+  return {
+    kind: "real-ground-model",
+    frame: { id: "icheon-local-m" },
+    sourceRevision: "source-32-holes-r1",
+    parameters: p,
+    holeIds: data.holes.map((h) => h.id),
+    holes: data.holes,
+    view: {
+      sectionNorth: 521600,
+      mode: "ground",
+      modelCampaign: "2022-08",
+      selected: data.holes[0].id,
+      ...view,
+    },
+  };
+}
+
+test("Legacy ground records restore solid display defaults without mutating source data or payload", () => {
+  const payload = savedGround();
+  const before = JSON.stringify(payload);
+  const restored = restoreRealGround(payload, payload.holeIds, data.holes);
+  assert.equal(REAL_GROUND_VERSION, "source-linked-variable-strata-2.1");
+  assert.equal(restored.representation, "solid");
+  assert.equal(restored.meshOpacity, 1);
+  assert.equal(restored.cutaway, false);
+  assert.deepEqual(restored.solidVisible, [true, true, true]);
+  assert.equal(JSON.stringify(payload), before);
+  restored.solidVisible[0] = false;
+  assert.deepEqual(restoreRealGround(payload, payload.holeIds).solidVisible, [
+    true,
+    true,
+    true,
+  ]);
+});
+
+test("Solid and surface display settings survive JSON round trips including opacity boundaries", () => {
+  for (const settings of [
+    {
+      representation: "solid",
+      meshOpacity: 0.4,
+      cutaway: true,
+      solidVisible: [true, false, true],
+    },
+    {
+      representation: "surfaces",
+      meshOpacity: 0.73,
+      cutaway: false,
+      solidVisible: [false, true, false],
+    },
+    {
+      representation: "solid",
+      meshOpacity: 1,
+      cutaway: true,
+      solidVisible: [false, false, false],
+    },
+  ]) {
+    const payload = JSON.parse(JSON.stringify(savedGround(settings)));
+    const restored = restoreRealGround(payload, payload.holeIds, data.holes);
+    for (const key of Object.keys(settings))
+      assert.deepEqual(restored[key], settings[key]);
+    assert.deepEqual(payload.parameters, p);
+    assert.deepEqual(payload.holes, data.holes);
+  }
+});
+
+test("Ground display restoration rejects malformed representations, opacity, cutaway, and layer visibility", () => {
+  const invalid = [
+    { representation: "wireframe" },
+    { representation: null },
+    { meshOpacity: 0.399 },
+    { meshOpacity: 1.001 },
+    { meshOpacity: "0.6" },
+    { meshOpacity: NaN },
+    { meshOpacity: Infinity },
+    { meshOpacity: null },
+    { cutaway: "false" },
+    { cutaway: 0 },
+    { cutaway: null },
+    { solidVisible: [true, false] },
+    { solidVisible: [true, true, true, true] },
+    { solidVisible: [true, 1, false] },
+    { solidVisible: [true, null, false] },
+    { solidVisible: "true,true,true" },
+    { solidVisible: new Array(3) },
+  ];
+  for (const settings of invalid) {
+    const payload = savedGround(settings);
+    assert.throws(
+      () => restoreRealGround(payload, payload.holeIds, data.holes),
+      /레이어·보기 설정/,
+    );
+  }
 });

@@ -5,7 +5,7 @@ import {
   convexHull,
   pointInHull,
 } from "./engine.mjs";
-export const REAL_GROUND_VERSION = "source-linked-variable-strata-2.0";
+export const REAL_GROUND_VERSION = "source-linked-variable-strata-2.1";
 export const LITHOLOGY_COLORS = {
   표토층: "#cab18b",
   매립층: "#bb925f",
@@ -308,6 +308,10 @@ export function restoreRealGround(payload, knownIds, expectedHoles) {
     tab: "map",
     shownCampaigns: campaigns,
     visible: [true, true, true],
+    representation: "solid",
+    meshOpacity: 1,
+    cutaway: false,
+    solidVisible: [true, true, true],
     showHoles: true,
     showCAD: true,
     showCADLinework: false,
@@ -325,6 +329,13 @@ export function restoreRealGround(payload, knownIds, expectedHoles) {
     !Array.isArray(out.visible) ||
     out.visible.length !== 3 ||
     out.visible.some((x) => typeof x !== "boolean") ||
+    !["solid", "surfaces"].includes(out.representation) ||
+    !Number.isFinite(out.meshOpacity) ||
+    out.meshOpacity < 0.4 ||
+    out.meshOpacity > 1 ||
+    !Array.isArray(out.solidVisible) ||
+    out.solidVisible.length !== 3 ||
+    ![0, 1, 2].every((i) => typeof out.solidVisible[i] === "boolean") ||
     ![
       "showHoles",
       "showCAD",
@@ -332,6 +343,7 @@ export function restoreRealGround(payload, knownIds, expectedHoles) {
       "showGCP",
       "extrapolate",
       "showVariance",
+      "cutaway",
     ].every((k) => typeof out[k] === "boolean") ||
     ![1, 1.5, 2].includes(out.verticalScale)
   )

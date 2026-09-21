@@ -4,6 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { RealSiteAssets } from "./RealSiteMap";
 import type { RealHole, RealGrid, RealHorizon, Terrain } from "./real-types";
 import { LITHOLOGY_COLORS } from "./real-engine.mjs";
+import { buildLayerVolumes } from "./volume-geometry.mjs";
 type Props = {
   assets: RealSiteAssets;
   grid: RealGrid;
@@ -12,6 +13,10 @@ type Props = {
   selected: string;
   onSelect: (id: string) => void;
   visible: boolean[];
+  representation: "solid" | "surfaces";
+  solidVisible: boolean[];
+  meshOpacity: number;
+  cutaway: boolean;
   showHoles: boolean;
   extrapolate: boolean;
   showVariance: boolean;
@@ -138,7 +143,7 @@ export default function RealGroundScene(props: Props) {
     el.appendChild(renderer.domElement);
     renderer.domElement.setAttribute(
       "aria-label",
-      "실제 시추공, 보간 지층면, DSM 및 점군 3D. 드래그로 회전하고 시추공을 선택합니다.",
+      "실제 시추공, 채워진 지층 메쉬, DSM 및 점군 3D. 드래그로 회전하고 시추공을 선택합니다.",
     );
     const scene = new THREE.Scene(),
       camera = new THREE.PerspectiveCamera(34, 1, 0.1, 6000),
@@ -271,9 +276,32 @@ export default function RealGroundScene(props: Props) {
     );
     base.position.y = -35 * s;
     v.data.add(base);
+    if (props.mode === "ground" && props.representation === "solid") {
+      const volumes = buildLayerVolumes(props.grid, {
+        extrapolate: props.extrapolate,
+        clipNorth: props.cutaway ? props.sectionNorth : undefined,
+      });
+      volumes.layers.forEach((layer, i) => {
+        if (!props.solidVisible[i] || !layer.positions.length) return;
+        const positions: number[] = [];
+        for (let k = 0; k < layer.positions.length; k += 3)
+          positions.push(
+            ...at(
+              layer.positions[k],
+              layer.positions[k + 1],
+              layer.positions[k + 2],
+            ).toArray(),
+          );
+        const mesh = meshOf(positions, layer.color, props.meshOpacity);
+        mesh.material.side = THREE.FrontSide;
+        v.data.add(mesh);
+      });
+    }
     if (props.mode === "ground")
       props.horizons.forEach((h, k) => {
-        if (!props.visible[k]) return;
+        const solid = props.representation === "solid";
+        if (solid ? k !== 2 || !props.solidVisible[2] : !props.visible[k])
+          return;
         const positions: number[] = [],
           vertexColors: number[] = [],
           g = props.grid;
@@ -298,9 +326,30 @@ export default function RealGroundScene(props: Props) {
             )
               continue;
             const q = ps.map((p) => at(p.e, p.n, p.values[k]!.value));
-            pushTri(positions, q[0], q[3], q[2]);
-            pushTri(positions, q[0], q[2], q[1]);
-            if (props.showVariance) {
+            // Clip the open rock horizon to the same section as the volumes.
+            for (const indices of [
+              [0, 3, 2],
+              [0, 2, 1],
+            ]) {
+              let poly = indices.map((idx) => q[idx]);
+              if (solid && props.cutaway) {
+                const z = centerN - props.sectionNorth;
+                const clipped: THREE.Vector3[] = [];
+                for (let t = 0; t < poly.length; t++) {
+                  const a = poly[t],
+                    b = poly[(t + 1) % poly.length];
+                  const insideA = a.z <= z,
+                    insideB = b.z <= z;
+                  if (insideA !== insideB)
+                    clipped.push(a.clone().lerp(b, (z - a.z) / (b.z - a.z)));
+                  if (insideB) clipped.push(b);
+                }
+                poly = clipped;
+              }
+              for (let t = 1; t < poly.length - 1; t++)
+                pushTri(positions, poly[0], poly[t], poly[t + 1]);
+            }
+            if (props.showVariance && !solid) {
               const vv =
                   ps.reduce((sum, p) => sum + p.values[k]!.variance, 0) / 4,
                 col = new THREE.Color().setHSL(
@@ -312,8 +361,18 @@ export default function RealGroundScene(props: Props) {
                 vertexColors.push(col.r, col.g, col.b);
             }
           }
-        const m = meshOf(positions, h.color, k === 0 ? 0.25 : 0.68);
-        if (props.showVariance) {
+        const m = meshOf(
+          positions,
+          h.color,
+          solid ? props.meshOpacity : k === 0 ? 0.25 : 0.68,
+        );
+        if (solid) {
+          // This is an observed upper boundary, never a fabricated rock volume.
+          m.material.polygonOffset = true;
+          m.material.polygonOffsetFactor = 1;
+          m.material.polygonOffsetUnits = 1;
+        }
+        if (props.showVariance && !solid) {
           m.geometry.setAttribute(
             "color",
             new THREE.Float32BufferAttribute(vertexColors, 3),
@@ -512,15 +571,26 @@ export default function RealGroundScene(props: Props) {
           : props.assets.orthophoto.boundsEN,
       centerE = (b[0] + b[2]) / 2,
       centerN = (b[1] + b[3]) / 2;
+    const groundHeights = props.grid.points.flatMap((p) =>
+      p.values.flatMap((h) => (h && Number.isFinite(h.value) ? [h.value] : [])),
+    );
+    const minHeight =
+      props.mode === "ground" && groundHeights.length
+        ? Math.min(...groundHeights) - 3
+        : 0;
+    const maxHeight =
+      props.mode === "ground" && groundHeights.length
+        ? Math.max(...groundHeights) + 6
+        : 90;
     const box = new THREE.Box3(
       new THREE.Vector3(
         b[0] - centerE,
-        -50 * props.verticalScale,
+        (minHeight - 50) * props.verticalScale,
         centerN - b[3],
       ),
       new THREE.Vector3(
         b[2] - centerE,
-        40 * props.verticalScale,
+        (maxHeight - 50) * props.verticalScale,
         centerN - b[1],
       ),
     );
@@ -541,19 +611,31 @@ export default function RealGroundScene(props: Props) {
           ),
         );
       }
-    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    const center = box.getCenter(new THREE.Vector3());
     const halfVertical = THREE.MathUtils.degToRad(
       v.camera.getEffectiveFOV() / 2,
     );
     const halfHorizontal = Math.atan(Math.tan(halfVertical) * v.camera.aspect);
-    const distance =
-      (sphere.radius * 1.12) / Math.sin(Math.min(halfVertical, halfHorizontal));
-    v.camera.position
-      .copy(sphere.center)
-      .add(
-        new THREE.Vector3(0.85, 0.8, 0.9).normalize().multiplyScalar(distance),
-      );
-    v.controls.target.copy(sphere.center);
+    const direction = new THREE.Vector3(0.85, 0.8, 0.9).normalize();
+    const right = new THREE.Vector3()
+      .crossVectors(new THREE.Vector3(0, 1, 0), direction)
+      .normalize();
+    const up = new THREE.Vector3().crossVectors(direction, right).normalize();
+    let distance = 40;
+    for (const x of [box.min.x, box.max.x])
+      for (const y of [box.min.y, box.max.y])
+        for (const z of [box.min.z, box.max.z]) {
+          const p = new THREE.Vector3(x, y, z).sub(center);
+          distance = Math.max(
+            distance,
+            p.dot(direction) +
+              Math.abs(p.dot(right)) / Math.tan(halfHorizontal),
+            p.dot(direction) + Math.abs(p.dot(up)) / Math.tan(halfVertical),
+          );
+        }
+    distance *= 1.14;
+    v.camera.position.copy(center).add(direction.multiplyScalar(distance));
+    v.controls.target.copy(center);
     v.controls.maxDistance = Math.max(2200, distance * 3);
     v.controls.update();
     v.camera.updateProjectionMatrix();
@@ -583,7 +665,9 @@ export default function RealGroundScene(props: Props) {
         )}
       <div className="real-scene-label">
         {props.mode === "ground"
-          ? "관측 주상도 + 크리깅 경계면"
+          ? props.representation === "solid"
+            ? `채운 지층 메쉬${props.cutaway ? " · 단면 열림" : ""} · 관측 경계 사이 보간`
+            : "관측 주상도 + 크리깅 경계면"
           : props.mode === "dsm"
             ? "촬영 시점 DSM + 실제 정사영상"
             : "원본 LAS에서 추출한 공간 대표점"}{" "}

@@ -21,6 +21,7 @@ import {
 } from "../../data/source-access";
 import RealSiteMap, { CAMPAIGN_COLORS, useSiteAssets } from "./RealSiteMap";
 import RealGroundScene from "./RealGroundScene";
+import { VOLUME_LAYERS } from "./volume-geometry.mjs";
 import type { RealHole, RealPoint, RealHorizon } from "./real-types";
 import {
   createRealModel,
@@ -63,6 +64,10 @@ type GroundView = {
   sectionNorth: number;
   mode: "ground" | "dsm" | "pointcloud";
   visible: boolean[];
+  representation: "solid" | "surfaces";
+  solidVisible: boolean[];
+  meshOpacity: number;
+  cutaway: boolean;
   showHoles: boolean;
   showCAD: boolean;
   showCADLinework: boolean;
@@ -87,6 +92,10 @@ const initial = (): GroundView => ({
   sectionNorth: 521622.7,
   mode: "ground",
   visible: [true, true, true],
+  representation: "solid",
+  solidVisible: [true, true, true],
+  meshOpacity: 1,
+  cutaway: false,
   showHoles: true,
   showCAD: true,
   showCADLinework: false,
@@ -104,6 +113,10 @@ function Section({
   holes: selectedHoles,
   selected,
   onSelect,
+  extrapolate,
+  filled,
+  solidVisible,
+  boundaryVisible,
 }: {
   points: RealPoint[];
   horizons: RealHorizon[];
@@ -111,6 +124,10 @@ function Section({
   holes: RealHole[];
   selected: string;
   onSelect: (id: string) => void;
+  extrapolate: boolean;
+  filled: boolean;
+  solidVisible: boolean[];
+  boundaryVisible: boolean[];
 }) {
   const ref = useRef<SVGSVGElement>(null),
     [width, setWidth] = useState(800);
@@ -169,30 +186,67 @@ function Section({
           </g>
         ),
       )}
-      {horizons.map((h, k) => (
-        <g key={h.id}>
-          {points.slice(1).map((p, i) => {
-            const a = points[i],
-              v = p.values[k],
-              av = a.values[k];
-            if (!v || !av) return null;
-            return (
-              <line
-                key={i}
-                x1={x(a.e)}
-                y1={y(av.value)}
-                x2={x(p.e)}
-                y2={y(v.value)}
-                stroke={h.color}
-                strokeWidth={2.5}
-                strokeDasharray={
-                  v.extrapolated || av.extrapolated ? "4 3" : undefined
-                }
-              />
-            );
-          })}
-        </g>
-      ))}
+      {filled &&
+        VOLUME_LAYERS.map(
+          (layer, layerIndex) =>
+            solidVisible[layerIndex] && (
+              <g key={layer.id} aria-label={`${layer.name} 채운 단면`}>
+                {points.slice(1).map((p, i) => {
+                  const a = points[i],
+                    av = a.values[layer.topIndex],
+                    ab = a.values[layer.bottomIndex],
+                    bv = p.values[layer.topIndex],
+                    bb = p.values[layer.bottomIndex];
+                  if (
+                    !av ||
+                    !ab ||
+                    !bv ||
+                    !bb ||
+                    av.value <= ab.value ||
+                    bv.value <= bb.value
+                  )
+                    return null;
+                  const outside = [av, ab, bv, bb].some((v) => v.extrapolated);
+                  if (outside && !extrapolate) return null;
+                  return (
+                    <polygon
+                      key={i}
+                      points={`${x(a.e)},${y(av.value)} ${x(p.e)},${y(bv.value)} ${x(p.e)},${y(bb.value)} ${x(a.e)},${y(ab.value)}`}
+                      fill={layer.color}
+                      fillOpacity={outside ? 0.22 : 0.6}
+                    />
+                  );
+                })}
+              </g>
+            ),
+        )}
+      {horizons.map(
+        (h, k) =>
+          boundaryVisible[k] && (
+            <g key={h.id}>
+              {points.slice(1).map((p, i) => {
+                const a = points[i],
+                  v = p.values[k],
+                  av = a.values[k];
+                if (!v || !av) return null;
+                return (
+                  <line
+                    key={i}
+                    x1={x(a.e)}
+                    y1={y(av.value)}
+                    x2={x(p.e)}
+                    y2={y(v.value)}
+                    stroke={h.color}
+                    strokeWidth={2.5}
+                    strokeDasharray={
+                      v.extrapolated || av.extrapolated ? "4 3" : undefined
+                    }
+                  />
+                );
+              })}
+            </g>
+          ),
+      )}
       {near.map((h) => (
         <g
           key={h.id}
@@ -268,6 +322,11 @@ export default function RealGroundPage({
     [logIndex, setLogIndex] = useState(0);
   const set = <K extends keyof GroundView>(key: K, value: GroundView[K]) =>
     setV({ ...v, [key]: value });
+  // Existing autosaved drafts predate volume controls; keep their data and add defaults.
+  const representation = v.representation ?? "solid",
+    solidVisible = v.solidVisible ?? [true, true, true],
+    meshOpacity = v.meshOpacity ?? 1,
+    cutaway = v.cutaway ?? false;
   const selected = holes.find((h) => h.id === v.selected) ?? holes[0];
   const shown = holes.filter((h) => v.shownCampaigns.includes(h.campaign)),
     modelHoles = holes.filter(
@@ -284,7 +343,7 @@ export default function RealGroundPage({
       if (Object.values(v.parameters).some((x) => x === ""))
         throw Error("크리깅 입력값을 채워 주세요.");
       const model = createRealModel(modelHoles, parameters),
-        grid = realGrid(model),
+        grid = realGrid(model, 65, 65),
         section = realSection(model, v.sectionNorth),
         loo = realLOO(model);
       return { model, grid, section, loo, error: "" };
@@ -326,7 +385,14 @@ export default function RealGroundPage({
       sourceSha256: c.sourceSha256,
     })),
     parameters,
-    view: { ...v, recordId: undefined },
+    view: {
+      ...v,
+      representation,
+      solidVisible,
+      meshOpacity,
+      cutaway,
+      recordId: undefined,
+    },
     registration: {
       ...v.registration,
       masterOriginENH: source.frame.originENH,
@@ -660,6 +726,9 @@ export default function RealGroundPage({
                     ...v,
                     modelCampaign: e.target.value,
                     sectionNorth: north,
+                    selected: next.some((h) => h.id === v.selected)
+                      ? v.selected
+                      : next[0].id,
                   });
                 }}
               >
@@ -695,6 +764,58 @@ export default function RealGroundPage({
               <RotateCcw size={14} /> 모델 전체 보기
             </button>
           </div>
+          {v.mode === "ground" && (
+            <div className="real-volume-toolbar">
+              <div className="real-mode-buttons" aria-label="지층 표현 방식">
+                {(
+                  [
+                    ["solid", "채운 지층"],
+                    ["surfaces", "경계면"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    className={representation === id ? "active" : ""}
+                    aria-pressed={representation === id}
+                    onClick={() => set("representation", id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {representation === "solid" && (
+                <>
+                  <label className="real-opacity-control">
+                    불투명도 {Math.round(meshOpacity * 100)}%
+                    <input
+                      aria-label="지층 메쉬 불투명도"
+                      type="range"
+                      min={0.4}
+                      max={1}
+                      step={0.05}
+                      value={meshOpacity}
+                      onChange={(e) =>
+                        set("meshOpacity", Number(e.target.value))
+                      }
+                    />
+                  </label>
+                  <label className="real-cutaway-control">
+                    <input
+                      type="checkbox"
+                      checked={cutaway}
+                      onChange={(e) => set("cutaway", e.target.checked)}
+                    />{" "}
+                    단면 열기
+                  </label>
+                  {cutaway && (
+                    <span className="real-muted">
+                      아래 단면 위치의 남쪽을 걷어냅니다.
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           {v.modelCampaign === "all" && (
             <div className="real-warning">
               <AlertTriangle size={16} />
@@ -712,11 +833,15 @@ export default function RealGroundPage({
               <RealGroundScene
                 assets={assets}
                 grid={analysis.grid}
-                holes={shown}
+                holes={v.mode === "ground" ? modelHoles : shown}
                 horizons={analysis.model!.horizons}
                 selected={selected.id}
                 onSelect={pick}
                 visible={v.visible}
+                representation={representation}
+                solidVisible={solidVisible}
+                meshOpacity={meshOpacity}
+                cutaway={cutaway}
                 showHoles={v.showHoles}
                 extrapolate={v.extrapolate}
                 showVariance={v.showVariance}
@@ -734,17 +859,26 @@ export default function RealGroundPage({
           </p>
           <div className="real-model-controls">
             <div className="real-campaign-pills">
-              {analysis.model?.horizons.map((h, i) => (
+              {(representation === "solid"
+                ? [
+                    ...VOLUME_LAYERS,
+                    { id: "rock-top", name: "암반 출현면", color: "#667f9c" },
+                  ]
+                : (analysis.model?.horizons ?? [])
+              ).map((h, i) => (
                 <label key={h.id}>
                   <input
                     type="checkbox"
-                    checked={v.visible[i]}
+                    checked={
+                      (representation === "solid" ? solidVisible : v.visible)[i]
+                    }
                     onChange={(e) =>
                       set(
-                        "visible",
-                        v.visible.map((x, j) =>
-                          i === j ? e.target.checked : x,
-                        ),
+                        representation === "solid" ? "solidVisible" : "visible",
+                        (representation === "solid"
+                          ? solidVisible
+                          : v.visible
+                        ).map((x, j) => (i === j ? e.target.checked : x)),
                       )
                     }
                   />
@@ -768,15 +902,17 @@ export default function RealGroundPage({
                   checked={v.extrapolate}
                   onChange={(e) => set("extrapolate", e.target.checked)}
                 />{" "}
-                외삽면 표시
+                외삽 영역 표시
               </label>
               <label>
                 <input
                   type="checkbox"
                   checked={v.showVariance}
+                  disabled={representation === "solid"}
                   onChange={(e) => set("showVariance", e.target.checked)}
                 />{" "}
                 보간 분산
+                {representation === "solid" ? " · 경계면 보기에서" : ""}
               </label>
               <label>
                 높이 배율{" "}
@@ -792,17 +928,20 @@ export default function RealGroundPage({
             </div>
           </div>
           <p className="real-muted real-under-view">
-            시추공은 관측 구간을, 면은 확인된 경계의 보간값을 표시합니다.
-            관찰되지 않은 암반 하단면은 만들지 않습니다. DSM·점군 높이와 과거
-            공구 표고의 차이는 침하량이 아닙니다.
+            채운 지층은 관측 경계 사이의 보간 영역입니다. 표층 복합층은 공구
+            표고부터 풍화토 상단까지, 풍화토는 암반 출현면까지 표시합니다.
+            암반은 하단이 확인되지 않아 출현면만 표시합니다. DSM·점군 높이와
+            과거 공구 표고의 차이는 침하량이 아닙니다.
           </p>
           <section className="real-panel">
             <div className="real-panel-heading">
               <div>
                 <h2>동서 지층 단면</h2>
                 <p>
-                  실선: 공 분포 내부 보간 · 점선: 외삽 · 막대: 단면 ±12m 내
-                  관측공
+                  {representation === "solid"
+                    ? "색 영역: 경계 사이 지층 · "
+                    : ""}
+                  실선: 내부 보간 · 점선: 외삽 · 막대: 단면 ±12m 내 관측공
                 </p>
               </div>
               <label>
@@ -810,8 +949,8 @@ export default function RealGroundPage({
                 <input
                   aria-label="실제 지층 단면 북쪽 좌표"
                   type="range"
-                  min={Math.min(...holes.map((h) => h.northing)) - 10}
-                  max={Math.max(...holes.map((h) => h.northing)) + 10}
+                  min={Math.min(...modelHoles.map((h) => h.northing))}
+                  max={Math.max(...modelHoles.map((h) => h.northing))}
                   step={0.5}
                   value={v.sectionNorth}
                   onChange={(e) => set("sectionNorth", Number(e.target.value))}
@@ -825,6 +964,18 @@ export default function RealGroundPage({
               holes={modelHoles}
               selected={selected.id}
               onSelect={pick}
+              extrapolate={v.extrapolate}
+              filled={representation === "solid"}
+              solidVisible={solidVisible}
+              boundaryVisible={
+                representation === "solid"
+                  ? [
+                      solidVisible[0],
+                      solidVisible[0] || solidVisible[1],
+                      solidVisible[2],
+                    ]
+                  : v.visible
+              }
             />
           </section>
           <div className="real-model-bottom">
