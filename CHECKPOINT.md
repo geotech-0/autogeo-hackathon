@@ -1,32 +1,26 @@
 # AutoGeo 실행 상태
 
-- T0: 2026-09-21 17:24 KST. 업데이트: 18:15 KST, 경과 약51분.
-- P0 구현·수치·UI 오류경로·독립 검수 완료. 최종 공개본 배포 및 재현 검증 진행.
-- 기존 Preview 정상 commit: 423393c93da24bf14782d239b7cb9b2e0bb8117a.
-- Production URL: https://autogeo-hackathon.vercel.app/ (현재 초기본, 아래 전체 기능 배포로 갱신 예정).
+- T0: 2026-09-21 17:24 KST. 18:23 KST 기준 경과 약59분. 시간 채우기 대기 없음.
 - 공개 GitHub: https://github.com/geotech-0/autogeo-hackathon
+- Production: https://autogeo-hackathon.vercel.app/
+- 기능 완성 정상배포/검증 commit: 46c852ab58feb69682214cc570cf9552b191ef0c. 최종 문서와 단면 축 라벨 위치 수정 개정은 /version.json 및 제출 배포 기록으로 확인.
 
 ## 완료
 
-네 업무, GEOX 허용입력/수동최대값/앵커→Jf→띠장, 직접Qu/Fs, ordinary kriging, 공간맞춤과 역변환, 평판/계측/영상, GPR 및 공통 개정 이력 구현.
-실제 원문 137시험 및 20사례 회귀, NH14/41구간/실제 개략정합과 독립 수치대조 완료.
-공개 통합시험과 production build 통과. 3뷰포트 검수·JSON 실제 파일 왕복·CSV 실제 업로드·기준 보류 저장·네트워크/WebGL 실패 복구 확인.
-마지막 독립 발견인 초안 읽기 실패 덮어쓰기 방지와 회귀시험 추가 완료.
-공개 자료/라이선스 감사, 제출문안4개·로그 준비안내·GEOX 매핑·발표PDF/PPTX5장 완성.
+입찰/설계/시공/유지관리 P0, 공통 저장/개정/JSON, GEOX 허용목록과 수동최대값, 원문137시험·20사례 회귀, 실제 NH14/41구간·개략정합·독립수치대조.
+74/74 통합시험, Production build, 공개 Preview→Production, 인증 없는8경로/11자산확인, 새공개clone npm ci/test/build, 라이선스/출처감사 완료.
+실제 CUA 시연·저장/새로고침·전역JSON왕복·CSV파일업로드·Production HTML/JSON다운로드·3뷰포트·키보드·503/WebGL오류복구·초안실패회귀 완료.
+발표5페이지PDF/PPTX, 실제goal원문, 시연대본, 최종제출설명, 110분사람체크리스트, 종료후로그사본준비안내 완료.
 
-## 다음 작업
+## 마무리 중
 
-최종 release commit→Preview/Production 실제 열기→버전/깊은경로/자산/계산/저장/성능·반응형 캡처→unauth clean clone npm ci/test/build→최종 보고서/배포 식별 기록.
-영상 공개·활성세션 종료 후 로그 준비/업로드·행사 대표자 제출은 사람이 수행할110분 체크리스트로 분리.
+최종 단면 단위 눈금 겹침 수정의 지반15시험/빌드 통과. 최종commit을 게시하고 동일소스 배포/캡처 재확인 후 목표 완료. P1은 추가하지 않음.
 
-## 파일 담당
+## 사람의 후속 작업
 
-root: 공통/App/storage/config/docs/deploy/submission
-reference_audit: design 및 independent recovery/presentation
-past_projects: ground 및 로컬 원문 검산/제출문안
-scope_feasibility: field/maintenance 및 임시 위임된 useDraft 회귀
+영상 녹화/공개, 이세션종료후JSONL사본준비/업로드, 대표계정행사4개항목최종제출. 이작업들은 제출완료로 표시하지않는다.
 
-## 다음 명령
+## 자료 위치/소유권
 
-npm test / npm run build (최종 관련 변경 검증), git diff --check, 공개 허용목록 점검, git push.
-실제 원문과 로그는 공개앱 밖 local-private/work에 보관한다.
+app repo는 공개 합성자료만 포함. 실제 검산/정합은 repo밖 제출폴더 local-private. root공통/배포, design·ground·field/maintenance 담당 위임 종료.
+TEST_REPORT.md/VISUAL_QA.md/DATA_SOURCES.md/DECISIONS.md 참고. 재실행 npm ci && npm run dev.

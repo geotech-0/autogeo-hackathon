@@ -284,8 +284,8 @@ function Section({
       <text x="8" y="15">
         표고 m
       </text>
-      <text x={width - 6} y={height - 12} textAnchor="end">
-        E(m)
+      <text x={width - 6} y="15" textAnchor="end">
+        동쪽 좌표 E (m)
       </text>
     </svg>
   );
