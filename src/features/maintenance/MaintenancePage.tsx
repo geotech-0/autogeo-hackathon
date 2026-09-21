@@ -27,6 +27,7 @@ import {
   advanceRealGpr,
   isDate,
 } from "./real-model.mjs";
+import { navigateGprDraft, committedGprDraft } from "./draft-navigation.mjs";
 import "../field/real-field.css";
 import "./maintenance.css";
 type Event = { stage: string; date: string; author: string; note: string };
@@ -39,6 +40,10 @@ type Draft = {
   model: Model;
   event: { date: string; author: string; note: string };
   editing: boolean;
+  pendingDrafts?: Record<
+    string,
+    { model: Model; event: Draft["event"]; editing: boolean }
+  >;
 };
 const PdfDocument = lazy(() => import("../../components/PdfDocument"));
 const initial: Draft = {
@@ -58,13 +63,7 @@ export default function MaintenancePage(props: FeatureProps) {
     state.ready,
     (r) => {
       if (r.payload.kind !== "real_gpr") return;
-      setDraft((d) => ({
-        ...d,
-        recordId: r.id,
-        model: structuredClone(r.payload.model as Model),
-        editing: false,
-        event: { ...d.event, note: "" },
-      }));
+      load(r, true);
     },
   );
   const [saving, setSaving] = useState(false),
@@ -76,6 +75,14 @@ export default function MaintenancePage(props: FeatureProps) {
       mime: string;
     } | null>(null),
     [viewerText, setViewerText] = useState("");
+  const firstInput = useRef<HTMLInputElement>(null);
+  const errorSummary = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (state.ready && draft.editing) firstInput.current?.focus();
+  }, [state.ready, draft.editing, draft.recordId]);
+  useEffect(() => {
+    if (errors.length) errorSummary.current?.focus();
+  }, [errors]);
   const dialogRef = useRef<HTMLDivElement>(null);
   const priorFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -143,6 +150,8 @@ export default function MaintenancePage(props: FeatureProps) {
   );
   const selected = props.records.find((r) => r.id === draft.recordId);
   const stageLabels = REAL_STAGE_LABELS as Record<string, string>;
+  const displayedStatus = (item: Model) =>
+    `${item.archived ? "보관 · " : ""}${item.closed ? "마감" : stageLabels[item.lifecycle]}`;
   const attachments = model.attachments;
   useEffect(() => {
     let active = true;
@@ -176,16 +185,11 @@ export default function MaintenancePage(props: FeatureProps) {
       label: (r.payload.model as Model).line,
     }))
     .filter((p) => p.easting && p.northing);
-  function load(r: ProjectRecord) {
-    setDraft((d) => ({
-      ...d,
-      recordId: r.id,
-      model: structuredClone(r.payload.model as Model),
-      editing: false,
-      event: { ...d.event, note: "" },
-    }));
+  function load(r: ProjectRecord, forceSaved = false) {
+    setDraft((d) => navigateGprDraft(d, r, { forceSaved }));
     setErrors([]);
   }
+
   async function persist(next: Model) {
     const errs = validateRealGpr(next);
     if (errs.length) {
@@ -232,17 +236,13 @@ export default function MaintenancePage(props: FeatureProps) {
           : ["좌표 미등록: 위치 설명과 첨부 원문을 확인합니다."]),
       ],
     });
-    setDraft((d) => ({
-      ...d,
-      recordId: saved.id,
-      model: next,
-      editing: false,
-    }));
+    setDraft((d) => committedGprDraft(d, saved.id, next));
     setErrors([]);
     return saved;
   }
   async function save() {
     setSaving(true);
+    setErrors([]);
     try {
       const next = {
         ...model,
@@ -260,26 +260,32 @@ export default function MaintenancePage(props: FeatureProps) {
       await persist(next);
       props.notify("유지관리 조사 기록을 저장했습니다.", "success");
     } catch (e) {
-      props.notify(e instanceof Error ? e.message : "저장 실패", "error");
+      const message = e instanceof Error ? e.message : "저장 실패";
+      setErrors((previous) => (previous.length ? previous : [message]));
+      props.notify(message, "error");
     } finally {
       setSaving(false);
     }
   }
   async function advance() {
     setSaving(true);
+    setErrors([]);
     try {
       const next = advanceRealGpr(model, draft.event);
       await persist(next);
       setDraft((d) => ({ ...d, event: { ...d.event, note: "" } }));
       props.notify("수행 이력을 보존했습니다.", "success");
     } catch (e) {
-      props.notify(e instanceof Error ? e.message : "저장 실패", "error");
+      const message = e instanceof Error ? e.message : "저장 실패";
+      setErrors((previous) => (previous.length ? previous : [message]));
+      props.notify(message, "error");
     } finally {
       setSaving(false);
     }
   }
   async function archive() {
     setSaving(true);
+    setErrors([]);
     try {
       await persist({ ...model, archived: !model.archived });
       props.notify(
@@ -289,13 +295,16 @@ export default function MaintenancePage(props: FeatureProps) {
         "success",
       );
     } catch (e) {
-      props.notify(e instanceof Error ? e.message : "저장 실패", "error");
+      const message = e instanceof Error ? e.message : "저장 실패";
+      setErrors((previous) => (previous.length ? previous : [message]));
+      props.notify(message, "error");
     } finally {
       setSaving(false);
     }
   }
   async function close() {
     setSaving(true);
+    setErrors([]);
     try {
       if (
         model.lifecycle !== "reinspection" ||
@@ -323,7 +332,9 @@ export default function MaintenancePage(props: FeatureProps) {
         "success",
       );
     } catch (e) {
-      props.notify(e instanceof Error ? e.message : "저장 실패", "error");
+      const message = e instanceof Error ? e.message : "저장 실패";
+      setErrors((previous) => (previous.length ? previous : [message]));
+      props.notify(message, "error");
     } finally {
       setSaving(false);
     }
@@ -331,6 +342,7 @@ export default function MaintenancePage(props: FeatureProps) {
   async function attach(file?: File) {
     if (!file) return;
     setSaving(true);
+    setErrors([]);
     try {
       const a = await saveAttachment(file, "gpr-user-original");
       setDraft((d) => ({
@@ -370,12 +382,19 @@ export default function MaintenancePage(props: FeatureProps) {
         <button
           className="btn btn-primary"
           onClick={() => {
-            setDraft({ ...initial, editing: true });
+            setDraft((d) => navigateGprDraft(d, null));
             setErrors([]);
           }}
-          disabled={!state.ready}
+          disabled={
+            !state.ready || saving || (!draft.recordId && draft.editing)
+          }
         >
-          <Plus size={17} /> 조사 등록
+          <Plus size={17} />{" "}
+          {draft.editing && !draft.recordId
+            ? "조사 작성 중"
+            : draft.pendingDrafts?.__new
+              ? "새 조사 이어쓰기"
+              : "조사 등록"}
         </button>
       </header>
       <div className="rf-warning">
@@ -391,11 +410,22 @@ export default function MaintenancePage(props: FeatureProps) {
           입력은 저장된 값으로 바뀝니다.
         </div>
       )}
-      {errors.map((e) => (
-        <p className="rf-error" key={e}>
-          {e}
-        </p>
-      ))}
+      {errors.length > 0 && (
+        <div
+          ref={errorSummary}
+          className="rm-error-summary"
+          tabIndex={-1}
+          role="alert"
+          aria-label="입력 확인"
+        >
+          <strong>입력 내용을 확인해 주세요</strong>
+          <ul>
+            {errors.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="rm-layout">
         <aside className="rf-card">
           <div className="rf-heading">
@@ -422,28 +452,35 @@ export default function MaintenancePage(props: FeatureProps) {
                 key={r.id}
                 className={`rm-record ${r.id === draft.recordId ? "active" : ""}`}
                 onClick={() => load(r)}
+                disabled={!state.ready || saving}
+                aria-pressed={r.id === draft.recordId}
               >
                 <strong>{r.title}</strong>
                 <small>
                   {(r.payload.model as Model).line} ·{" "}
-                  {stageLabels[(r.payload.model as Model).lifecycle]} · r
-                  {r.revision}
+                  {displayedStatus(r.payload.model as Model)} · r{r.revision}
                 </small>
               </button>
             ))
           )}
         </aside>
-        <main className="rm-main">
+        <section className="rm-main" aria-label="조사 상세 및 수행 이력">
           {(draft.editing || draft.recordId) && (
             <section className="rf-card">
               <div className="rf-heading">
                 <h2>{draft.recordId ? "조사 상세" : "새 조사 등록"}</h2>
                 {selected && (
                   <span className="badge badge-neutral">
-                    r{selected.revision} · {stageLabels[model.lifecycle]}
+                    r{selected.revision} · {displayedStatus(model)}
                   </span>
                 )}
               </div>
+              {draft.editing && (
+                <p className="rf-note">
+                  입력 중인 내용은 초안으로 보관됩니다. 원본 첨부 후 조사 정보를
+                  저장하세요.
+                </p>
+              )}
               <div className="rm-steps">
                 {REAL_STAGES.map((s, i) => (
                   <span
@@ -489,14 +526,11 @@ export default function MaintenancePage(props: FeatureProps) {
                       ["surveyDate", "조사일"],
                       ["interpreter", "해석 담당자"],
                       ["location", "위치 설명"],
-                      ["equipment", "장비·주파수 (선택)"],
-                      ["depth", "해석 심도·단위 (선택)"],
-                      ["easting", "측선 대표 E (m, 선택)"],
-                      ["northing", "측선 대표 N (m, 선택)"],
                     ].map(([key, label]) => (
                       <label className="rf-label" key={key}>
                         {label}
                         <input
+                          ref={key === "title" ? firstInput : undefined}
                           type={key === "surveyDate" ? "date" : "text"}
                           value={String(model[key as keyof Model])}
                           onChange={(e) => update(key, e.target.value)}
@@ -504,6 +538,34 @@ export default function MaintenancePage(props: FeatureProps) {
                       </label>
                     ))}
                   </div>
+                  <details
+                    className="rf-details rm-optional-fields"
+                    open={
+                      errors.some((e) => /좌표|측선 위치/.test(e)) || undefined
+                    }
+                  >
+                    <summary>장비·심도·지도 좌표 (선택)</summary>
+                    <p className="rf-note">
+                      위치 설명만으로 등록할 수 있습니다. 좌표는 아래 지도에서
+                      선택하거나 E·N을 함께 입력하세요.
+                    </p>
+                    <div className="rf-grid2">
+                      {[
+                        ["equipment", "장비·주파수"],
+                        ["depth", "해석 심도·단위"],
+                        ["easting", "측선 대표 E (m)"],
+                        ["northing", "측선 대표 N (m)"],
+                      ].map(([key, label]) => (
+                        <label className="rf-label" key={key}>
+                          {label}
+                          <input
+                            value={String(model[key as keyof Model])}
+                            onChange={(e) => update(key, e.target.value)}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </details>
                   <label className="rf-label">
                     해석 결과 · 추정과 확인 사실을 구분
                     <textarea
@@ -588,7 +650,7 @@ export default function MaintenancePage(props: FeatureProps) {
                   <button
                     className="btn btn-ghost"
                     onClick={archive}
-                    disabled={saving}
+                    disabled={saving || draft.editing}
                   >
                     {model.archived ? (
                       <RotateCcw size={15} />
@@ -606,8 +668,9 @@ export default function MaintenancePage(props: FeatureProps) {
               <div className="rf-heading">
                 <h2>확인·조치·재점검</h2>
                 <span
-                  className={`badge badge-${model.closed ? "success" : "warning"}`}
+                  className={`badge badge-${model.archived ? "neutral" : model.closed ? "success" : "warning"}`}
                 >
+                  {model.archived ? "보관 · " : ""}
                   {model.closed ? "마감" : "진행 중"}
                 </span>
               </div>
@@ -619,72 +682,83 @@ export default function MaintenancePage(props: FeatureProps) {
                 </div>
               )}
 
-              <div className="rf-grid2">
+              {draft.editing && (
+                <p className="rf-note">
+                  조사 정보를 수정 중입니다. 위에서 조사 정보를 저장한 다음 수행
+                  이력을 기록하세요.
+                </p>
+              )}
+              <fieldset
+                disabled={saving || draft.editing || !state.ready}
+                className="rm-fieldset"
+              >
+                <div className="rf-grid2">
+                  <label className="rf-label">
+                    수행일
+                    <input
+                      type="date"
+                      value={draft.event.date}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          event: { ...d.event, date: e.target.value },
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="rf-label">
+                    수행 담당자
+                    <input
+                      value={draft.event.author}
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          event: { ...d.event, author: e.target.value },
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
                 <label className="rf-label">
-                  수행일
-                  <input
-                    type="date"
-                    value={draft.event.date}
+                  수행 결과·확인 근거
+                  <textarea
+                    rows={3}
+                    value={draft.event.note}
                     onChange={(e) =>
                       setDraft((d) => ({
                         ...d,
-                        event: { ...d.event, date: e.target.value },
+                        event: { ...d.event, note: e.target.value },
                       }))
                     }
                   />
                 </label>
-                <label className="rf-label">
-                  수행 담당자
-                  <input
-                    value={draft.event.author}
-                    onChange={(e) =>
-                      setDraft((d) => ({
-                        ...d,
-                        event: { ...d.event, author: e.target.value },
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-              <label className="rf-label">
-                수행 결과·확인 근거
-                <textarea
-                  rows={3}
-                  value={draft.event.note}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      event: { ...d.event, note: e.target.value },
-                    }))
-                  }
-                />
-              </label>
-              <div className="rf-controls">
-                {model.lifecycle !== "reinspection" ? (
-                  <button
-                    className="btn btn-primary"
-                    disabled={saving || draft.editing}
-                    onClick={advance}
-                  >
-                    {
-                      stageLabels[
-                        REAL_STAGES[REAL_STAGES.indexOf(model.lifecycle) + 1]
-                      ]
-                    }{" "}
-                    기록 <ArrowRight size={16} />
-                  </button>
-                ) : (
-                  <button
-                    className="btn btn-primary"
-                    disabled={saving || draft.editing}
-                    onClick={close}
-                  >
-                    {model.closed
-                      ? "추가 확인을 위해 다시 열기"
-                      : "재점검 근거 확인 후 마감"}
-                  </button>
-                )}
-              </div>
+                <div className="rf-controls">
+                  {model.lifecycle !== "reinspection" ? (
+                    <button
+                      className="btn btn-primary"
+                      disabled={saving || draft.editing}
+                      onClick={advance}
+                    >
+                      {
+                        stageLabels[
+                          REAL_STAGES[REAL_STAGES.indexOf(model.lifecycle) + 1]
+                        ]
+                      }{" "}
+                      기록 <ArrowRight size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-primary"
+                      disabled={saving || draft.editing}
+                      onClick={close}
+                    >
+                      {model.closed
+                        ? "추가 확인을 위해 다시 열기"
+                        : "재점검 근거 확인 후 마감"}
+                    </button>
+                  )}
+                </div>
+              </fieldset>
               <details className="rf-details">
                 <summary>전체 조치 이력 · {model.history.length}건</summary>
                 <ol className="rf-history">
@@ -714,7 +788,7 @@ export default function MaintenancePage(props: FeatureProps) {
           )}
           <details
             className="rf-card rm-location-details"
-            open={!draft.recordId || draft.editing}
+            open={draft.editing || undefined}
           >
             <summary>유지관리 대상 위치 · 원본 정사영상</summary>
             <RealSiteMap
@@ -740,7 +814,7 @@ export default function MaintenancePage(props: FeatureProps) {
               미등록 좌표는 지도에 표시하지 않습니다.
             </p>
           </details>
-        </main>
+        </section>
       </div>
       {viewer && (
         <div

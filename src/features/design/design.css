@@ -18,6 +18,11 @@
   cursor: not-allowed;
   opacity: 0.5;
 }
+.design-page button:focus-visible,
+.design-page a:focus-visible {
+  outline: 3px solid #0f6fff;
+  outline-offset: 3px;
+}
 .design-page .btn {
   display: inline-flex;
   align-items: center;
@@ -2093,5 +2098,167 @@
 @media (max-width: 560px) {
   .design-reset-options > summary {
     padding: 15px 16px;
+  }
+}
+
+/* Make validation, navigation and the save destination visible in every step. */
+.design-review-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 18px;
+  margin-bottom: 18px;
+  border: 1px solid #dce6f2;
+  border-radius: 9px;
+  background: #f4f8fd;
+}
+.design-review-state strong {
+  color: #354d6b;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.design-review-state p {
+  color: #5e7189;
+  font-size: 12px;
+  line-height: 1.7;
+  margin-top: 3px;
+}
+.design-review-state.has-errors {
+  background: #fff5f5;
+  border-color: #edc6ca;
+  flex-wrap: wrap;
+}
+.design-review-state.has-errors strong {
+  color: #a33345;
+}
+.design-error-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.design-page .design-error-shortcuts .btn {
+  font-size: 12px;
+  color: #963044;
+}
+.design-input-hint,
+.design-field-error .design-input-hint {
+  color: #66778c;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.design-page [aria-invalid="true"] {
+  border-color: #c95062;
+  background: #fffafb;
+}
+.design-page input,
+.design-editor-heading h2,
+.design-saved-heading h3 {
+  scroll-margin-top: 125px;
+}
+.design-editor-heading h2:focus-visible,
+.design-saved-heading h3:focus-visible {
+  outline: 2px solid #0f6fff;
+  outline-offset: 5px;
+  border-radius: 3px;
+}
+.design-analysis-evidence {
+  margin-top: 10px;
+}
+.design-analysis-evidence > summary {
+  padding: 12px 0;
+}
+.design-source-hint {
+  color: #6a5834;
+  background: #fff8e9;
+  border-radius: 5px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.design-criterion-note {
+  padding: 12px;
+  margin-top: 14px !important;
+  background: #fff8e9;
+  color: #7b5728;
+  border: 1px solid #ead6ad;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.design-result-errors li {
+  margin-top: 10px;
+}
+.design-result-errors li > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 3px 6px;
+  margin-left: -6px;
+  background: transparent;
+  border: 0;
+  color: #993248;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
+}
+.design-result-errors li > span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.design-page .btn,
+.design-stepper button,
+.design-page details > summary {
+  min-height: 44px;
+}
+.design-case-links .btn {
+  padding: 6px 8px;
+}
+.design-case-links a {
+  min-height: 44px;
+}
+.design-saved-heading p {
+  max-width: 620px;
+  line-height: 1.75;
+}
+.design-record-list strong,
+.design-record-list p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .design-review-state {
+    padding: 13px;
+  }
+  .design-case-links {
+    gap: 2px 12px;
+  }
+  .design-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .design-span-2 {
+    grid-column: auto;
+  }
+  .design-page .design-field input,
+  .design-page .design-field select,
+  .design-page .design-analysis-value select {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .design-analysis-title {
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .design-analysis-title > span {
+    flex-shrink: 0;
+  }
+  .design-input-unit input {
+    padding-right: 62px !important;
+  }
+  .design-editor-footer {
+    gap: 6px;
+  }
+  .design-saved-heading {
+    align-items: flex-start;
   }
 }

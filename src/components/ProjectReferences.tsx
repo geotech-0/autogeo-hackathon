@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useDraft } from "../storage/useDraft";
+import { useRequestedRecord } from "../features/field/useRequestedRecord";
 import { ArrowUpRight, Link2, Search } from "lucide-react";
 import type { FeatureProps } from "../contracts";
 
@@ -101,23 +103,46 @@ const refs = [
   },
 ];
 
-export default function ProjectReferences({ onSave, notify }: FeatureProps) {
+export default function ProjectReferences({
+  onSave,
+  notify,
+  records,
+  requestedRecordId,
+}: FeatureProps) {
   const [query, setQuery] = useState("");
-  const [active, setActive] = useState(refs[0]);
+  const [draft, setDraft, draftState] = useDraft<{
+    activeId: string;
+    recordIds: Record<string, { id: string; revision: number }>;
+  }>("project-reference-review", { activeId: refs[0].id, recordIds: {} });
+  const active = refs.find((entry) => entry.id === draft.activeId) || refs[0];
+  const savedRecord = draft.recordIds[active.id];
+  useRequestedRecord(requestedRecordId, records, draftState.ready, (record) => {
+    const entry = refs.find((item) => item.id === record.payload.reference_id);
+    if (record.payload.kind !== "standard-adoption" || !entry) return;
+    setDraft((previous) => ({
+      ...previous,
+      activeId: entry.id,
+      recordIds: {
+        ...previous.recordIds,
+        [entry.id]: { id: record.id, revision: record.revision },
+      },
+    }));
+  });
   const [saving, setSaving] = useState(false);
   const found = useMemo(
     () =>
       refs.filter((r) =>
         `${r.title} ${r.code} ${r.subject}`
           .toLowerCase()
-          .includes(query.toLowerCase()),
+          .includes(query.trim().toLowerCase()),
       ),
     [query],
   );
   const save = async () => {
     setSaving(true);
     try {
-      await onSave({
+      const record = await onSave({
+        ...(savedRecord ? { id: savedRecord.id } : {}),
         stage: "tender",
         title: `${active.subject} · 계산서 채택근거`,
         summary: `${active.code} · PDF ${active.pages}쪽`,
@@ -137,7 +162,14 @@ export default function ProjectReferences({ onSave, notify }: FeatureProps) {
           adoption_status: "review-required",
         },
       });
-      notify("계산서의 채택근거를 현장 검토에 연결했습니다.");
+      setDraft((previous) => ({
+        ...previous,
+        recordIds: {
+          ...previous.recordIds,
+          [active.id]: { id: record.id, revision: record.revision },
+        },
+      }));
+      notify(`계산서 채택근거 개정 ${record.revision}을 저장했습니다.`);
     } catch (e) {
       notify(e instanceof Error ? e.message : "저장하지 못했습니다.", "error");
     } finally {
@@ -149,16 +181,35 @@ export default function ProjectReferences({ onSave, notify }: FeatureProps) {
       <div className="panel-header">
         <div>
           <span className="eyebrow">PROJECT DESIGN BASIS</span>
-          <h2>이 현장 계산서는 무엇을 근거로 했나요?</h2>
+          <h2>계산서에 사용된 근거</h2>
           <p className="muted">
-            원문이 채택한 판본·식·값을 먼저 확인합니다. 아래 공식 고시 정보와
-            구분해 검토하세요.
+            선택한 항목의 채택판·식·값과 원문 위치를 확인하세요.
           </p>
         </div>
       </div>
       <div className="project-reference-layout">
         <div>
-          <label className="search-input">
+          <label className="field mobile-reference-picker">
+            <span>검토 항목</span>
+            <select
+              aria-label="계산서 검토 항목"
+              value={active.id}
+              disabled={!draftState.ready || saving}
+              onChange={(event) =>
+                setDraft((previous) => ({
+                  ...previous,
+                  activeId: event.target.value,
+                }))
+              }
+            >
+              {refs.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.subject} · {entry.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="search-input reference-search">
             <Search size={17} />
             <input
               aria-label="계산서 근거 검색"
@@ -172,7 +223,11 @@ export default function ProjectReferences({ onSave, notify }: FeatureProps) {
               <button
                 key={r.id}
                 className={r.id === active.id ? "active" : ""}
-                onClick={() => setActive(r)}
+                aria-pressed={r.id === active.id}
+                disabled={!draftState.ready || saving}
+                onClick={() =>
+                  setDraft((previous) => ({ ...previous, activeId: r.id }))
+                }
               >
                 <span>{r.subject}</span>
                 <strong>{r.title}</strong>
@@ -211,12 +266,27 @@ export default function ProjectReferences({ onSave, notify }: FeatureProps) {
             <button
               className="btn btn-primary"
               onClick={save}
-              disabled={saving}
+              disabled={saving || !draftState.ready}
             >
               <Link2 size={15} />
-              {saving ? "연결 중…" : "검토 근거로 연결"}
+              {saving
+                ? "저장 중…"
+                : savedRecord
+                  ? "근거 개정 저장"
+                  : "검토 근거로 저장"}
             </button>
           </div>
+          {savedRecord && (
+            <p className="muted small" role="status">
+              이 근거의 저장 이력: 개정 {savedRecord.revision}
+            </p>
+          )}
+          {draftState.error && (
+            <p className="notice notice-warning" role="alert">
+              작성 상태를 자동 보관하지 못했습니다. 검토 근거를 이력으로
+              저장해주세요.
+            </p>
+          )}
         </div>
       </div>
     </section>

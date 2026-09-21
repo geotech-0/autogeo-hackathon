@@ -415,6 +415,7 @@ export default function RealMonitoring(props: FeatureProps) {
                   return (
                     <button
                       disabled={!state.ready || saving}
+                      aria-pressed={s.id === sensor.id}
                       className={s.id === sensor.id ? "active" : ""}
                       onClick={() => change("sensor", s.id)}
                       key={s.id}
@@ -438,7 +439,10 @@ export default function RealMonitoring(props: FeatureProps) {
             </div>
           ))}
         </aside>
-        <main className="rf-monitor-main">
+        <section
+          className="rf-monitor-main"
+          aria-label={`${sensor.id} ${sensor.label} 검토`}
+        >
           <section className="rf-card">
             <div className="rf-heading">
               <div>
@@ -991,7 +995,7 @@ export default function RealMonitoring(props: FeatureProps) {
               ))}
             </details>
           </section>
-        </main>
+        </section>
       </div>
     </>
   );

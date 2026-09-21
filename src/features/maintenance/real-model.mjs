@@ -41,7 +41,7 @@ export function validateRealGpr(model) {
     followUp: "후속 확인 계획",
   })) {
     if (!String(model[key] || "").trim())
-      errors.push(`${label}을 입력해 주세요.`);
+      errors.push(`${label} 항목을 입력해 주세요.`);
   }
   if (!isDate(model.surveyDate)) errors.push("올바른 조사일을 입력해 주세요.");
   if (!model.attachments?.length)

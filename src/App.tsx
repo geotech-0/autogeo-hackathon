@@ -50,6 +50,8 @@ import {
   saveRecord,
 } from "./storage/database";
 import { SEED_RECORDS } from "./data/seed";
+import { discardPendingDrafts, useDraft } from "./storage/useDraft";
+import { recordPage } from "./utils/record-route";
 import ScenePreview from "./components/ScenePreview";
 import ErrorBoundary from "./components/ErrorBoundary";
 import StandardsPage from "./components/StandardsPage";
@@ -141,6 +143,7 @@ function fmtDate(value: string) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "Asia/Seoul",
   }).format(new Date(value));
 }
 function download(name: string, data: unknown) {
@@ -177,10 +180,12 @@ export default function App() {
   const [historyStage, setHistoryStage] = useState("all");
   const [selected, setSelected] = useState<ProjectRecord | null>(null);
   const [versions, setVersions] = useState<ProjectRecord[]>([]);
-  const [note, setNote] = useState("");
+  const [note, setNote, noteDraft] = useDraft("workspace-review-comment", "");
   const [saving, setSaving] = useState(false);
   const [epoch, setEpoch] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const navigationPending = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -210,6 +215,7 @@ export default function App() {
       .catch(() => setVersions([]));
   }, [selected?.id]);
   const navigate = useCallback((next: Page, recordId?: string) => {
+    navigationPending.current = true;
     setPage(next);
     setRequestedRecordId(recordId || null);
     setMenuOpen(false);
@@ -220,16 +226,76 @@ export default function App() {
       (next === "overview" ? "/" : `/${next}`) +
         (recordId ? `?record=${encodeURIComponent(recordId)}` : ""),
     );
-    document.querySelector(".main-scroll")?.scrollTo({ top: 0 });
+    document
+      .querySelector(".main-scroll")
+      ?.scrollTo({ top: 0, behavior: "instant" });
+    requestAnimationFrame(() => {
+      document.getElementById("main-content")?.focus({ preventScroll: true });
+      navigationPending.current = false;
+    });
   }, []);
   useEffect(() => {
     const pop = () => {
+      navigationPending.current = true;
+      setMenuOpen(false);
       setPage(initialPage());
       setRequestedRecordId(new URLSearchParams(location.search).get("record"));
+      requestAnimationFrame(() => {
+        document.getElementById("main-content")?.focus({ preventScroll: true });
+        navigationPending.current = false;
+      });
     };
     window.addEventListener("popstate", pop);
     return () => window.removeEventListener("popstate", pop);
   }, []);
+  useEffect(() => {
+    document.title = `${NAV.find((item) => item.id === page)?.name} · AutoGeo`;
+  }, [page]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const sidebar = document.getElementById("workspace-navigation");
+    sidebar?.querySelector<HTMLElement>('[aria-current="page"]')?.focus();
+    const key = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const items = [
+        menuButtonRef.current,
+        ...Array.from(
+          sidebar?.querySelectorAll<HTMLElement>(
+            "button:not([disabled]),a[href]",
+          ) || [],
+        ),
+      ].filter(
+        (item): item is HTMLElement =>
+          !!item && item.getClientRects().length > 0,
+      );
+      const first = items[0],
+        last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    const resize = () => {
+      if (window.innerWidth > 767) setMenuOpen(false);
+    };
+    document.addEventListener("keydown", key);
+    window.addEventListener("resize", resize);
+    return () => {
+      document.removeEventListener("keydown", key);
+      window.removeEventListener("resize", resize);
+      if (
+        !navigationPending.current &&
+        !document
+          .getElementById("main-content")
+          ?.contains(document.activeElement)
+      )
+        previous?.focus();
+    };
+  }, [menuOpen]);
   useEffect(() => {
     const openSource = (event: MouseEvent) => {
       if (event.button !== 0) return;
@@ -259,6 +325,20 @@ export default function App() {
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
         return;
       if (link.hasAttribute("download")) return;
+      const linkedPage =
+        url.pathname === "/" ? "overview" : url.pathname.slice(1);
+      if (
+        url.origin === location.origin &&
+        !url.hash &&
+        NAV.some((item) => item.id === linkedPage)
+      ) {
+        event.preventDefault();
+        navigate(
+          linkedPage as Page,
+          new URLSearchParams(url.search).get("record") || undefined,
+        );
+        return;
+      }
       if (
         url.origin !== location.origin ||
         !/^\/documents\/[^/]+\.pdf$/.test(url.pathname)
@@ -276,7 +356,7 @@ export default function App() {
     };
     document.addEventListener("click", openSource);
     return () => document.removeEventListener("click", openSource);
-  }, []);
+  }, [navigate]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -345,7 +425,7 @@ export default function App() {
       (historyStage === "all" || r.stage === historyStage) &&
       `${r.title} ${r.summary} ${r.zone_id} ${r.source_id}`
         .toLowerCase()
-        .includes(query.toLowerCase()),
+        .includes(query.trim().toLowerCase()),
   );
   const exportAll = async () => {
     try {
@@ -390,6 +470,8 @@ export default function App() {
       });
       setNote("");
       notify("검토 의견을 기록했습니다.");
+    } catch {
+      // onSave shows the error; keep the user's text available for retry.
     } finally {
       setSaving(false);
     }
@@ -402,8 +484,11 @@ export default function App() {
       <header className="global-header">
         <div className="brand-lockup">
           <button
+            ref={menuButtonRef}
             className="icon-btn mobile-menu"
-            aria-label="메뉴 열기"
+            aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
+            aria-expanded={menuOpen}
+            aria-controls="workspace-navigation"
             onClick={() => setMenuOpen(!menuOpen)}
           >
             <Menu size={22} />
@@ -419,7 +504,7 @@ export default function App() {
           <ChevronRight size={14} />
           <strong>{SITE.name}</strong>
         </div>
-        <div className="header-right">
+        <div className="header-right" inert={menuOpen || undefined}>
           <span className="demo-label">SITE WORKSPACE</span>
           <button
             className="icon-btn"
@@ -435,11 +520,16 @@ export default function App() {
       {menuOpen && (
         <button
           className="nav-scrim"
+          tabIndex={-1}
           aria-label="메뉴 닫기"
           onClick={() => setMenuOpen(false)}
         />
       )}
-      <aside className={`sidebar ${menuOpen ? "is-open" : ""}`}>
+      <aside
+        id="workspace-navigation"
+        className={`sidebar ${menuOpen ? "is-open" : ""}`}
+        aria-label="업무 메뉴"
+      >
         <div className="site-selector">
           <button
             onClick={() => setSiteOpen(!siteOpen)}
@@ -498,8 +588,13 @@ export default function App() {
           </p>
         </div>
       </aside>
-      <div className="main-scroll">
-        <main id="main-content" className="main-content">
+      <div className="main-scroll" inert={menuOpen || undefined}>
+        <main
+          id="main-content"
+          className="main-content"
+          tabIndex={-1}
+          aria-label={NAV.find((item) => item.id === page)?.name}
+        >
           {(
             ["overview", "history", "standards", "documents"] as Page[]
           ).includes(page) && (
@@ -650,12 +745,7 @@ export default function App() {
                       .map((r, i) => (
                         <button
                           key={r.id}
-                          onClick={() =>
-                            navigate(
-                              r.stage === "tender" ? "tender" : r.stage,
-                              r.id,
-                            )
-                          }
+                          onClick={() => navigate(recordPage(r), r.id)}
                         >
                           <span className={`focus-icon focus-icon-${i}`}>
                             <ClipboardCheck size={19} />
@@ -888,8 +978,34 @@ export default function App() {
                 ) : (
                   <div className="empty-state">
                     <Search />
-                    <h3>조건에 맞는 기록이 없습니다</h3>
-                    <p>다른 검색어나 업무를 선택해주세요.</p>
+                    <h3>
+                      {records.length
+                        ? "조건에 맞는 기록이 없습니다"
+                        : "아직 저장한 검토가 없습니다"}
+                    </h3>
+                    <p>
+                      {records.length
+                        ? "검색어와 선택한 업무를 확인해주세요."
+                        : "각 업무에서 검토 결과를 저장하면 입력·근거·개정 이력을 여기서 다시 열 수 있습니다."}
+                    </p>
+                    {records.length ? (
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setQuery("");
+                          setHistoryStage("all");
+                        }}
+                      >
+                        검색 조건 초기화
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => navigate("tender")}
+                      >
+                        현장 검토 시작 <ArrowRight size={16} />
+                      </button>
+                    )}
                   </div>
                 )}
               </section>
@@ -898,6 +1014,7 @@ export default function App() {
                 <label className="field">
                   <span>현장 검토 의견</span>
                   <textarea
+                    disabled={!noteDraft.ready || saving}
                     rows={3}
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
@@ -906,12 +1023,21 @@ export default function App() {
                 </label>
                 <button
                   className="btn btn-primary"
-                  disabled={!note.trim() || saving}
+                  disabled={!note.trim() || saving || !noteDraft.ready}
                   onClick={saveNote}
                 >
                   <Plus size={16} />
                   {saving ? "저장 중…" : "의견 저장"}
                 </button>
+                {noteDraft.error && (
+                  <p className="notice notice-warning" role="alert">
+                    의견 초안을 보관하지 못했습니다. 입력을 복사하거나 의견
+                    저장으로 남겨주세요.{" "}
+                    <button className="text-link" onClick={noteDraft.retry}>
+                      초안 다시 읽기
+                    </button>
+                  </p>
+                )}
               </section>
               <button className="reset-link" onClick={() => setResetOpen(true)}>
                 <RotateCcw size={14} /> 검토 기록 초기화
@@ -1176,12 +1302,7 @@ export default function App() {
               <button
                 className="btn btn-primary"
                 onClick={() => {
-                  navigate(
-                    selected.payload.kind === "standard-adoption"
-                      ? "standards"
-                      : selected.stage,
-                    selected.id,
-                  );
+                  navigate(recordPage(selected), selected.id);
                   setSelected(null);
                 }}
               >
@@ -1219,12 +1340,16 @@ export default function App() {
                 className="btn btn-danger"
                 onClick={async () => {
                   try {
+                    discardPendingDrafts();
                     await resetProject(SEED_RECORDS);
+                    setNote("");
+                    noteDraft.retry();
                     setResetOpen(false);
                     setEpoch((x) => x + 1);
                     navigate("overview");
                     notify("검토 기록 초기화했습니다.");
                   } catch (e) {
+                    if (!noteDraft.ready) noteDraft.retry();
                     notify(String(e), "error");
                   }
                 }}

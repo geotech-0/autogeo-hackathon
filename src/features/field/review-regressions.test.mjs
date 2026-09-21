@@ -18,7 +18,7 @@ const input = (renderer, label) =>
   renderer.root
     .findAllByType("label")
     .find((node) => textOf(node).startsWith(label))
-    .findByType("input");
+    .find((node) => node.type === "input" || node.type === "textarea");
 const choose = (renderer, label) =>
   renderer.root
     .findAllByType("label")
@@ -103,7 +103,9 @@ test("quality review saves full precision DCPT inputs/results and history restor
     );
     for (const value of ["", "NaN", "1e-320"]) {
       await change(input(renderer, "관입량"), value);
-      await act(async () => button(renderer, " 검토 저장").props.onClick());
+      await act(async () =>
+        button(renderer, " 검토 개정 저장").props.onClick(),
+      );
       assert.equal(saved.length, 1, "invalid input must never reach onSave");
     }
     assert.ok(notices.some(([message]) => message.includes("관입량")));
@@ -273,5 +275,130 @@ test("issue UI keeps unresolved reinspection open, closes explicitly, and reopen
     assert.deepEqual(record.payload.history[0], legacyHistory[0]);
   } finally {
     await act(async () => renderer.unmount());
+  }
+});
+
+test("issue drafts survive issue switching and remount, and only the successfully saved note is cleared", async () => {
+  await writeDraft("real-issue-actions-v1", { selected: "", events: {} });
+  const records = ["qa-issue-a", "qa-issue-b"].map((id) => ({
+    id,
+    title: id,
+    status: "pending",
+    revision: 1,
+    payload: {
+      kind: "real_field_issue",
+      lifecycle: "identified",
+      history: [
+        {
+          stage: "identified",
+          date: "2026-01-01",
+          author: "QA",
+          note: "합성 검수 기록",
+        },
+      ],
+    },
+  }));
+  let fail = true;
+  const saved = [];
+  const props = {
+    records,
+    notify() {},
+    onSave: async (record) => {
+      if (fail) throw new Error("QA 저장 실패");
+      saved.push(record);
+      return { ...record, revision: 2 };
+    },
+  };
+  let r = await render(IssueTracker, props);
+  try {
+    await change(input(r, "수행일"), "2026-01-02");
+    await change(input(r, "담당자"), "QA 검수자 A");
+    await change(input(r, "수행 내용"), "A 미저장 조치\n상세 두 번째 줄");
+    await change(choose(r, "이슈 선택"), records[1].id);
+    assert.equal(input(r, "수행 내용").props.value, "");
+    await change(input(r, "담당자"), "QA 검수자 B");
+    await change(input(r, "수행 내용"), "B 미저장 조치");
+    await change(choose(r, "이슈 선택"), records[0].id);
+    assert.equal(input(r, "담당자").props.value, "QA 검수자 A");
+    assert.equal(
+      input(r, "수행 내용").props.value,
+      "A 미저장 조치\n상세 두 번째 줄",
+    );
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 200)));
+    await act(async () => r.unmount());
+    r = await render(IssueTracker, props);
+    assert.equal(choose(r, "이슈 선택").props.value, records[0].id);
+    assert.equal(
+      input(r, "수행 내용").props.value,
+      "A 미저장 조치\n상세 두 번째 줄",
+    );
+    await act(async () => button(r, "조치 기록").props.onClick());
+    assert.equal(
+      input(r, "수행 내용").props.value,
+      "A 미저장 조치\n상세 두 번째 줄",
+      "failed save retains unsaved work",
+    );
+    assert.match(textOf(r.root.findByProps({ role: "alert" })), /QA 저장 실패/);
+    fail = false;
+    await act(async () => button(r, "조치 기록").props.onClick());
+    assert.equal(saved[0].id, records[0].id);
+    assert.equal(saved[0].payload.history.length, 2);
+    assert.equal(input(r, "수행 내용").props.value, "");
+    await change(choose(r, "이슈 선택"), records[1].id);
+    assert.equal(input(r, "수행 내용").props.value, "B 미저장 조치");
+  } finally {
+    await act(async () => r.unmount());
+  }
+});
+
+test("quality reference repeated saves revise the current review and a different test starts a new record", async () => {
+  await writeDraft("real-quality-review-v1", {
+    recordId: "",
+    test: "plate",
+    view: "ps",
+    penetration: "1.2",
+    criterion: "",
+    limit: "",
+    note: "",
+    author: "",
+    holdStage: "",
+    workspace: "reference",
+  });
+  const saved = [];
+  const r = await render(QualityReview, {
+    records: [],
+    notify() {},
+    onSave: async (record) => {
+      saved.push(record);
+      return {
+        ...record,
+        id: record.id || `qa-quality-${saved.length}`,
+        revision: saved.length,
+      };
+    },
+  });
+  try {
+    await act(async () => button(r, " 검토 저장").props.onClick());
+    await change(input(r, "기준 이름"), "QA 합성 참고 비교");
+    await change(input(r, "허용 절대변위"), "10");
+    await act(async () => button(r, " 검토 개정 저장").props.onClick());
+    assert.equal(saved[0].id, undefined);
+    assert.equal(saved[1].id, "qa-quality-1");
+    assert.equal(saved[1].payload.criterion.limitMm, 10);
+    await act(async () =>
+      r.root
+        .findAllByType("button")
+        .find((b) => textOf(b).startsWith("DCPT"))
+        .props.onClick(),
+    );
+    await act(async () => button(r, " 검토 저장").props.onClick());
+    assert.equal(
+      saved[2].id,
+      undefined,
+      "different reference dataset must never overwrite previous review",
+    );
+    assert.equal(saved[2].payload.datasetId, "dcpt");
+  } finally {
+    await act(async () => r.unmount());
   }
 });

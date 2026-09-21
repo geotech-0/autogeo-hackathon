@@ -42,6 +42,7 @@ export default function FieldPage(props: FeatureProps) {
           <button
             className={tab === id ? "active" : ""}
             key={id}
+            aria-pressed={tab === id}
             onClick={() => setTab(id)}
           >
             <Icon size={18} />

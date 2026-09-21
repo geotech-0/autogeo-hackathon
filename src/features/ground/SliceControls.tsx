@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { SLICE_AXES } from "./model-view";
 import type { CameraView, SliceAxis, SliceState } from "./model-view";
 
@@ -7,6 +7,8 @@ export function CoordinateInput({
   min,
   max,
   label,
+  unit = "m",
+  step = "any",
   onChange,
   onValidityChange,
 }: {
@@ -14,9 +16,12 @@ export function CoordinateInput({
   min: number;
   max: number;
   label: string;
+  unit?: string;
+  step?: number | "any";
   onChange: (n: number) => void;
   onValidityChange?: (valid: boolean) => void;
 }) {
+  const errorId = useId();
   const [text, setText] = useState(String(value)),
     [error, setError] = useState("");
   const pending = useRef(false),
@@ -31,7 +36,7 @@ export function CoordinateInput({
     min <= max &&
     Number(candidate) >= min &&
     Number(candidate) <= max;
-  const rangeError = `${min.toFixed(2)}~${max.toFixed(2)} m 범위로 입력하세요.`;
+  const rangeError = `${min.toLocaleString("ko-KR", { maximumFractionDigits: 6 })}~${max.toLocaleString("ko-KR", { maximumFractionDigits: 6 })}${unit ? ` ${unit}` : ""} 범위로 입력하세요.`;
   useEffect(() => {
     const changed = !Object.is(previousValue.current, value);
     const candidate = changed ? String(value) : text;
@@ -63,8 +68,9 @@ export function CoordinateInput({
         <input
           aria-label={label}
           aria-invalid={!!error}
+          aria-describedby={error ? errorId : undefined}
           type="number"
-          step="any"
+          step={step}
           min={min}
           max={max}
           value={text}
@@ -79,12 +85,22 @@ export function CoordinateInput({
             if (e.key === "Enter") {
               commit();
               e.currentTarget.blur();
+            } else if (e.key === "Escape") {
+              pending.current = false;
+              setText(String(value));
+              const valid = validText(String(value));
+              setError(valid ? "" : rangeError);
+              reportValidity.current?.(valid);
             }
           }}
         />{" "}
-        <b>m</b>
+        {unit && <b>{unit}</b>}
       </span>
-      {error && <small role="alert">{error}</small>}
+      {error && (
+        <small id={errorId} role="alert">
+          {error}
+        </small>
+      )}
     </span>
   );
 }
@@ -140,7 +156,11 @@ export default function SliceControls({
         <div>
           <h3>단면 탐색</h3>
         </div>
-        <div className="real-camera-buttons" aria-label="모델 시점">
+        <div
+          className="real-camera-buttons"
+          role="group"
+          aria-label="빠른 시점 선택"
+        >
           {(
             [
               ["perspective", "3D 자유 보기"],
@@ -153,6 +173,11 @@ export default function SliceControls({
               className={cameraView === id ? "active" : ""}
               aria-pressed={cameraView === id}
               disabled={id === "section" && !slice.enabled}
+              title={
+                id === "section" && !slice.enabled
+                  ? "X·Y·Z 단면을 선택하면 사용할 수 있습니다."
+                  : undefined
+              }
               onClick={() => onCamera(id)}
             >
               {label}
@@ -160,7 +185,7 @@ export default function SliceControls({
           ))}
         </div>
       </div>
-      <div className="real-axis-buttons" aria-label="절단 축">
+      <div className="real-axis-buttons" role="group" aria-label="절단 축">
         <button
           className={!slice.enabled ? "active" : ""}
           aria-pressed={!slice.enabled}
@@ -178,7 +203,7 @@ export default function SliceControls({
                 ...slice,
                 enabled: true,
                 axis: id,
-                keep: id === "z" ? "below" : "above",
+                keep: id === axis ? slice.keep : id === "z" ? "below" : "above",
               })
             }
           >
@@ -281,7 +306,7 @@ export default function SliceControls({
               />{" "}
               절단 평면 표시
             </label>
-            <span>숫자 입력 후 Enter로 적용</span>
+            <span>Enter 또는 다른 곳을 눌러 적용 · Esc로 입력 취소</span>
           </div>
         </>
       )}

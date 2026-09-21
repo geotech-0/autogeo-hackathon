@@ -134,6 +134,7 @@ export default function RealSiteMap({
       cx: number;
       cy: number;
       moved: boolean;
+      holeId?: string;
     } | null>(null);
   const [linework, setLinework] = useState<
     { name: string; count: number; path: string }[]
@@ -201,6 +202,12 @@ export default function RealSiteMap({
   const imageTransform = transform
     ? `translate(${origin[0] + transform.east} ${-(origin[1] + transform.north)}) rotate(${-transform.rotation}) scale(${transform.scale}) translate(${-origin[0]} ${origin[1]})`
     : undefined;
+  const imageAdjusted =
+    !!transform &&
+    (transform.east !== 0 ||
+      transform.north !== 0 ||
+      transform.rotation !== 0 ||
+      transform.scale !== 1);
   return (
     <div className="real-map" ref={host}>
       <svg
@@ -216,6 +223,10 @@ export default function RealSiteMap({
             cx: c[0],
             cy: c[1],
             moved: false,
+            holeId:
+              (e.target as Element)
+                .closest?.("[data-hole-id]")
+                ?.getAttribute("data-hole-id") ?? undefined,
           };
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
@@ -233,6 +244,10 @@ export default function RealSiteMap({
           const d = drag.current;
           drag.current = null;
           if (!d || d.moved) return;
+          if (d.holeId) {
+            onSelect?.(d.holeId);
+            return;
+          }
           const p = locate(e.clientX, e.clientY);
           if (p) {
             setClicked(p);
@@ -348,11 +363,12 @@ export default function RealSiteMap({
             key={p.id}
             role="button"
             tabIndex={0}
+            data-hole-id={p.id}
             aria-label={`${p.campaign ?? ""} ${p.label ?? p.id} 시추공 선택`}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerUp={(e) => {
-              e.stopPropagation();
-              onSelect?.(p.id);
+            aria-pressed={p.id === selected}
+            onClick={(e) => {
+              // Assistive activation emits a click without a pointer sequence.
+              if (e.detail === 0) onSelect?.(p.id);
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -449,7 +465,7 @@ export default function RealSiteMap({
         <span>
           {clicked
             ? `E ${clicked.easting.toFixed(2)} · N ${clicked.northing.toFixed(2)} m`
-            : "EPSG:5186 · 북쪽 ↑ · 원본 좌표 유지"}
+            : `EPSG:5186 · 북쪽 ↑ · ${imageAdjusted ? "드론 추가 맞춤 적용" : "원본 영상 좌표"}`}
         </span>
       </div>
       <div className="real-map-scale">{zoom.toFixed(1)}× · 실제 정사영상</div>

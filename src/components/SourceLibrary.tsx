@@ -1,7 +1,8 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, FileText, FolderOpen, Search, X } from "lucide-react";
 import catalog from "../data/source-catalog.json";
 import { HAS_PROVIDED_ORIGINALS } from "../data/source-access";
+import ErrorBoundary from "./ErrorBoundary";
 
 const PdfDocument = lazy(() => import("./PdfDocument"));
 const sources = catalog.filter((s) => s.category !== "디자인");
@@ -15,6 +16,17 @@ export default function SourceLibrary() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("전체");
   const [selected, setSelected] = useState<Source | null>(null);
+  const previewRef = useRef<HTMLHeadingElement>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (selected) {
+      previewRef.current?.focus({ preventScroll: true });
+      previewRef.current?.scrollIntoView({
+        block: "start",
+        behavior: "smooth",
+      });
+    }
+  }, [selected?.id]);
   const categories = ["전체", ...new Set(sources.map((s) => s.category))];
   const found = useMemo(
     () =>
@@ -23,7 +35,7 @@ export default function SourceLibrary() {
           (category === "전체" || s.category === category) &&
           `${s.title} ${s.use} ${s.filename}`
             .toLowerCase()
-            .includes(query.toLowerCase()),
+            .includes(query.trim().toLowerCase()),
       ),
     [query, category],
   );
@@ -71,24 +83,34 @@ export default function SourceLibrary() {
       {selected?.url && (
         <section
           className="panel source-preview"
+          id="source-preview"
           aria-label="선택한 원문 미리보기"
         >
           <div className="panel-header">
             <div>
               <span className="code-label">{selected.category}</span>
-              <h2>{selected.title}</h2>
+              <h2 ref={previewRef} tabIndex={-1}>
+                {selected.title}
+              </h2>
             </div>
             <button
               className="icon-btn"
               aria-label="원문 미리보기 닫기"
-              onClick={() => setSelected(null)}
+              onClick={() => {
+                setSelected(null);
+                requestAnimationFrame(() => openerRef.current?.focus());
+              }}
             >
               <X size={20} />
             </button>
           </div>
-          <Suspense fallback={<p>원문 뷰어를 준비하고 있습니다.</p>}>
-            <PdfDocument url={selected.url} title={selected.title} />
-          </Suspense>
+          <ErrorBoundary key={selected.id}>
+            <Suspense
+              fallback={<p role="status">원문 뷰어를 준비하고 있습니다.</p>}
+            >
+              <PdfDocument url={selected.url} title={selected.title} />
+            </Suspense>
+          </ErrorBoundary>
         </section>
       )}
       <div className="source-grid">
@@ -116,11 +138,11 @@ export default function SourceLibrary() {
               {s.url ? (
                 <button
                   className="btn btn-secondary"
-                  onClick={() => {
+                  aria-expanded={selected?.id === s.id}
+                  aria-controls="source-preview"
+                  onClick={(event) => {
+                    openerRef.current = event.currentTarget;
                     setSelected(s);
-                    document
-                      .querySelector(".main-scroll")
-                      ?.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                 >
                   {HAS_PROVIDED_ORIGINALS ? "원문 열기" : "원문 출처"}{" "}
@@ -148,6 +170,15 @@ export default function SourceLibrary() {
           <Search />
           <h3>검색된 자료가 없습니다</h3>
           <p>검색어 또는 자료 종류를 바꿔주세요.</p>
+          <button
+            className="btn btn-secondary"
+            onClick={() => {
+              setQuery("");
+              setCategory("전체");
+            }}
+          >
+            검색 조건 초기화
+          </button>
         </section>
       )}
     </div>

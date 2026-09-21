@@ -664,6 +664,37 @@
   flex-direction: column;
   gap: 15px;
 }
+.real-model-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  margin: 0 0 14px;
+  color: #526b80;
+  font-size: 12px;
+}
+.real-focus-target {
+  scroll-margin-top: 90px;
+}
+.real-model-selection > label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.real-model-selection select {
+  min-width: 0;
+  max-width: 100%;
+}
+.real-registration-inputs .real-coordinate-input input {
+  width: 100%;
+  min-width: 0;
+}
+.real-hole-list td.real-empty-search {
+  padding: 28px 12px;
+  text-align: center;
+  color: #61758a;
+}
 .real-under-view {
   margin-bottom: 24px !important;
 }
@@ -1004,6 +1035,7 @@
   .real-hole-card .real-card-eyebrow,
   .real-hole-card > h2,
   .real-hole-card > p,
+  .real-hole-card > .btn,
   .real-hole-card .real-log-rows,
   .real-hole-card .real-warning,
   .real-hole-card > .real-link {

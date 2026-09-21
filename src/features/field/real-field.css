@@ -640,3 +640,39 @@
     align-items: stretch;
   }
 }
+
+.rf-action-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.rf-action-title {
+  margin: 22px 0 14px;
+  font-size: 16px;
+  color: #25364c;
+}
+.rf-action-note,
+.rf-action-fields .rf-resolution-confirmation {
+  grid-column: 1 / -1;
+}
+.rf-action-note textarea {
+  resize: vertical;
+  min-height: 86px;
+}
+.rf-issue-latest {
+  background: #f6f9fc;
+  padding: 16px;
+  border-radius: 9px;
+  margin-top: 16px;
+}
+.rf-issue-latest p {
+  margin: 12px 0 6px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.rf-issue-latest small {
+  font-size: 12px;
+  color: #68788b;
+}

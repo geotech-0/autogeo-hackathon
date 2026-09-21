@@ -8,7 +8,8 @@ import {
   getAttachmentUrl,
   type AttachmentMeta,
 } from "../../storage/attachments";
-import RealSiteMap from "../ground/RealSiteMap";
+import RealSiteMap, { useSiteAssets } from "../ground/RealSiteMap";
+import { annotationPosition } from "./image-position.mjs";
 import { useRequestedRecord } from "./useRequestedRecord";
 export default function ImageComparison(props: FeatureProps) {
   const [draft, setDraft, state] = useDraft("real-field-imagery-v1", {
@@ -43,6 +44,18 @@ export default function ImageComparison(props: FeatureProps) {
     },
   );
   const [saving, setSaving] = useState(false);
+  const [positionError, setPositionError] = useState("");
+  const { assets, error: assetError } = useSiteAssets();
+  let position: { easting: number; northing: number } | null = null;
+  try {
+    position = annotationPosition(
+      draft.easting,
+      draft.northing,
+      assets?.orthophoto.boundsEN,
+    );
+  } catch {
+    /* Empty or incomplete input remains editable. */
+  }
   const [imageUrl, setImageUrl] = useState("");
   useEffect(() => {
     let active = true,
@@ -80,17 +93,21 @@ export default function ImageComparison(props: FeatureProps) {
       label: r.title,
     }))
     .filter((r) => Number.isFinite(r.easting) && Number.isFinite(r.northing));
-  const change = (key: string, value: string) =>
+  const change = (key: string, value: string) => {
     setDraft((d) => ({ ...d, [key]: value }));
+    setPositionError("");
+  };
   async function save(issue: boolean) {
+    if (!state.ready || saving) return;
     setSaving(true);
+    setPositionError("");
     try {
-      if (
-        !draft.easting ||
-        !draft.northing ||
-        !draft.note.trim() ||
-        !draft.author.trim()
-      )
+      const coordinates = annotationPosition(
+        draft.easting,
+        draft.northing,
+        assets?.orthophoto.boundsEN,
+      );
+      if (!draft.note.trim() || !draft.author.trim())
         throw new Error(
           "지도에서 위치를 선택하고 주석·담당자를 입력해 주세요.",
         );
@@ -108,8 +125,8 @@ export default function ImageComparison(props: FeatureProps) {
             ? { id: groundRecord.id, revision: groundRecord.revision }
             : null,
           imageAnnotation: true,
-          easting: Number(draft.easting),
-          northing: Number(draft.northing),
+          easting: coordinates.easting,
+          northing: coordinates.northing,
           crs: "EPSG:5186",
           captureDate: null,
           note: draft.note,
@@ -135,7 +152,9 @@ export default function ImageComparison(props: FeatureProps) {
       });
       props.notify("영상 위치와 검토 기록을 저장했습니다.", "success");
     } catch (e) {
-      props.notify(e instanceof Error ? e.message : "저장 실패", "error");
+      const message = e instanceof Error ? e.message : "저장 실패";
+      setPositionError(message);
+      props.notify(message, "error");
     } finally {
       setSaving(false);
     }
@@ -215,14 +234,32 @@ export default function ImageComparison(props: FeatureProps) {
           <span className="badge badge-warning">회차 간 변형 판정 보류</span>
         </div>
         <RealSiteMap
+          assets={assets || undefined}
           transform={groundTransform}
-          annotations={annotations}
-          onMapClick={(p) =>
-            setDraft((d) => ({
-              ...d,
-              easting: p.easting.toFixed(3),
-              northing: p.northing.toFixed(3),
-            }))
+          annotations={
+            position
+              ? [
+                  ...annotations,
+                  {
+                    id: "image-draft",
+                    ...position,
+                    label: "작성 중인 위치",
+                    color: "#0F6FFF",
+                  },
+                ]
+              : annotations
+          }
+          onMapClick={
+            !state.ready || saving
+              ? undefined
+              : (p) => {
+                  setPositionError("");
+                  setDraft((d) => ({
+                    ...d,
+                    easting: p.easting.toFixed(3),
+                    northing: p.northing.toFixed(3),
+                  }));
+                }
           }
         />
         <details className="rf-details rf-explanation">
@@ -233,48 +270,71 @@ export default function ImageComparison(props: FeatureProps) {
             연결됩니다.
           </div>
         </details>
-        <div className="rf-grid3">
+        <h3 className="rf-action-title">관찰 위치와 내용 기록</h3>
+        <p className="rf-note">
+          지도에서 위치를 선택하거나 E·N 좌표를 입력한 뒤, 담당자와 관찰 주석을
+          작성하세요. 좌표는 원본 EPSG:5186 기준 m입니다.
+        </p>
+        {(positionError || assetError) && (
+          <p className="rf-error" role="alert">
+            {positionError || assetError}
+          </p>
+        )}
+        <fieldset
+          className="rf-action-fields"
+          disabled={!state.ready || saving}
+        >
+          <div className="rf-grid3">
+            <label className="rf-label">
+              E (m)
+              <input
+                inputMode="decimal"
+                value={draft.easting}
+                onChange={(e) => change("easting", e.target.value)}
+              />
+            </label>
+            <label className="rf-label">
+              N (m)
+              <input
+                inputMode="decimal"
+                value={draft.northing}
+                onChange={(e) => change("northing", e.target.value)}
+              />
+            </label>
+            <label className="rf-label">
+              담당자
+              <input
+                value={draft.author}
+                onChange={(e) => change("author", e.target.value)}
+              />
+            </label>
+          </div>
           <label className="rf-label">
-            E (m)
-            <input readOnly value={draft.easting} />
-          </label>
-          <label className="rf-label">
-            N (m)
-            <input readOnly value={draft.northing} />
-          </label>
-          <label className="rf-label">
-            담당자
-            <input
-              value={draft.author}
-              onChange={(e) => change("author", e.target.value)}
+            관찰 주석
+            <textarea
+              rows={3}
+              value={draft.note}
+              onChange={(e) => change("note", e.target.value)}
+              placeholder="관찰 위치·형태와 추가 확인할 내용을 작성하세요."
             />
           </label>
-        </div>
-        <label className="rf-label">
-          관찰 주석
-          <textarea
-            rows={3}
-            value={draft.note}
-            onChange={(e) => change("note", e.target.value)}
-            placeholder="관찰 위치·형태와 추가 확인할 내용을 작성하세요."
-          />
-        </label>
-        <div className="rf-controls">
-          <button
-            className="btn btn-primary"
-            onClick={() => save(false)}
-            disabled={saving || !state.ready}
-          >
-            <MapPin size={16} /> 위치 주석 저장
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => save(true)}
-            disabled={saving || !state.ready}
-          >
-            조치할 이슈로 등록
-          </button>
-        </div>
+          <div className="rf-controls">
+            <button
+              className="btn btn-primary"
+              onClick={() => save(false)}
+              disabled={saving || !state.ready}
+            >
+              <MapPin size={16} /> 위치 주석 저장
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => save(true)}
+              disabled={saving || !state.ready}
+            >
+              조치할 이슈로 등록
+            </button>
+          </div>
+        </fieldset>
       </section>
       <details className="rf-card rf-optional-panel" open={!!draft.attachment}>
         <summary>다음 촬영 회차 등록·비교</summary>
@@ -283,56 +343,61 @@ export default function ImageComparison(props: FeatureProps) {
           원본·촬영일을 보존합니다. 좌표 정합 전에는 나란히 보는 참고 화면으로만
           사용합니다.
         </p>
-        <label className="rf-upload">
-          <Upload size={16} /> 추가 영상 선택
-          <input
-            disabled={saving || !state.ready}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => upload(e.target.files?.[0])}
-          />
-        </label>
-        <div className="rf-grid2">
-          <label className="rf-label">
-            회차 이름
-            <input
-              value={draft.epochName}
-              onChange={(e) => change("epochName", e.target.value)}
-            />
-          </label>
-          <label className="rf-label">
-            촬영일
-            <input
-              type="date"
-              value={draft.captureDate}
-              onChange={(e) => change("captureDate", e.target.value)}
-            />
-          </label>
-        </div>
-        {imageUrl && (
-          <div className="rf-image-pair">
-            <figure>
-              <img
-                src="/data/ground/orthophoto-preview.webp"
-                alt="기존 제공 정사영상"
-              />
-              <figcaption>제공 1회차 · 날짜 미확인</figcaption>
-            </figure>
-            <figure>
-              <img src={imageUrl} alt="사용자 추가 회차, 좌표 정합 미확인" />
-              <figcaption>
-                {draft.epochName} · {draft.captureDate || "날짜 입력 필요"}
-              </figcaption>
-            </figure>
-          </div>
-        )}
-        <button
-          className="btn btn-primary"
-          onClick={saveEpoch}
-          disabled={saving || !draft.attachment || !state.ready}
+        <fieldset
+          className="rf-action-fields"
+          disabled={!state.ready || saving}
         >
-          <Save size={16} /> 회차 저장
-        </button>
+          <label className="rf-upload">
+            <Upload size={16} /> 추가 영상 선택
+            <input
+              disabled={saving || !state.ready}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => upload(e.target.files?.[0])}
+            />
+          </label>
+          <div className="rf-grid2">
+            <label className="rf-label">
+              회차 이름
+              <input
+                value={draft.epochName}
+                onChange={(e) => change("epochName", e.target.value)}
+              />
+            </label>
+            <label className="rf-label">
+              촬영일
+              <input
+                type="date"
+                value={draft.captureDate}
+                onChange={(e) => change("captureDate", e.target.value)}
+              />
+            </label>
+          </div>
+          {imageUrl && (
+            <div className="rf-image-pair">
+              <figure>
+                <img
+                  src="/data/ground/orthophoto-preview.webp"
+                  alt="기존 제공 정사영상"
+                />
+                <figcaption>제공 1회차 · 날짜 미확인</figcaption>
+              </figure>
+              <figure>
+                <img src={imageUrl} alt="사용자 추가 회차, 좌표 정합 미확인" />
+                <figcaption>
+                  {draft.epochName} · {draft.captureDate || "날짜 입력 필요"}
+                </figcaption>
+              </figure>
+            </div>
+          )}
+          <button
+            className="btn btn-primary"
+            onClick={saveEpoch}
+            disabled={saving || !draft.attachment || !state.ready}
+          >
+            <Save size={16} /> 회차 저장
+          </button>
+        </fieldset>
         {props.records
           .filter((r) => r.payload.kind === "additional_orthophoto")
           .map((r) => (

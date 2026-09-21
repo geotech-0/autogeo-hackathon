@@ -49,24 +49,34 @@ function dispose(root: THREE.Object3D) {
       });
   });
 }
-function textLabel(text: string, color: string) {
+function textLabel(text: string, color: string, textHeight = 11) {
   const c = document.createElement("canvas");
-  c.width = 384;
-  c.height = 72;
   const x = c.getContext("2d")!;
-  x.font = "700 29px sans-serif";
+  const resolution = 3,
+    padding = 5,
+    font = `700 ${textHeight}px sans-serif`;
+  x.font = font;
+  const width = Math.ceil(x.measureText(text).width) + padding * 2,
+    height = textHeight + padding * 2;
+  c.width = width * resolution;
+  c.height = height * resolution;
+  x.scale(resolution, resolution);
+  x.font = font;
   x.textAlign = "center";
   x.textBaseline = "middle";
-  x.lineWidth = 5;
+  x.lineWidth = 2;
   x.strokeStyle = "white";
-  x.strokeText(text, 192, 36);
+  x.strokeText(text, width / 2, height / 2);
   x.fillStyle = color;
-  x.fillText(text, 192, 36);
+  x.fillText(text, width / 2, height / 2);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  return new THREE.Sprite(
+  const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false }),
   );
+  sprite.userData.labelHeight = height;
+  sprite.userData.labelAspect = width / height;
+  return sprite;
 }
 function meshOf(positions: number[], color: string, opacity = 0.66) {
   const g = new THREE.BufferGeometry();
@@ -163,16 +173,19 @@ export default function RealGroundScene(props: Props) {
     controls.minDistance = 40;
     controls.maxDistance = 2200;
     const render = () => {
-      const hh = Math.max(renderer.domElement.clientHeight, 1);
+      const hh = Math.max(renderer.domElement.clientHeight, 1),
+        compact = renderer.domElement.clientWidth < 600;
       data.traverse((o) => {
         if (o instanceof THREE.Sprite) {
+          if (o.userData.boreholeLabel)
+            o.visible = !compact || o.userData.selected;
           const span =
             (2 *
               Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) *
               camera.position.distanceTo(o.position)) /
             camera.zoom;
-          const ww = (span * (o.userData.pixels ?? 95)) / hh;
-          o.scale.set(ww, (ww * 72) / 384, 1);
+          const labelHeight = (span * o.userData.labelHeight) / hh;
+          o.scale.set(labelHeight * o.userData.labelAspect, labelHeight, 1);
         }
       });
       renderer.render(scene, camera);
@@ -361,7 +374,6 @@ export default function RealGroundScene(props: Props) {
           "#216f9f",
         );
         tag.position.copy(corners[3]);
-        tag.userData.pixels = 125;
         v.data.add(tag);
       }
     }
@@ -562,6 +574,7 @@ export default function RealGroundScene(props: Props) {
           const tag = textLabel(
             selected ? `${h.campaign} ${h.label}` : h.label,
             selected ? "#0f56cd" : "#304860",
+            selected ? 13 : 11,
           );
           tag.position.copy(
             at(
@@ -570,7 +583,8 @@ export default function RealGroundScene(props: Props) {
               horizontalSection ? level + 2 : h.collar + 4,
             ),
           );
-          tag.userData.pixels = selected ? 130 : 65;
+          tag.userData.boreholeLabel = true;
+          tag.userData.selected = selected;
           v.data.add(tag);
         }
       });
@@ -594,7 +608,6 @@ export default function RealGroundScene(props: Props) {
     ] as [string, number, number][]) {
       const tag = textLabel(txt, "#425b70");
       tag.position.copy(at(e, n, guideHeight));
-      tag.userData.pixels = 55;
       v.data.add(tag);
     }
     v.render();
@@ -740,7 +753,8 @@ export default function RealGroundScene(props: Props) {
         )}
       {!error && emptySection && (
         <div className="real-scene-empty" role="status">
-          선택한 레이어·절단 위치에 표시할 지층 메쉬가 없습니다.
+          선택한 지층·절단 위치에 표시할 영역이 없습니다. 표시 설정에서 지층을
+          켜거나 절단 위치를 옮겨 보세요.
         </div>
       )}
       <div className="real-scene-label">
@@ -755,6 +769,12 @@ export default function RealGroundScene(props: Props) {
         {props.mode === "ground"
           ? ` · 암반 표시 하한 EL. ${props.baseElevation.toFixed(1)} m`
           : " · CAD 경계는 기준면 투영"}
+        {props.mode !== "ground" &&
+          (props.registration.east !== 0 ||
+            props.registration.north !== 0 ||
+            props.registration.rotation !== 0 ||
+            props.registration.scale !== 1) &&
+          " · 드론 추가 맞춤 적용"}
       </div>
     </div>
   );

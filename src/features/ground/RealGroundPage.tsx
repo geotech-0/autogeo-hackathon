@@ -28,6 +28,7 @@ import {
 } from "./volume-geometry.mjs";
 import { sliceClosedMesh } from "./mesh-slicer.mjs";
 import SliceControls from "./SliceControls";
+import RegistrationControls from "./RegistrationControls";
 import ModelSliceSection from "./ModelSliceSection";
 import type {
   CameraView,
@@ -359,6 +360,26 @@ export default function RealGroundPage({
   requestedRecordId,
 }: FeatureProps) {
   const appliedRequest = useRef<string | null>(null);
+  const detailHeading = useRef<HTMLHeadingElement>(null),
+    modelToolbar = useRef<HTMLDivElement>(null),
+    originalHeading = useRef<HTMLHeadingElement>(null);
+  const [focusRequest, setFocusRequest] = useState<{
+    target: "detail" | "model" | "original";
+  } | null>(null);
+  useEffect(() => {
+    if (!focusRequest) return;
+    const target = {
+      detail: detailHeading,
+      model: modelToolbar,
+      original: originalHeading,
+    }[focusRequest.target].current;
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({
+      block: "start",
+      inline: "nearest",
+      behavior: "auto",
+    });
+  }, [focusRequest]);
   const [v, setV, { ready, error: draftError }] = useDraft<GroundView>(
       "real-ground-view-v2",
       initial,
@@ -369,6 +390,8 @@ export default function RealGroundPage({
     [selectedRecord, setSelectedRecord] = useState(""),
     [busy, setBusy] = useState(false),
     [slicerInputsValid, setSlicerInputsValid] = useState(true),
+    [registrationInputsValid, setRegistrationInputsValid] = useState(true),
+    [viewReset, setViewReset] = useState(0),
     [logIndex, setLogIndex] = useState(0);
   const set = <K extends keyof GroundView>(key: K, value: GroundView[K]) =>
     setV({ ...v, [key]: value });
@@ -514,16 +537,58 @@ export default function RealGroundPage({
   useEffect(() => setLogIndex(0), [selected.id]);
   const pick = (id: string) => {
     const h = holes.find((h) => h.id === id);
-    if (h)
+    if (h) {
+      const inModel = modelHoles.some((modelHole) => modelHole.id === id);
       setV({
         ...v,
         selected: id,
-        sectionNorth: h.northing,
-        slice: {
-          ...slice,
-          positions: { ...slice.positions, x: h.easting, y: h.northing },
-        },
+        ...(inModel
+          ? {
+              sectionNorth: h.northing,
+              slice: {
+                ...slice,
+                positions: { ...slice.positions, x: h.easting, y: h.northing },
+              },
+            }
+          : {}),
       });
+    }
+  };
+  const openSelectedModel = () => {
+    const sameCampaign = v.modelCampaign === selected.campaign;
+    const nextSlice = sameCampaign
+      ? slice
+      : defaultSlice(holes.filter((h) => h.campaign === selected.campaign));
+    setV({
+      ...v,
+      tab: "model",
+      mode: "ground",
+      representation: "solid",
+      modelCampaign: selected.campaign,
+      sectionNorth: selected.northing,
+      slice: {
+        ...nextSlice,
+        positions: {
+          ...nextSlice.positions,
+          x: selected.easting,
+          y: selected.northing,
+        },
+      },
+      baseElevation: sameCampaign ? v.baseElevation : null,
+      cameraView: sameCampaign ? cameraView : "perspective",
+    });
+    setViewReset((n) => n + 1);
+    setReset((n) => n + 1);
+    setFocusRequest({ target: "model" });
+  };
+  const openSelectedObservations = () => {
+    setSearch("");
+    set("tab", "sources");
+    setFocusRequest({ target: "detail" });
+  };
+  const openHoleDetail = (id: string) => {
+    pick(id);
+    setFocusRequest({ target: "detail" });
   };
   const getPayload = () => ({
     kind: "real-ground-model",
@@ -582,7 +647,13 @@ export default function RealGroundPage({
     methodVersion: REAL_GROUND_VERSION,
   });
   async function save() {
-    if (!analysis.model || !assets || geometryError || !slicerInputsValid)
+    if (
+      !analysis.model ||
+      !assets ||
+      geometryError ||
+      !slicerInputsValid ||
+      !registrationInputsValid
+    )
       return;
     setBusy(true);
     try {
@@ -607,6 +678,7 @@ export default function RealGroundPage({
         payload: getPayload(),
       });
       setV({ ...v, recordId: r.id });
+      setSelectedRecord(r.id);
       notify("실제 지반 모델과 보기·정합 상태를 저장했습니다.", "success");
     } catch (e) {
       notify((e as Error).message, "error");
@@ -624,6 +696,8 @@ export default function RealGroundPage({
         holes,
       );
       setV({ ...initial(), ...restored, recordId: r.id });
+      setViewReset((n) => n + 1);
+      setReset((n) => n + 1);
       notify("저장한 실제 지반 검토를 불러왔습니다.", "success");
     } catch (e) {
       notify((e as Error).message, "error");
@@ -649,6 +723,8 @@ export default function RealGroundPage({
         holes,
       );
       setV({ ...initial(), ...restored, recordId: r.id });
+      setViewReset((n) => n + 1);
+      setReset((n) => n + 1);
       setSelectedRecord(r.id);
       notify("통합 이력의 실제 지반 검토를 불러왔습니다.", "success");
     } catch (e) {
@@ -664,7 +740,15 @@ export default function RealGroundPage({
         <span style={{ background: CAMPAIGN_COLORS[selected.campaign] }} />
         {selected.campaign} 조사자료
       </div>
-      <h2>{selected.label}</h2>
+      <h2
+        id="real-ground-hole-detail"
+        ref={detailHeading}
+        tabIndex={-1}
+        className="real-focus-target"
+        aria-label={`${selected.campaign} ${selected.label} 관측 자료`}
+      >
+        {selected.label}
+      </h2>
       <p className="real-muted">{selected.id} · 원문 좌표 보존</p>
       <div className="real-hole-numbers">
         <div>
@@ -681,9 +765,22 @@ export default function RealGroundPage({
         </div>
       </div>
       <div className="real-coordinates">
-        E {f(selected.easting)}
-        <br />N {f(selected.northing)}
+        E {f(selected.easting)} m
+        <br />N {f(selected.northing)} m
       </div>
+      {v.tab === "map" && !v.shownCampaigns.includes(selected.campaign) && (
+        <p className="real-muted">
+          선택 공의 조사차수는 지도에서 숨겨져 있습니다.{" "}
+          <button
+            className="real-inline-link"
+            onClick={() =>
+              set("shownCampaigns", [...v.shownCampaigns, selected.campaign])
+            }
+          >
+            이 차수 표시
+          </button>
+        </p>
+      )}
       {selected.qc.map((q) => (
         <div className="real-warning" key={q}>
           <AlertTriangle size={16} />
@@ -708,15 +805,14 @@ export default function RealGroundPage({
         마지막 {f(selected.observedBottom, 1)} m는 관찰 종료심도입니다. 해당
         지층의 바닥 경계는 미확인입니다.
       </p>
+      <button className="btn btn-primary" onClick={openSelectedModel}>
+        <Layers3 size={16} /> 선택 공의 3D·단면 보기
+      </button>
       <button
-        className="btn btn-primary"
+        className="btn btn-secondary"
         onClick={() => {
           set("tab", "sources");
-          requestAnimationFrame(() =>
-            document
-              .getElementById("real-ground-original")
-              ?.scrollIntoView({ behavior: "smooth", block: "start" }),
-          );
+          setFocusRequest({ target: "original" });
         }}
       >
         <FileText size={16} />{" "}
@@ -750,7 +846,8 @@ export default function RealGroundPage({
             !!analysis.error ||
             !!geometryError ||
             !assets ||
-            !slicerInputsValid
+            !slicerInputsValid ||
+            !registrationInputsValid
           }
           onClick={save}
         >
@@ -761,6 +858,26 @@ export default function RealGroundPage({
       {(draftError || assetError) && (
         <div className="real-warning" role="alert">
           {draftError || assetError}
+        </div>
+      )}
+      {(!slicerInputsValid || !registrationInputsValid) && (
+        <div className="real-warning" role="status">
+          입력한 값을 적용하거나 취소하면 검토를 저장할 수 있습니다. 범위를
+          벗어난 값은 입력란에서 수정하세요.
+        </div>
+      )}
+      {(analysis.error || geometryError) && v.tab !== "model" && (
+        <div className="real-warning" role="alert">
+          <span>
+            모델 설정을 확인해야 저장할 수 있습니다.{" "}
+            {analysis.error || geometryError}
+          </span>
+          <button
+            className="real-inline-link"
+            onClick={() => set("tab", "model")}
+          >
+            모델 설정 확인
+          </button>
         </div>
       )}
       <nav className="ground-tabs" aria-label="실제 지반 보기">
@@ -775,6 +892,7 @@ export default function RealGroundPage({
           <button
             key={id}
             className={v.tab === id ? "active" : ""}
+            aria-pressed={v.tab === id}
             onClick={() => set("tab", id)}
           >
             <Icon size={16} />
@@ -832,6 +950,22 @@ export default function RealGroundPage({
               </label>
             </div>
           </div>
+          {shown.length === 0 && (
+            <div className="real-info-line" role="status">
+              모든 시추공을 숨겼습니다. 정사영상과 도면은 계속 볼 수 있습니다.
+              <button
+                className="real-inline-link"
+                onClick={() =>
+                  set(
+                    "shownCampaigns",
+                    campaigns.map((c) => c.id),
+                  )
+                }
+              >
+                모든 차수 표시
+              </button>
+            </div>
+          )}
           <div className="real-map-layout">
             <RealSiteMap
               assets={assets ?? undefined}
@@ -860,7 +994,14 @@ export default function RealGroundPage({
       )}
       {v.tab === "model" && (
         <>
-          <div className="real-toolbar real-model-toolbar">
+          <div
+            id="real-ground-model-toolbar"
+            ref={modelToolbar}
+            tabIndex={-1}
+            role="group"
+            aria-label="3D·단면 모델 조작"
+            className="real-toolbar real-model-toolbar real-focus-target"
+          >
             <label className="real-select-label">
               조사차수
               <select
@@ -911,6 +1052,7 @@ export default function RealGroundPage({
                 <button
                   key={id}
                   className={v.mode === id ? "active" : ""}
+                  aria-pressed={v.mode === id}
                   onClick={() => set("mode", id)}
                 >
                   {l}
@@ -919,12 +1061,47 @@ export default function RealGroundPage({
             </div>
             <button
               className="btn btn-secondary"
-              aria-label="모델 전체 보기"
-              title="모델 전체 보기"
+              aria-label="현재 모델에 시점 맞추기"
+              title="현재 모델에 시점 맞추기"
               onClick={() => setReset(reset + 1)}
             >
-              <RotateCcw size={14} /> <span>모델 전체 보기</span>
+              <RotateCcw size={14} /> <span>시점 맞춤</span>
             </button>
+          </div>
+          <div className="real-model-selection">
+            <label>
+              시추공
+              <select
+                aria-label="모델 시추공"
+                value={
+                  modelHoles.some((h) => h.id === selected.id)
+                    ? selected.id
+                    : ""
+                }
+                onChange={(e) => pick(e.target.value)}
+              >
+                <option value="" disabled>
+                  현재 모델의 시추공 선택
+                </option>
+                {modelHoles.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.campaign} · {h.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {modelHoles.some((h) => h.id === selected.id) ? (
+              <button
+                className="real-inline-link"
+                onClick={openSelectedObservations}
+              >
+                선택 공의 관측 자료
+              </button>
+            ) : (
+              <button className="real-inline-link" onClick={openSelectedModel}>
+                {selected.campaign} {selected.label}의 모델로 이동
+              </button>
+            )}
           </div>
           {v.modelCampaign === "all" && (
             <div className="real-warning">
@@ -1086,7 +1263,7 @@ export default function RealGroundPage({
                   <RealGroundScene
                     assets={assets}
                     grid={analysis.grid}
-                    holes={v.mode === "ground" ? modelHoles : shown}
+                    holes={modelHoles}
                     horizons={analysis.model!.horizons}
                     selected={selected.id}
                     onSelect={pick}
@@ -1113,6 +1290,7 @@ export default function RealGroundPage({
             </div>
             {v.mode === "ground" && representation === "solid" && (
               <SliceControls
+                key={`${v.modelCampaign}:${viewReset}`}
                 slice={slice}
                 limits={limits}
                 onChange={setSlice}
@@ -1147,10 +1325,10 @@ export default function RealGroundPage({
             </div>
           )}
           <div className="real-view-caption">
-            <span>드래그 회전 · 휠 확대</span>
+            <span>드래그로 회전 · 휠 또는 두 손가락으로 확대</span>
             <span>
               {v.mode === "ground"
-                ? `관측자료 보간 · 암반 바닥은 표시 하한 EL. ${f(baseElevation, 1)} m`
+                ? `관측자료 보간 · 암반 하부는 표시 하한 EL. ${f(baseElevation, 1)} m까지의 가정`
                 : "촬영일·수직기준 미확인 · 높이 차이를 침하량으로 해석하지 마세요."}
             </span>
           </div>
@@ -1348,6 +1526,8 @@ export default function RealGroundPage({
               <label className="real-search">
                 <Search size={16} />
                 <input
+                  type="search"
+                  aria-label="시추공 검색"
                   placeholder="공번 또는 조사차수 검색"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -1364,14 +1544,28 @@ export default function RealGroundPage({
                     </tr>
                   </thead>
                   <tbody>
+                    {!filtered.length && (
+                      <tr>
+                        <td colSpan={4} className="real-empty-search">
+                          일치하는 시추공이 없습니다. 공번이나 조사차수를
+                          확인하세요.
+                        </td>
+                      </tr>
+                    )}
                     {filtered.map((h) => (
                       <tr
                         key={h.id}
                         className={selected.id === h.id ? "selected" : ""}
-                        onClick={() => pick(h.id)}
+                        onClick={() => openHoleDetail(h.id)}
                       >
                         <td>
-                          <button onClick={() => pick(h.id)}>
+                          <button
+                            aria-label={`${h.campaign} ${h.label} 관측 자료 보기`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openHoleDetail(h.id);
+                            }}
+                          >
                             <small>{h.campaign}</small>
                             <strong>{h.label}</strong>
                           </button>
@@ -1400,7 +1594,12 @@ export default function RealGroundPage({
           >
             <div className="real-panel-heading">
               <div>
-                <h2>
+                <h2
+                  id="real-ground-original-heading"
+                  ref={originalHeading}
+                  tabIndex={-1}
+                  className="real-focus-target"
+                >
                   {selected.campaign} · {selected.label} 원문 주상도
                 </h2>
                 <p>
@@ -1560,38 +1759,13 @@ export default function RealGroundPage({
               이동·회전·축척만 설정하며, 시추 좌표는 바뀌지 않습니다. 수직
               차이의 원인을 확인하지 않은 상태에서 높이를 맞추지 마세요.
             </p>
-            <div className="real-input-grid">
-              {(
-                [
-                  ["east", "동쪽 이동 (m)", -100, 100, 0.1],
-                  ["north", "북쪽 이동 (m)", -100, 100, 0.1],
-                  ["rotation", "회전 (°)", -30, 30, 0.1],
-                  ["scale", "축척", 0.5, 1.5, 0.001],
-                ] as const
-              ).map(([id, label, min, max, step]) => (
-                <label key={id}>
-                  {label}
-                  <input
-                    type="number"
-                    value={v.registration[id]}
-                    min={min}
-                    max={max}
-                    step={step}
-                    onChange={(e) => {
-                      const n = Number(e.target.value);
-                      if (Number.isFinite(n) && n >= min && n <= max)
-                        set("registration", { ...v.registration, [id]: n });
-                    }}
-                  />
-                </label>
-              ))}
-            </div>
-            <button
-              className="btn btn-secondary"
-              onClick={() => set("registration", initial().registration)}
-            >
-              <RotateCcw size={14} /> 원본 정합으로
-            </button>
+            <RegistrationControls
+              key={viewReset}
+              value={v.registration}
+              onChange={(value) => set("registration", value)}
+              onReset={() => set("registration", initial().registration)}
+              onValidityChange={setRegistrationInputsValid}
+            />
             <p className="real-muted">
               추가 맞춤값은 검토 저장에 포함됩니다. 독립 검사점이 없어 정확도
               판정은 보류합니다.
@@ -1602,7 +1776,10 @@ export default function RealGroundPage({
       <section className="real-save-bar">
         <div>
           <strong>저장한 검토</strong>
-          <p>모델 설정과 보기 상태를 함께 보관합니다.</p>
+          <p>
+            조사차수·절단 위치·선택 시점·정합값을 보관합니다. 자유 회전한 각도는
+            저장하지 않습니다.
+          </p>
         </div>
         <div className="real-save-actions">
           <select
@@ -1626,7 +1803,13 @@ export default function RealGroundPage({
           </button>
           <button
             className="btn btn-secondary"
-            disabled={!!analysis.error || !!geometryError || !slicerInputsValid}
+            disabled={
+              !!analysis.error ||
+              !!geometryError ||
+              !slicerInputsValid ||
+              !registrationInputsValid ||
+              !assets
+            }
             onClick={() =>
               download("이천자이더리체_실제지반검토.json", getPayload())
             }

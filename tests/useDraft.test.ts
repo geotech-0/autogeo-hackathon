@@ -3,8 +3,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { act, create } from "react-test-renderer";
-import { useDraft } from "../src/storage/useDraft";
-import { getDatabase, readDraft, writeDraft } from "../src/storage/database";
+import { discardPendingDrafts, useDraft } from "../src/storage/useDraft";
+import {
+  getDatabase,
+  readDraft,
+  writeDraft,
+  resetProject,
+} from "../src/storage/database";
 
 // These tests render the real hook and exercise its asynchronous React effects.
 (
@@ -14,6 +19,88 @@ type Value = { input: string };
 type Hook = ReturnType<typeof useDraft<Value>>;
 const settle = () => new Promise((resolve) => setTimeout(resolve, 25));
 const autosave = () => new Promise((resolve) => setTimeout(resolve, 180));
+
+test("leaving a form immediately after typing preserves its latest draft", async () => {
+  const key = "immediate-route-change";
+  await writeDraft(key, { input: "earlier" });
+  const probe = await renderDraft(key);
+  await act(async () =>
+    probe.current[1]({ input: "last character before navigation" }),
+  );
+  await probe.close();
+  const restored = await renderDraft(key);
+  try {
+    assert.deepEqual(restored.current[0], {
+      input: "last character before navigation",
+    });
+  } finally {
+    await restored.close();
+  }
+});
+
+test("leaving after failed hydration never flushes unread data", async (t) => {
+  const key = "failed-hydration-navigation";
+  await writeDraft(key, { input: "saved original" });
+  const originalGet = IDBObjectStore.prototype.get;
+  let fail = true;
+  t.mock.method(
+    IDBObjectStore.prototype,
+    "get",
+    function (this: IDBObjectStore, query: IDBValidKey) {
+      if (fail && this.name === "drafts" && query === key)
+        throw new Error("cannot read existing draft");
+      return originalGet.call(this, query);
+    },
+  );
+  const probe = await renderDraft(key);
+  await act(async () => probe.current[1]({ input: "temporary local input" }));
+  await probe.close();
+  fail = false;
+  assert.deepEqual(await readDraft(key), { input: "saved original" });
+});
+
+test("explicit reset cannot be undone by a departing form's pending autosave", async () => {
+  const key = "discard-on-reset";
+  const probe = await renderDraft(key);
+  await act(async () =>
+    probe.current[1]({ input: "draft intentionally discarded" }),
+  );
+  discardPendingDrafts();
+  await resetProject([]);
+  await probe.close();
+  await act(autosave);
+  assert.equal(await readDraft(key), undefined);
+});
+
+test("a mounted form can hydrate again after reset cancels its initial read", async (t) => {
+  const key = "reset-during-initial-read";
+  const originalGet = IDBObjectStore.prototype.get;
+  let first = true;
+  const held = { result: { input: "stale pre-reset value" }, onsuccess: undefined as (() => void) | undefined, onerror: undefined };
+  t.mock.method(IDBObjectStore.prototype, "get", function (this: IDBObjectStore, query: IDBValidKey) {
+    if (this.name === "drafts" && query === key && first) {
+      first = false;
+      return held as unknown as IDBRequest;
+    }
+    return originalGet.call(this, query);
+  });
+  const probe = await renderDraft(key);
+  try {
+    assert.equal(probe.current[2].ready, false);
+    discardPendingDrafts();
+    await resetProject([]);
+    await act(async () => {
+      probe.current[1]({ input: "initial after reset" });
+      probe.current[2].retry();
+    });
+    await act(settle);
+    await act(async () => held.onsuccess?.());
+    assert.equal(probe.current[2].ready, true);
+    assert.deepEqual(probe.current[0], { input: "initial after reset" });
+    await act(async () => probe.current[1]({ input: "usable after reset" }));
+  } finally { await probe.close(); }
+  assert.deepEqual(await readDraft(key), { input: "usable after reset" });
+});
 
 async function renderDraft(key: string) {
   let current: Hook;

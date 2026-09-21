@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDraft } from "../storage/useDraft";
+import { useRequestedRecord } from "../features/field/useRequestedRecord";
 import {
   ArrowUpRight,
   BookOpen,
@@ -54,17 +56,63 @@ const catalog = [
       "동일 고시에서 부분 개정 대상으로 확인되는 일반사항입니다. 세부 조항은 이 라이브러리의 메타데이터에 포함되지 않았습니다.",
   },
 ];
-export default function StandardsPage({
+type StandardDraft = {
+  edition: string;
+  clause: string;
+  memo: string;
+  recordId: string | null;
+  revision: number;
+};
+function OfficialStandards({
   records,
   onSave,
   notify,
+  requestedRecordId,
 }: FeatureProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [active, setActive] = useState(catalog[0]);
-  const [edition, setEdition] = useState("2024");
-  const [clause, setClause] = useState("");
-  const [memo, setMemo] = useState("");
+  const [draft, setDraft, draftState] = useDraft<{
+    activeCode: string;
+    byCode: Record<string, StandardDraft>;
+  }>("official-standard-review", { activeCode: catalog[0].code, byCode: {} });
+  const active =
+    catalog.find((entry) => entry.code === draft.activeCode) || catalog[0];
+  const current = draft.byCode[active.code] || {
+    edition: active.edition,
+    clause: "",
+    memo: "",
+    recordId: null,
+    revision: 0,
+  };
+  const { edition, clause, memo } = current;
+  const update = (patch: Partial<StandardDraft>) =>
+    setDraft((previous) => ({
+      ...previous,
+      byCode: { ...previous.byCode, [active.code]: { ...current, ...patch } },
+    }));
+  useRequestedRecord(requestedRecordId, records, draftState.ready, (record) => {
+    if (
+      record.payload.kind !== "standard-adoption" ||
+      record.payload.reference_id
+    )
+      return;
+    const entry = catalog.find((item) => item.code === record.payload.code);
+    if (!entry) return;
+    setDraft((previous) => ({
+      ...previous,
+      activeCode: entry.code,
+      byCode: {
+        ...previous.byCode,
+        [entry.code]: {
+          edition: String(record.payload.edition || entry.edition),
+          clause: String(record.payload.clause || ""),
+          memo: String(record.payload.memo || ""),
+          recordId: record.id,
+          revision: record.revision,
+        },
+      },
+    }));
+  });
   const [saving, setSaving] = useState(false);
   const found = useMemo(
     () =>
@@ -73,7 +121,7 @@ export default function StandardsPage({
           (filter === "all" || s.type === filter) &&
           `${s.code} ${s.name} ${s.keywords}`
             .toLowerCase()
-            .includes(search.toLowerCase()),
+            .includes(search.trim().toLowerCase()),
       ),
     [search, filter],
   );
@@ -85,7 +133,8 @@ export default function StandardsPage({
     }
     setSaving(true);
     try {
-      await onSave({
+      const saved = await onSave({
+        ...(current.recordId ? { id: current.recordId } : {}),
         stage: "tender",
         title: `${active.code} 적용판 검토`,
         status: "pending",
@@ -112,14 +161,27 @@ export default function StandardsPage({
           adoption_status: "review-required",
         },
       });
-      notify("적용판 검토를 현장 이력에 연결했습니다.");
+      update({ recordId: saved.id, revision: saved.revision });
+      notify(`적용판 검토 개정 ${saved.revision}을 저장했습니다.`);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "기준 검토를 저장하지 못했습니다. 입력을 유지했으니 다시 시도해주세요.",
+        "error",
+      );
     } finally {
       setSaving(false);
     }
   };
   return (
     <>
-      <ProjectReferences records={records} onSave={onSave} notify={notify} />
+      {draftState.error && (
+        <p className="notice notice-warning" role="alert">
+          작성 중인 기준 검토를 자동 보관하지 못했습니다. 검토 이력으로
+          저장하거나 입력을 복사해주세요.
+        </p>
+      )}
       <div className="standards-layout">
         <section className="panel standard-list">
           <div className="panel-header">
@@ -128,6 +190,26 @@ export default function StandardsPage({
             </h2>
             <BookOpen size={20} />
           </div>
+          <label className="field mobile-reference-picker">
+            <span>공식 기준 선택</span>
+            <select
+              aria-label="공식 기준 선택"
+              value={active.code}
+              disabled={!draftState.ready || saving}
+              onChange={(event) =>
+                setDraft((previous) => ({
+                  ...previous,
+                  activeCode: event.target.value,
+                }))
+              }
+            >
+              {catalog.map((entry) => (
+                <option key={entry.code} value={entry.code}>
+                  {entry.code} · {entry.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="search-input">
             <Search size={18} />
             <input
@@ -146,24 +228,27 @@ export default function StandardsPage({
               <button
                 key={key}
                 className={filter === key ? "active" : ""}
+                aria-pressed={filter === key}
                 onClick={() => setFilter(key)}
               >
                 {label}
               </button>
             ))}
           </div>
-          <div>
+          <div className="standard-cards">
             {found.length ? (
               found.map((s) => (
                 <button
                   className={`standard-item ${s.code === active.code ? "selected" : ""}`}
                   key={s.code}
-                  onClick={() => {
-                    setActive(s);
-                    setEdition(s.edition);
-                    setClause("");
-                    setMemo("");
-                  }}
+                  aria-pressed={s.code === active.code}
+                  disabled={!draftState.ready || saving}
+                  onClick={() =>
+                    setDraft((previous) => ({
+                      ...previous,
+                      activeCode: s.code,
+                    }))
+                  }
                 >
                   <div>
                     <span className="code-label">{s.code}</span>
@@ -248,15 +333,30 @@ export default function StandardsPage({
                 </span>
                 <input
                   value={edition}
-                  onChange={(e) => setEdition(e.target.value)}
+                  onChange={(e) => update({ edition: e.target.value })}
                   aria-label="현장 검토판"
+                  disabled={!draftState.ready || saving}
+                  aria-invalid={!edition.trim()}
+                  aria-describedby={
+                    !edition.trim() ? "standard-edition-error" : undefined
+                  }
                 />
               </label>
+              {!edition.trim() && (
+                <p
+                  id="standard-edition-error"
+                  className="input-error"
+                  role="alert"
+                >
+                  검토할 판본을 입력해주세요.
+                </p>
+              )}
               <label className="field">
                 <span>확인한 본문 조항</span>
                 <input
                   value={clause}
-                  onChange={(e) => setClause(e.target.value)}
+                  onChange={(e) => update({ clause: e.target.value })}
+                  disabled={!draftState.ready || saving}
                   placeholder="미입력 시 확인 필요"
                 />
               </label>
@@ -266,23 +366,79 @@ export default function StandardsPage({
               <textarea
                 rows={3}
                 value={memo}
-                onChange={(e) => setMemo(e.target.value)}
+                onChange={(e) => update({ memo: e.target.value })}
+                disabled={!draftState.ready || saving}
                 placeholder="이번 구역에서 확인할 조건을 기록하세요."
               />
             </label>
             <button
               className="btn btn-primary"
               onClick={save}
-              disabled={saving}
+              disabled={saving || !draftState.ready || !edition.trim()}
             >
               <CheckCircle2 size={16} />
-              {saving ? "연결 중…" : "현장 검토 이력에 연결"}
+              {saving
+                ? "저장 중…"
+                : current.recordId
+                  ? "검토 개정 저장"
+                  : "검토 이력에 저장"}
             </button>
+            {current.revision > 0 && (
+              <p className="muted small" role="status">
+                이 기준의 저장 이력: 개정 {current.revision}
+              </p>
+            )}
             <p className="muted small">
               현재 연결된 기준 검토 {linked.length}건 · 판정 보류로 기록됩니다.
             </p>
           </div>
         </section>
+      </div>
+    </>
+  );
+}
+
+export default function StandardsPage(props: FeatureProps) {
+  const [view, setView] = useState<"project" | "official">("project");
+  const requested = props.records.find(
+    (record) => record.id === props.requestedRecordId,
+  );
+  useEffect(() => {
+    if (requested?.payload.kind === "standard-adoption")
+      setView(requested.payload.reference_id ? "project" : "official");
+  }, [requested?.id]);
+  return (
+    <>
+      <div
+        className="section-tabs standards-view-tabs"
+        role="group"
+        aria-label="검토할 기준 자료"
+      >
+        <button
+          className={view === "project" ? "active" : ""}
+          aria-pressed={view === "project"}
+          onClick={() => setView("project")}
+        >
+          계산서 채택근거
+        </button>
+        <button
+          className={view === "official" ? "active" : ""}
+          aria-pressed={view === "official"}
+          onClick={() => setView("official")}
+        >
+          공식 기준·적용판
+        </button>
+      </div>
+      <p className="muted standards-view-description">
+        {view === "project"
+          ? "이 현장 계산서에서 사용한 근거와 원문 위치를 확인합니다."
+          : "공식 고시를 확인하고 현장에서 검토할 판본·조항을 기록합니다."}
+      </p>
+      <div hidden={view !== "project"}>
+        <ProjectReferences {...props} />
+      </div>
+      <div hidden={view !== "official"}>
+        <OfficialStandards {...props} />
       </div>
     </>
   );

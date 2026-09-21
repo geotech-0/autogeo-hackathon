@@ -75,6 +75,27 @@ const steps = [
   { name: "해석값 채택", note: "수동 최대값·단위" },
   { name: "검토와 저장", note: "결과·근거·비교" },
 ];
+const sourceFields = {
+  id: "자료 ID",
+  revision: "자료 개정",
+  label: "자료명",
+  program: "해석 프로그램 / 방법",
+  modelId: "해석 모델 ID",
+  modelRevision: "해석 모델 개정",
+  evidence: "자료 근거",
+} as const;
+const inputId = (id: MemberId, key: string) => `design-input-${id}-${key}`;
+const fieldRange = (f: Field) => {
+  const range =
+    f.min !== undefined && f.max !== undefined
+      ? `입력 범위: ${f.min}~${f.max} ${f.unit}`
+      : f.min !== undefined
+        ? `입력 하한: ${f.min} ${f.unit}`
+        : f.max !== undefined
+          ? `입력 상한: ${f.max} ${f.unit}`
+          : "유한한 숫자를 입력하세요.";
+  return `${range}${f.key === "strandCount" ? " · 정수" : ""}`;
+};
 const resultMetric: Record<
   MemberId,
   { key: string; label: string; unit: string }[]
@@ -316,6 +337,8 @@ export default function DesignPage({
       },
     }));
     setLoadedId(null);
+    setCompareId("");
+    setResetPending(false);
     setStep(0);
   };
   const [member, setMember] = useState<MemberId>("anchor");
@@ -326,8 +349,40 @@ export default function DesignPage({
   const [compareId, setCompareId] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
+  const editorHeadingRef = useRef<HTMLHeadingElement>(null);
+  const savedHeadingRef = useRef<HTMLHeadingElement>(null);
+  const savedToggleRef = useRef<HTMLButtonElement>(null);
+  const memberTabRefs = useRef<
+    Partial<Record<MemberId, HTMLButtonElement | null>>
+  >({});
+  const [focusRequest, setFocusRequest] = useState<{
+    area: "editor" | "saved";
+    field?: string;
+  } | null>(null);
   const restoredRequestId = useRef<string | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const goToStep = (next: number, id: MemberId = member, field?: string) => {
+    setMember(id);
+    setStep(next);
+    setFocusRequest({ area: "editor", field });
+  };
+  useEffect(() => {
+    if (!focusRequest) return;
+    const target =
+      focusRequest.area === "saved"
+        ? savedHeadingRef.current
+        : (focusRequest.field
+            ? document.getElementById(focusRequest.field)
+            : null) || editorHeadingRef.current;
+    // A collapsed disclosure must reveal an invalid field before it receives focus.
+    let ancestor = target?.closest?.("details");
+    while (ancestor) {
+      ancestor.open = true;
+      ancestor = ancestor.parentElement?.closest("details");
+    }
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: "start", behavior: "auto" });
+  }, [focusRequest]);
   useEffect(() => {
     if (!reportOpen) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -365,6 +420,57 @@ export default function DesignPage({
   const calculated = useMemo(() => computeWorkspace(state), [state]);
   const current = calculated[member];
   const module = getModule(state, member);
+  const invalidMembers = MEMBER_IDS.filter((id) => !calculated[id].ok);
+  const firstMissingSource = (
+    Object.keys(sourceFields) as (keyof typeof sourceFields)[]
+  ).find((key) => !state.source[key].trim());
+  const errorLabel = (id: MemberId, key: string) =>
+    key === "_source"
+      ? "자료 출처"
+      : key === "anchorForceKn"
+        ? "연결된 앵커 입력"
+        : getModule(state, id).fields.find((f) => f.key === key)?.label ||
+          "계산 조건";
+  const fixError = (
+    id: MemberId,
+    key = Object.keys(calculated[id].errors || {})[0],
+  ): void => {
+    if (key === "anchorForceKn") {
+      fixError("anchor");
+      return;
+    }
+    if (key === "_source") {
+      goToStep(
+        0,
+        id,
+        firstMissingSource ? `design-source-${firstMissingSource}` : undefined,
+      );
+      return;
+    }
+    const field = getModule(state, id).fields.find((f) => f.key === key);
+    const q = state.members[id].quantities[key];
+    const missingMetadata =
+      field?.group === "analysis" &&
+      calculated[id].errors?.[key] ===
+        "지배단계·위치·채택값 근거를 함께 입력하세요."
+        ? (["stage", "location", "evidence"] as const).find(
+            (name) => !q[name]?.trim(),
+          )
+        : undefined;
+    goToStep(
+      field?.group === "analysis" ? 2 : 1,
+      id,
+      id === "pile" &&
+        key === "ultimateBearingKn" &&
+        !state.source.quEvidence.trim()
+        ? "design-qu-evidence"
+        : missingMetadata
+          ? `${inputId(id, key)}-${missingMetadata}`
+          : field
+            ? inputId(id, key)
+            : undefined,
+    );
+  };
   const saved = records
     .filter((r) => r.stage === "design" && r.payload.kind === "design-review")
     .slice()
@@ -423,6 +529,7 @@ export default function DesignPage({
         "success",
       );
       setShowSaved(true);
+      setFocusRequest({ area: "saved" });
     } catch (e) {
       notify(
         e instanceof Error ? e.message : "기록을 저장할 수 없습니다.",
@@ -439,7 +546,7 @@ export default function DesignPage({
         throw new Error("이 화면은 이천자이더리체 원문 검토안만 불러옵니다.");
       setState(restored);
       setLoadedId(record.id);
-      setStep(3);
+      goToStep(3);
       notify(
         "저장한 입력을 불러와 현재 방법으로 다시 계산했습니다.",
         "success",
@@ -477,6 +584,7 @@ export default function DesignPage({
       }));
       setLoadedId(record.id);
       setStep(3);
+      setFocusRequest({ area: "editor" });
       notify(
         `선택한 검토안 · 개정 ${record.revision}을 불러왔습니다.`,
         "success",
@@ -499,7 +607,10 @@ export default function DesignPage({
         throw new Error("이천자이더리체 원문 단면이 지정된 JSON을 가져오세요.");
       setState(restored);
       setLoadedId(null);
+      setCompareId("");
+      setResetPending(false);
       setStep(0);
+      setFocusRequest({ area: "editor" });
       notify(
         "설계 입력을 가져왔습니다. 출처와 해석 모델을 확인하세요.",
         "success",
@@ -566,16 +677,25 @@ export default function DesignPage({
         </span>
         <div className="design-input-unit">
           <input
+            id={inputId(member, f.key)}
             aria-label={`${module.title} ${f.label}`}
-            inputMode="decimal"
+            inputMode={f.key === "strandCount" ? "numeric" : "decimal"}
             type="text"
             value={state.members[member].values[f.key]}
             onChange={(e) => change(f.key, e.target.value)}
             aria-invalid={Boolean(error)}
+            aria-describedby={`${inputId(member, f.key)}-hint${error ? ` ${inputId(member, f.key)}-error` : ""}`}
             autoComplete="off"
           />
           <span>{f.unit}</span>
         </div>
+        <small
+          className="design-input-hint"
+          id={`${inputId(member, f.key)}-hint`}
+        >
+          {fieldRange(f)}
+          {f.affectsAnalysis ? " · 변경 시 해석 재확인" : ""}
+        </small>
         {(state.members[member].origins?.[f.key] !== "imported_analysis" ||
           Number(state.members[member].values[f.key]) !==
             preset.inputs[member][f.key]) && (
@@ -589,7 +709,11 @@ export default function DesignPage({
               : ""}
           </small>
         )}
-        {error && <small role="alert">{error}</small>}
+        {error && (
+          <small id={`${inputId(member, f.key)}-error`} role="alert">
+            {error}
+          </small>
+        )}
       </label>
     );
   };
@@ -612,8 +736,12 @@ export default function DesignPage({
         </div>
         <div className="design-top-actions">
           <button
+            ref={savedToggleRef}
             className="btn btn-secondary"
-            onClick={() => setShowSaved((v) => !v)}
+            onClick={() => {
+              setShowSaved((v) => !v);
+              if (!showSaved) setFocusRequest({ area: "saved" });
+            }}
             aria-expanded={showSaved}
             aria-controls="design-saved-records"
           >
@@ -623,6 +751,7 @@ export default function DesignPage({
           <button
             className="btn btn-primary"
             disabled={invalid || busy}
+            aria-describedby="design-save-guidance"
             onClick={() => save()}
           >
             <Save size={16} />
@@ -663,7 +792,7 @@ export default function DesignPage({
         <div className="design-case-heading">
           <div>
             <h2>검토 위치</h2>
-            <p>단면·앵커 단별로 입력과 검토안을 보관합니다.</p>
+            <p>① 위치 선택 → ② 부재별 입력 확인 → ③ 네 부재를 함께 저장</p>
           </div>
           <button
             className="btn btn-secondary"
@@ -849,10 +978,38 @@ export default function DesignPage({
           return (
             <button
               role="tab"
+              id={`design-member-${id}`}
               aria-selected={member === id}
+              aria-controls="design-member-panel"
+              tabIndex={member === id ? 0 : -1}
+              ref={(node) => {
+                memberTabRefs.current[id] = node;
+              }}
               key={id}
               className={member === id ? "is-active" : ""}
               onClick={() => setMember(id)}
+              onKeyDown={(event) => {
+                const direction =
+                  event.key === "ArrowRight" || event.key === "ArrowDown"
+                    ? 1
+                    : event.key === "ArrowLeft" || event.key === "ArrowUp"
+                      ? -1
+                      : 0;
+                const nextIndex =
+                  event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? MEMBER_IDS.length - 1
+                      : direction
+                        ? (i + direction + MEMBER_IDS.length) %
+                          MEMBER_IDS.length
+                        : -1;
+                if (nextIndex < 0) return;
+                event.preventDefault();
+                const next = MEMBER_IDS[nextIndex];
+                setMember(next);
+                memberTabRefs.current[next]?.focus();
+              }}
             >
               <span className="design-member-icon">
                 <Icon size={21} />
@@ -867,19 +1024,58 @@ export default function DesignPage({
           );
         })}
       </div>
+      <div
+        className={`design-review-state ${invalid ? "has-errors" : ""}`}
+        id="design-save-guidance"
+      >
+        <div>
+          <strong>
+            {invalid
+              ? "입력을 확인하면 저장할 수 있습니다."
+              : loadedId
+                ? "현재 검토안에 새 개정을 저장합니다."
+                : "선택한 위치의 네 부재를 함께 저장합니다."}
+          </strong>
+          <p>
+            {invalid
+              ? "아래 부재를 선택하면 확인이 필요한 입력으로 이동합니다."
+              : stale
+                ? "해석 재확인 상태를 유지해 저장합니다. 기준 만족 여부와 별도로 확인이 필요합니다."
+                : exceeded
+                  ? "기준 초과 항목을 포함한 검토 기록으로 저장합니다."
+                  : "입력은 이 브라우저에 임시 보관됩니다. 검토안 저장을 눌러 이력에 남기세요."}
+          </p>
+        </div>
+        {invalid && (
+          <div className="design-error-shortcuts">
+            {invalidMembers.map((id) => (
+              <button
+                className="btn btn-secondary"
+                key={id}
+                onClick={() => fixError(id)}
+              >
+                {MODULES[id].title} 입력 확인 <ArrowRight size={14} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="design-workspace">
-        <section className="design-main panel">
+        <section
+          className="design-main panel"
+          id="design-member-panel"
+          role="tabpanel"
+          aria-labelledby={`design-member-${member}`}
+        >
           <div className="design-stepper" aria-label="검토 단계">
             {steps.map((s, i) => (
               <button
                 className={`${i === step ? "is-active" : ""} ${i < step ? "is-done" : ""}`}
                 key={s.name}
-                onClick={() => setStep(i)}
+                onClick={() => goToStep(i)}
                 aria-current={i === step ? "step" : undefined}
               >
-                <span className="design-step-number">
-                  {i < step ? <Check size={14} /> : i + 1}
-                </span>
+                <span className="design-step-number">{i + 1}</span>
                 <span>
                   <strong>{s.name}</strong>
                   <small>{s.note}</small>
@@ -894,13 +1090,15 @@ export default function DesignPage({
                 <span className="design-section-kicker">
                   STEP 0{step + 1} / {module.asset}
                 </span>
-                <h2>
+                <h2 ref={editorHeadingRef} tabIndex={-1}>
                   {step === 0
                     ? "검토의 기준을 확인하세요"
                     : step === 1
                       ? `${module.title} 제원을 설정하세요`
                       : step === 2
-                        ? "외부 해석결과를 채택하세요"
+                        ? member === "wale"
+                          ? "연결된 앵커 하중을 확인하세요"
+                          : "외부 해석결과를 채택하세요"
                         : "계산 결과와 근거를 확인하세요"}
                 </h2>
                 <p>
@@ -909,7 +1107,9 @@ export default function DesignPage({
                     : step === 1
                       ? "부재 제원을 입력하세요. 재료와 계산방법은 선택한 단면을 따릅니다."
                       : step === 2
-                        ? "같은 모델에서 나온 성분별 최대값을 입력하세요. 지배 시공단계는 서로 다를 수 있습니다."
+                        ? member === "wale"
+                          ? "앵커에서 계산한 초기긴장력 Jf가 띠장으로 연결됩니다. 하중을 바꾸려면 앵커 입력을 확인하세요."
+                          : "같은 모델에서 나온 성분별 최대값을 입력하세요. 지배 시공단계는 서로 다를 수 있습니다."
                         : "계산식과 채택값을 확인한 뒤 네 부재를 함께 저장합니다."}
                 </p>
               </div>
@@ -952,14 +1152,28 @@ export default function DesignPage({
                   <label className="design-field">
                     <span>해석 프로그램 / 방법</span>
                     <input
+                      id="design-source-program"
                       value={state.source.program}
+                      aria-invalid={!state.source.program.trim()}
+                      aria-describedby={
+                        !state.source.program.trim()
+                          ? "design-source-error"
+                          : undefined
+                      }
                       onChange={(e) => patchSource("program", e.target.value)}
                     />
                   </label>
                   <label className="design-field">
                     <span>해석 모델 개정</span>
                     <input
+                      id="design-source-modelRevision"
                       value={state.source.modelRevision}
+                      aria-invalid={!state.source.modelRevision.trim()}
+                      aria-describedby={
+                        !state.source.modelRevision.trim()
+                          ? "design-source-error"
+                          : undefined
+                      }
                       onChange={(e) =>
                         patchSource("modelRevision", e.target.value)
                       }
@@ -969,13 +1183,24 @@ export default function DesignPage({
                   <label className="design-field design-span-2">
                     <span>자료명</span>
                     <input
+                      id="design-source-label"
                       value={state.source.label}
+                      aria-invalid={!state.source.label.trim()}
+                      aria-describedby={
+                        !state.source.label.trim()
+                          ? "design-source-error"
+                          : undefined
+                      }
                       onChange={(e) => patchSource("label", e.target.value)}
                     />
                   </label>
                 </div>
                 {current.errors?._source && (
-                  <p className="design-error design-source-error" role="alert">
+                  <p
+                    className="design-error design-source-error"
+                    id="design-source-error"
+                    role="alert"
+                  >
                     {current.errors._source} 아래 출처·모델 상세도 확인하세요.
                   </p>
                 )}
@@ -1021,7 +1246,16 @@ export default function DesignPage({
                       >
                         <span>{label}</span>
                         <input
+                          id={`design-source-${key}`}
                           value={state.source[key]}
+                          aria-invalid={
+                            key in sourceFields && !state.source[key].trim()
+                          }
+                          aria-describedby={
+                            key in sourceFields && !state.source[key].trim()
+                              ? "design-source-error"
+                              : undefined
+                          }
                           onChange={(e) => patchSource(key, e.target.value)}
                           aria-label={label}
                         />
@@ -1117,17 +1351,48 @@ export default function DesignPage({
                     <label className="design-field design-qu-evidence">
                       <span>직접 채택한 Qu의 근거</span>
                       <input
+                        id="design-qu-evidence"
                         value={state.source.quEvidence}
                         aria-label="극한지지력 Qu 근거"
+                        aria-invalid={!state.source.quEvidence.trim()}
+                        aria-describedby={
+                          !state.source.quEvidence.trim()
+                            ? "design-qu-evidence-error"
+                            : undefined
+                        }
                         onChange={(e) =>
                           patchSource("quEvidence", e.target.value)
                         }
                       />
+                      {!state.source.quEvidence.trim() && (
+                        <small
+                          id="design-qu-evidence-error"
+                          className="design-error"
+                          role="alert"
+                        >
+                          채택한 극한지지력의 자료명·페이지 등 근거를
+                          입력하세요.
+                        </small>
+                      )}
                     </label>
                     <div className="design-small-note">
                       Qu는 별도로 검토·채택한 극한지지력입니다. 입력한 Qu/Fs를
                       사용하며, N값 경험식을 혼합하지 않습니다.
                     </div>
+                    {state.members.pile.values.displacementLimitPercent.trim() &&
+                      Number.isFinite(
+                        Number(
+                          state.members.pile.values.displacementLimitPercent,
+                        ),
+                      ) &&
+                      Number(
+                        state.members.pile.values.displacementLimitPercent,
+                      ) !== 0.3 && (
+                        <p className="design-criterion-note" role="status">
+                          허용변위율을 초기 0.3%에서 변경했습니다. 세부
+                          검토계수와 자료 근거에 변경 기준을 확인해 남기세요.
+                        </p>
+                      )}
                   </>
                 )}
               </>
@@ -1164,10 +1429,11 @@ export default function DesignPage({
                       </details>
                       <button
                         className="btn btn-secondary"
-                        onClick={() => {
-                          setMember("anchor");
-                          setStep(2);
-                        }}
+                        onClick={() =>
+                          calculated.anchor.ok
+                            ? goToStep(2, "anchor")
+                            : fixError("anchor")
+                        }
                       >
                         앵커 입력 확인
                         <ArrowRight size={14} />
@@ -1175,135 +1441,210 @@ export default function DesignPage({
                     </div>
                   </div>
                 ) : (
-                  module.fields
-                    .filter((f) => f.group === "analysis")
-                    .map((f) => {
-                      const q = state.members[member].quantities[f.key];
-                      const normalized = current.quantities?.[f.key];
-                      return (
-                        <div className="design-analysis-card" key={f.key}>
-                          <div className="design-analysis-title">
-                            <strong>{f.label}</strong>
-                            <span>
-                              {q.origin === "imported_analysis"
-                                ? "원문 채택값"
-                                : "사용자 수동 입력"}
-                            </span>
-                          </div>
-                          <div className="design-analysis-value">
-                            <input
-                              aria-label={`${module.title} ${f.label}`}
-                              inputMode="decimal"
-                              value={state.members[member].values[f.key]}
-                              onChange={(e) => change(f.key, e.target.value)}
-                              aria-invalid={Boolean(current.errors?.[f.key])}
-                            />
-                            <select
-                              aria-label={`${f.label} 단위`}
-                              value={q.unit}
-                              onChange={(e) =>
-                                setState((s) =>
-                                  updateQuantity(s, member, f.key, {
-                                    unit: e.target.value,
-                                  }),
-                                )
-                              }
-                            >
-                              {f.units?.map((unit) => (
-                                <option key={unit}>{unit}</option>
-                              ))}
-                            </select>
-                          </div>
-                          {current.errors?.[f.key] && (
-                            <p className="design-error" role="alert">
-                              {current.errors[f.key]}
-                            </p>
-                          )}
-                          <p className="design-direction">{f.direction}</p>
-                          {q.origin === "manual_record" && (
-                            <p className="design-source-hint">
-                              수동 입력값입니다. 아래 지배단계·위치·근거를
-                              이번에 채택한 해석결과에 맞게 확인하세요.
-                            </p>
-                          )}
-                          <div className="design-fields">
-                            <label className="design-field">
-                              <span>지배 시공단계 / 하중 출처</span>
-                              <input
-                                value={q.stage}
-                                aria-label={`${f.label} 지배단계`}
-                                onChange={(e) =>
-                                  setState((s) =>
-                                    updateQuantity(s, member, f.key, {
-                                      stage: e.target.value,
-                                    }),
-                                  )
-                                }
-                              />
-                            </label>
-                            <label className="design-field">
-                              <span>부재 / 구간 / 발생 위치</span>
-                              <input
-                                value={q.location}
-                                aria-label={`${f.label} 발생 위치`}
-                                onChange={(e) =>
-                                  setState((s) =>
-                                    updateQuantity(s, member, f.key, {
-                                      location: e.target.value,
-                                    }),
-                                  )
-                                }
-                              />
-                            </label>
-                            <label className="design-field design-span-2">
-                              <span>채택값 근거 · 표 / 행 / 페이지</span>
-                              <input
-                                value={q.evidence || ""}
-                                aria-label={`${f.label} 근거`}
-                                onChange={(e) =>
-                                  setState((s) =>
-                                    updateQuantity(s, member, f.key, {
-                                      evidence: e.target.value,
-                                    }),
-                                  )
-                                }
-                              />
-                            </label>
-                          </div>
-                          {normalized && (
-                            <div className="design-conversion">
+                  <>
+                    <p className="design-disclosure-note">
+                      원자료의 숫자와 단위를 함께 입력하세요. 단위를 바꿔도 입력
+                      숫자는 자동 변환되지 않습니다.
+                    </p>
+                    {module.fields
+                      .filter((f) => f.group === "analysis")
+                      .map((f) => {
+                        const q = state.members[member].quantities[f.key];
+                        const normalized = current.quantities?.[f.key];
+                        const error = current.errors?.[f.key];
+                        const missingMetadata =
+                          !q.stage.trim() ||
+                          !q.location.trim() ||
+                          !q.evidence?.trim();
+                        const metadataOnlyError =
+                          error ===
+                          "지배단계·위치·채택값 근거를 함께 입력하세요.";
+                        return (
+                          <div className="design-analysis-card" key={f.key}>
+                            <div className="design-analysis-title">
+                              <strong>{f.label}</strong>
                               <span>
-                                {fmt(normalized.rawValue, 4)}{" "}
-                                {normalized.rawUnit}
+                                {q.origin === "imported_analysis"
+                                  ? "원문 채택값"
+                                  : "사용자 수동 입력"}
                               </span>
-                              <ArrowRight size={14} />
-                              <strong>
-                                {fmt(normalized.value, 4)} {normalized.unit}
-                              </strong>
-                              <small>{normalized.conversion}</small>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })
+                            <div className="design-analysis-value">
+                              <input
+                                id={inputId(member, f.key)}
+                                aria-label={`${module.title} ${f.label}`}
+                                inputMode="decimal"
+                                value={state.members[member].values[f.key]}
+                                onChange={(e) => change(f.key, e.target.value)}
+                                aria-invalid={
+                                  Boolean(error) && !metadataOnlyError
+                                }
+                                aria-describedby={`${inputId(member, f.key)}-direction${error ? ` ${inputId(member, f.key)}-error` : ""}`}
+                                autoComplete="off"
+                              />
+                              <select
+                                aria-label={`${f.label} 단위`}
+                                value={q.unit}
+                                onChange={(e) =>
+                                  setState((s) =>
+                                    updateQuantity(s, member, f.key, {
+                                      unit: e.target.value,
+                                    }),
+                                  )
+                                }
+                              >
+                                {f.units?.map((unit) => (
+                                  <option key={unit}>{unit}</option>
+                                ))}
+                              </select>
+                            </div>
+                            {error && (
+                              <p
+                                className="design-error"
+                                id={`${inputId(member, f.key)}-error`}
+                                role="alert"
+                              >
+                                {error}
+                              </p>
+                            )}
+                            <p
+                              className="design-direction"
+                              id={`${inputId(member, f.key)}-direction`}
+                            >
+                              {f.direction}
+                            </p>
+                            {q.origin === "manual_record" && (
+                              <p className="design-source-hint">
+                                수동 입력값입니다. 아래 지배단계·위치·근거를
+                                이번에 채택한 해석결과에 맞게 확인하세요.
+                              </p>
+                            )}
+                            <details
+                              className="design-details design-analysis-evidence"
+                              open={missingMetadata || undefined}
+                            >
+                              <summary>
+                                채택 근거 · 단계·위치{" "}
+                                {missingMetadata && (
+                                  <span className="design-disclosure-error">
+                                    입력 필요
+                                  </span>
+                                )}
+                                <ChevronDown size={16} />
+                              </summary>
+                              <div className="design-fields">
+                                <label className="design-field">
+                                  <span>지배 시공단계 / 하중 출처</span>
+                                  <input
+                                    id={`${inputId(member, f.key)}-stage`}
+                                    value={q.stage}
+                                    aria-label={`${f.label} 지배단계`}
+                                    aria-invalid={!q.stage.trim()}
+                                    aria-describedby={
+                                      metadataOnlyError
+                                        ? `${inputId(member, f.key)}-error`
+                                        : undefined
+                                    }
+                                    onChange={(e) =>
+                                      setState((s) =>
+                                        updateQuantity(s, member, f.key, {
+                                          stage: e.target.value,
+                                        }),
+                                      )
+                                    }
+                                  />
+                                </label>
+                                <label className="design-field">
+                                  <span>부재 / 구간 / 발생 위치</span>
+                                  <input
+                                    id={`${inputId(member, f.key)}-location`}
+                                    value={q.location}
+                                    aria-label={`${f.label} 발생 위치`}
+                                    aria-invalid={!q.location.trim()}
+                                    aria-describedby={
+                                      metadataOnlyError
+                                        ? `${inputId(member, f.key)}-error`
+                                        : undefined
+                                    }
+                                    onChange={(e) =>
+                                      setState((s) =>
+                                        updateQuantity(s, member, f.key, {
+                                          location: e.target.value,
+                                        }),
+                                      )
+                                    }
+                                  />
+                                </label>
+                                <label className="design-field design-span-2">
+                                  <span>채택값 근거 · 표 / 행 / 페이지</span>
+                                  <input
+                                    id={`${inputId(member, f.key)}-evidence`}
+                                    value={q.evidence || ""}
+                                    aria-label={`${f.label} 근거`}
+                                    aria-invalid={!q.evidence?.trim()}
+                                    aria-describedby={
+                                      metadataOnlyError
+                                        ? `${inputId(member, f.key)}-error`
+                                        : undefined
+                                    }
+                                    onChange={(e) =>
+                                      setState((s) =>
+                                        updateQuantity(s, member, f.key, {
+                                          evidence: e.target.value,
+                                        }),
+                                      )
+                                    }
+                                  />
+                                </label>
+                              </div>
+                            </details>
+                            {normalized && (
+                              <div className="design-conversion">
+                                <span>
+                                  {fmt(normalized.rawValue, 4)}{" "}
+                                  {normalized.rawUnit}
+                                </span>
+                                <ArrowRight size={14} />
+                                <strong>
+                                  {fmt(normalized.value, 4)} {normalized.unit}
+                                </strong>
+                                <small>{normalized.conversion}</small>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </>
                 )}
                 {current.status === "stale" && !section.issue && (
                   <div className="design-reconfirm">
                     <TriangleAlert size={21} />
                     <div>
-                      <strong>변경한 제원과 해석결과가 대응하나요?</strong>
+                      <strong>
+                        {member === "wale" &&
+                        calculated.anchor.status === "stale"
+                          ? "연결된 앵커의 해석결과를 먼저 확인하세요."
+                          : "변경한 제원과 해석결과가 대응하나요?"}
+                      </strong>
                       <p>
-                        해석 모델 개정 또는 해석에 영향을 주는 제원이
-                        바뀌었습니다. 필요한 외부 해석을 완료한 뒤 현재 최대값을
-                        다시 채택하세요.
+                        {member === "wale" &&
+                        calculated.anchor.status === "stale"
+                          ? "띠장은 앵커의 초기긴장력 Jf를 사용합니다. 앵커에서 변경 모델과 해석값의 대응을 확인한 뒤 띠장을 검토하세요."
+                          : "해석 모델 개정 또는 해석에 영향을 주는 제원이 바뀌었습니다. 필요한 외부 해석을 완료한 뒤 현재 최대값을 다시 채택하세요."}
                       </p>
                       <button
                         className="btn btn-secondary"
                         onClick={() =>
-                          setState((s) => confirmGeometry(s, member))
+                          member === "wale" &&
+                          calculated.anchor.status === "stale"
+                            ? goToStep(2, "anchor")
+                            : setState((s) => confirmGeometry(s, member))
                         }
                       >
-                        이 모델의 해석결과로 확인
+                        {member === "wale" &&
+                        calculated.anchor.status === "stale"
+                          ? "앵커 해석값 재확인"
+                          : "이 모델의 해석결과로 확인"}
                       </button>
                     </div>
                   </div>
@@ -1324,15 +1665,22 @@ export default function DesignPage({
                   ))}
                 </div>
                 {!current.ok ? (
-                  <div className="notice notice-error">
+                  <div
+                    className="notice notice-error design-result-errors"
+                    role="alert"
+                  >
                     <b>입력을 확인하세요.</b>
                     <ul>
                       {Object.entries(current.errors || {}).map(
                         ([key, value]) => (
                           <li key={key}>
-                            {module.fields.find((f) => f.key === key)?.label ||
-                              key}
-                            : {value}
+                            <button
+                              type="button"
+                              onClick={() => fixError(member, key)}
+                            >
+                              {errorLabel(member, key)} <ArrowRight size={13} />
+                            </button>
+                            <span>{value}</span>
                           </li>
                         ),
                       )}
@@ -1510,21 +1858,23 @@ export default function DesignPage({
                       </p>
                       <button
                         className="btn btn-secondary"
-                        onClick={() => setStep(2)}
+                        onClick={() => goToStep(2)}
                       >
                         해석값 재확인
                       </button>
                     </div>
                   </div>
                 )}
-                <div className="design-limits">
-                  <h4>검토 적용 범위</h4>
+                <details className="design-details design-limits">
+                  <summary>
+                    검토 적용 범위 <ChevronDown size={16} />
+                  </summary>
                   <ul>
                     {module.limitations.map((text) => (
                       <li key={text}>{text}</li>
                     ))}
                   </ul>
-                </div>
+                </details>
               </>
             )}
           </div>
@@ -1532,7 +1882,7 @@ export default function DesignPage({
             <button
               className="btn btn-ghost"
               disabled={step === 0}
-              onClick={() => setStep((s) => s - 1)}
+              onClick={() => goToStep(step - 1)}
             >
               <ArrowLeft size={15} />
               이전 단계
@@ -1541,7 +1891,7 @@ export default function DesignPage({
             {step < 3 ? (
               <button
                 className="btn btn-primary"
-                onClick={() => setStep((s) => s + 1)}
+                onClick={() => goToStep(step + 1)}
               >
                 {steps[step + 1].name}
                 <ArrowRight size={15} />
@@ -1550,10 +1900,11 @@ export default function DesignPage({
               <button
                 className="btn btn-primary"
                 disabled={invalid || busy}
+                aria-describedby="design-save-guidance"
                 onClick={() => save()}
               >
                 <Save size={15} />
-                {loadedId ? "현재 개정 저장" : "검토안 저장"}
+                {busy ? "저장 중…" : loadedId ? "새 개정 저장" : "검토안 저장"}
               </button>
             )}
           </div>
@@ -1586,19 +1937,13 @@ export default function DesignPage({
             </div>
             <div className="design-summary-score">
               <strong>
-                {passed}
-                <small> / {allChecks}</small>
+                {invalid ? invalidMembers.length : passed}
+                <small>{invalid ? "개 부재" : ` / ${allChecks}`}</small>
               </strong>
-              <span>채택 기준 만족 항목</span>
+              <span>{invalid ? "입력 확인 필요" : "채택 기준 만족 항목"}</span>
             </div>
             {MEMBER_IDS.map((id) => (
-              <button
-                key={id}
-                onClick={() => {
-                  setMember(id);
-                  setStep(3);
-                }}
-              >
+              <button key={id} onClick={() => goToStep(3, id)}>
                 <span>{MODULES[id].title}</span>
                 <Badge status={calculated[id].status} />
                 <ChevronRight size={14} />
@@ -1723,12 +2068,20 @@ export default function DesignPage({
         <section className="panel design-saved" id="design-saved-records">
           <div className="design-saved-heading">
             <div>
-              <h3>저장한 검토안</h3>
-              <p>기록을 불러오면 저장 입력으로 다시 계산합니다.</p>
+              <h3 ref={savedHeadingRef} tabIndex={-1}>
+                저장한 검토안
+              </h3>
+              <p>
+                불러오면 해당 위치의 입력을 저장한 값으로 바꾸고 다시
+                계산합니다. 변경 내용을 남기려면 먼저 검토안을 저장하세요.
+              </p>
             </div>
             <button
               className="btn btn-ghost"
-              onClick={() => setShowSaved(false)}
+              onClick={() => {
+                setShowSaved(false);
+                savedToggleRef.current?.focus();
+              }}
               aria-label="저장한 검토안 접기"
             >
               <X size={18} />
@@ -1756,12 +2109,14 @@ export default function DesignPage({
                     <button
                       className="btn btn-secondary"
                       onClick={() => load(r)}
+                      aria-label={`${r.title} 개정 ${r.revision} 불러오기`}
                     >
                       불러오기
                     </button>
                     <button
                       className="btn btn-ghost"
                       onClick={() => setCompareId(r.id)}
+                      aria-label={`${r.title} 개정 ${r.revision}과 현재 입력 비교`}
                     >
                       <GitCompareArrows size={15} />
                       비교

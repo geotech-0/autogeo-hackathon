@@ -986,3 +986,31 @@
   padding: 16px;
   border-radius: 8px;
 }
+
+.rm-optional-fields {
+  margin: 18px 0;
+}
+.rm-optional-fields .rf-grid2 {
+  margin-top: 14px;
+}
+.rm-record:disabled {
+  cursor: wait;
+}
+
+.rm-error-summary {
+  border: 1px solid #edbeb8;
+  background: #fff4f2;
+  color: #9d342b;
+  padding: 16px 20px;
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.rm-error-summary ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+.rm-error-summary:focus {
+  outline: 2px solid #d94e3e;
+  outline-offset: 3px;
+}

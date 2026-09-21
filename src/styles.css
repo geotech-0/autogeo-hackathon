@@ -234,6 +234,8 @@ input[type="number"] {
   display: flex;
   flex-direction: column;
   z-index: 20;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .site-selector {
   position: relative;
@@ -406,6 +408,9 @@ input[type="number"] {
   padding: 30px 36px 0;
   max-width: 1640px;
   margin: auto;
+}
+.main-content:focus {
+  outline: none;
 }
 .page-heading {
   display: flex;
@@ -1535,15 +1540,19 @@ input[type="number"] {
   .mobile-menu {
     display: flex;
     margin-left: -5px;
+    min-width: 44px;
+    min-height: 44px;
   }
   .sidebar {
     top: 60px;
     width: 250px;
     transform: translateX(-100%);
+    visibility: hidden;
     transition: transform 0.2s;
   }
   .sidebar.is-open {
     transform: translateX(0);
+    visibility: visible;
   }
   .nav-scrim {
     display: block;
@@ -2317,4 +2326,46 @@ input[type="number"] {
 }
 .record-evidence-details > .record-meta {
   margin-top: 14px;
+}
+
+/* Keep the selected evidence close to its controls on narrow screens. */
+.standards-view-tabs {
+  margin-bottom: 12px;
+}
+.standards-view-description {
+  margin-bottom: 20px;
+}
+.mobile-reference-picker {
+  display: none;
+}
+.source-preview h2 {
+  scroll-margin-top: 90px;
+}
+.input-error {
+  color: #ad2525;
+  font-size: 13px;
+}
+@media (max-width: 850px) {
+  .mobile-reference-picker {
+    display: flex;
+  }
+  .project-references .reference-search,
+  .project-reference-list,
+  .standard-list > .search-input,
+  .standard-list > .section-tabs,
+  .standard-list > .standard-cards,
+  .standard-list > .notice {
+    display: none;
+  }
+  .project-reference-layout {
+    gap: 4px;
+  }
+  .standards-view-tabs {
+    display: flex;
+  }
+  .standards-view-tabs button {
+    flex: 1;
+    min-height: 44px;
+    white-space: normal;
+  }
 }
