@@ -1,5 +1,17 @@
 # Decisions
 
+## 현재 실자료 버전 — 2026-09-21 후속
+
+- 기본 자료를 이천자이더리체 실제 32공·정사영상·설계·월간계측으로 전환했다. 기존 합성 현장 DB는 보존하고 별도 현장 ID와 저장소를 사용한다.
+- 제공 원본 PDF 9개·주상도 이미지 47개·품질 원본 7개는 로컬에 보존하며 Git/공개 파생 빌드에서 제외한다. 실제 수치·좌표·영상·3D는 공개 후보에 포함한다.
+- 공개 URL은 아직 이전 합성판이다. 실제 파생자료 공개범위를 확인한 뒤 GitHub/Vercel을 교체하고 공개 SHA를 검증한다.
+- 실제 GPR·두 번째 드론 회차는 미제공이다. 미확인 원문값·단위는 보류하고 빈 자료를 합성 실측으로 채우지 않는다.
+- 106개 자동시험과 실제 브라우저 교차 검수를 통과했다. 독립 계산 대조와 개정 복원, 첨부 포함 원자적 내보내기/가져오기를 검증했다.
+
+## 역사 기록 — 초기 합성 공개판
+
+이하 결정은 초기 합성판 당시의 기록이다. 현재 자료범위는 위 후속 결정을 따른다.
+
 2026-09-21: React/TypeScript/Vite static client, Three.js, custom accessible SVG charts, IndexedDB persistence. Reuse numerical engines selectively. No external AI API. Only synthetic site assets published; real source audits stay outside app repository.
 Shared schema and ownership defined in docs/INTEGRATION_CONTRACT.md. Deployment access was verified using the user's existing GitHub/Vercel connection.
 
