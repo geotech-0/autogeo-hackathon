@@ -5,7 +5,12 @@ import {
   convexHull,
   pointInHull,
 } from "./engine.mjs";
-export const REAL_GROUND_VERSION = "source-linked-variable-strata-2.2";
+export const REAL_GROUND_VERSION = "source-linked-variable-strata-2.3";
+export function withSiteDomainDefaults(view) {
+  return view.modelDomainVersion === 1
+    ? view
+    : { ...view, modelDomainVersion: 1, extrapolate: true };
+}
 export const LITHOLOGY_COLORS = {
   표토층: "#cab18b",
   매립층: "#bb925f",
@@ -165,9 +170,27 @@ export function realBounds(holes, pad = 15) {
     Math.max(...n) + pad,
   ];
 }
-export function createRealModel(holes, p) {
+/** @param {{kind:string,bounds:number[],padding:number,source:string}|null} [domain] */
+export function createRealModel(holes, p, domain = null) {
   const errors = validateRealHoles(holes);
   if (errors.length) throw Error(errors.join(" "));
+  if (
+    domain !== null &&
+    (domain.kind !== "site-rectangle" ||
+      !Array.isArray(domain.bounds) ||
+      domain.bounds.length !== 4 ||
+      !domain.bounds.every(Number.isFinite) ||
+      domain.bounds[0] >= domain.bounds[2] ||
+      domain.bounds[1] >= domain.bounds[3] ||
+      holes.some(
+        (h) =>
+          h.easting < domain.bounds[0] ||
+          h.easting > domain.bounds[2] ||
+          h.northing < domain.bounds[1] ||
+          h.northing > domain.bounds[3],
+      ))
+  )
+    throw Error("현장 모델의 사각형 범위와 시추공 포함 여부를 확인하세요.");
   const horizons = HORIZONS.map((h) => {
     const samples = holes
       .map((q) => ({
@@ -193,7 +216,34 @@ export function createRealModel(holes, p) {
       };
     }
   });
-  return { horizons, bounds: realBounds(holes), parameters: p, holes };
+  return {
+    horizons,
+    bounds: domain ? [...domain.bounds] : realBounds(holes),
+    domain,
+    parameters: p,
+    holes,
+  };
+}
+export function realGridQuality(grid) {
+  let crossedPointCount = 0,
+    missingPointCount = 0,
+    extrapolatedPointCount = 0;
+  for (const point of grid.points) {
+    if ([0, 1, 2].some((i) => !Number.isFinite(point.values[i]?.value)))
+      missingPointCount++;
+    if (point.values.some((value) => value?.extrapolated))
+      extrapolatedPointCount++;
+    if (
+      [0, 1].some(
+        (i) =>
+          point.values[i] &&
+          point.values[i + 1] &&
+          point.values[i].value < point.values[i + 1].value - 1e-8,
+      )
+    )
+      crossedPointCount++;
+  }
+  return { crossedPointCount, missingPointCount, extrapolatedPointCount };
 }
 export function realGrid(model, nx = 35, ny = 35) {
   const b = model.bounds,
@@ -347,7 +397,11 @@ export function restoreRealGround(payload, knownIds, expectedHoles) {
     verticalScale: 1.5,
     registration: { east: 0, north: 0, rotation: 0, scale: 1, height: 0 },
   };
-  const out = { ...defaults, ...v };
+  if (v.modelDomainVersion !== undefined && v.modelDomainVersion !== 1)
+    throw Error("저장된 현장 모델 범위 버전을 확인하세요.");
+  if (v.extrapolate !== undefined && typeof v.extrapolate !== "boolean")
+    throw Error("저장된 외삽 보기 설정을 확인하세요.");
+  const out = withSiteDomainDefaults({ ...defaults, ...v });
   if (
     !["map", "model", "sources", "quality"].includes(out.tab) ||
     !Array.isArray(out.shownCampaigns) ||

@@ -8,7 +8,9 @@ import {
   realGrid,
   restoreRealGround,
   REAL_GROUND_VERSION,
+  withSiteDomainDefaults,
 } from "./real-engine.mjs";
+import { siteModelDomain } from "./model-domain.mjs";
 const data = JSON.parse(
     fs.readFileSync(
       new URL("../../data/real-ground/boreholes.json", import.meta.url),
@@ -147,7 +149,9 @@ test("Legacy ground records restore solid display defaults without mutating sour
   const payload = savedGround();
   const before = JSON.stringify(payload);
   const restored = restoreRealGround(payload, payload.holeIds, data.holes);
-  assert.equal(REAL_GROUND_VERSION, "source-linked-variable-strata-2.2");
+  assert.equal(REAL_GROUND_VERSION, "source-linked-variable-strata-2.3");
+  assert.equal(restored.modelDomainVersion, 1);
+  assert.equal(restored.extrapolate, true);
   assert.equal(restored.representation, "solid");
   assert.equal(restored.meshOpacity, 1);
   assert.equal(restored.cutaway, false);
@@ -161,6 +165,70 @@ test("Legacy ground records restore solid display defaults without mutating sour
     true,
     true,
   ]);
+});
+
+test("site-domain migration expands older saved views but preserves a new explicit observation-only choice", () => {
+  const oldView = { extrapolate: false, selected: "2022-08:NBH-1" };
+  assert.deepEqual(withSiteDomainDefaults(oldView), {
+    ...oldView,
+    modelDomainVersion: 1,
+    extrapolate: true,
+  });
+  assert.equal(oldView.extrapolate, false);
+  for (const extrapolate of [false, true]) {
+    const payload = savedGround({ modelDomainVersion: 1, extrapolate });
+    const restored = restoreRealGround(
+      JSON.parse(JSON.stringify(payload)),
+      payload.holeIds,
+      data.holes,
+    );
+    assert.equal(restored.extrapolate, extrapolate);
+    assert.equal(restored.modelDomainVersion, 1);
+  }
+  for (const invalid of [{ modelDomainVersion: 2 }, { extrapolate: "yes" }]) {
+    const payload = savedGround(invalid);
+    assert.throws(
+      () => restoreRealGround(payload, payload.holeIds, data.holes),
+      /범위 버전|외삽 보기/,
+    );
+  }
+});
+
+test("an expanded model changes only its evaluation domain, preserving fixed-point kriging predictions and source values", () => {
+  const assets = JSON.parse(
+    fs.readFileSync(
+      new URL("../../../public/data/ground/site-assets.json", import.meta.url),
+    ),
+  );
+  const hs = data.holes.filter((h) => h.campaign === "2022-08");
+  const before = JSON.stringify(hs);
+  const domain = siteModelDomain(data.holes, assets.cad.boundaryEN);
+  const oldModel = createRealModel(hs, p),
+    expanded = createRealModel(hs, p, domain);
+  for (let i = 0; i < 3; i++)
+    for (const point of [
+      [239830, 521500],
+      [239950, 521630],
+      ...hs.map((h) => [h.easting, h.northing]),
+    ]) {
+      assert.deepEqual(
+        expanded.horizons[i].model.predict(...point),
+        oldModel.horizons[i].model.predict(...point),
+      );
+    }
+  assert.equal(JSON.stringify(hs), before);
+  assert.deepEqual(expanded.bounds, domain.bounds);
+  assert.notEqual(expanded.bounds, domain.bounds);
+  for (const bounds of [
+    [0, 0, 1, 1],
+    [240000, 521400, 239000, 521700],
+    [239800, NaN, 240050, 521720],
+  ]) {
+    assert.throws(
+      () => createRealModel(hs, p, { ...domain, bounds }),
+      /사각형 범위/,
+    );
+  }
 });
 
 test("Solid and surface display settings survive JSON round trips including opacity boundaries", () => {

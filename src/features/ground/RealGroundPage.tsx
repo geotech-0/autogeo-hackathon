@@ -30,6 +30,7 @@ import { sliceClosedMesh } from "./mesh-slicer.mjs";
 import SliceControls from "./SliceControls";
 import RegistrationControls from "./RegistrationControls";
 import ModelSliceSection from "./ModelSliceSection";
+import { siteModelDomain, SITE_MODEL_PADDING_M } from "./model-domain.mjs";
 import type {
   CameraView,
   GroundVolume,
@@ -50,6 +51,8 @@ import {
   REAL_GROUND_VERSION,
   LITHOLOGY_COLORS,
   restoreRealGround,
+  withSiteDomainDefaults,
+  realGridQuality,
 } from "./real-engine.mjs";
 import { registrationMatrix, inverse } from "./engine.mjs";
 import "./ground.css";
@@ -97,6 +100,7 @@ type GroundView = {
   showPlanLinework: boolean;
   showGCP: boolean;
   extrapolate: boolean;
+  modelDomainVersion: 1;
   showVariance: boolean;
   verticalScale: number;
   parameters: { model: string; range: string; sill: string; nugget: string };
@@ -154,7 +158,8 @@ const initial = (): GroundView => ({
   showPlanBoundary: true,
   showPlanLinework: true,
   showGCP: false,
-  extrapolate: false,
+  extrapolate: true,
+  modelDomainVersion: 1,
   showVariance: false,
   verticalScale: 1.5,
   parameters: { model: "spherical", range: "150", sill: "50", nugget: "0" },
@@ -384,7 +389,7 @@ export default function RealGroundPage({
       behavior: "auto",
     });
   }, [focusRequest]);
-  const [v, setV, { ready, error: draftError }] = useDraft<GroundView>(
+  const [storedView, setV, { ready, error: draftError }] = useDraft<GroundView>(
       "real-ground-view-v2",
       initial,
     ),
@@ -397,6 +402,10 @@ export default function RealGroundPage({
     [registrationInputsValid, setRegistrationInputsValid] = useState(true),
     [viewReset, setViewReset] = useState(0),
     [logIndex, setLogIndex] = useState(0);
+  const v = useMemo(
+    () => withSiteDomainDefaults(storedView) as GroundView,
+    [storedView],
+  );
   const set = <K extends keyof GroundView>(key: K, value: GroundView[K]) =>
     setV({ ...v, [key]: value });
   // Existing autosaved drafts predate volume controls; keep their data and add defaults.
@@ -419,16 +428,21 @@ export default function RealGroundPage({
     try {
       if (Object.values(v.parameters).some((x) => x === ""))
         throw Error("크리깅 입력값을 채워 주세요.");
-      const model = createRealModel(modelHoles, parameters),
+      if (!assets)
+        throw Error(assetError || "대지경계 자료를 불러오는 중입니다.");
+      const domain = siteModelDomain(holes, assets.cad.boundaryEN),
+        model = createRealModel(modelHoles, parameters, domain),
         grid = realGrid(model, 65, 65),
-        loo = realLOO(model);
-      return { model, grid, loo, error: "" };
+        loo = realLOO(model),
+        gridQuality = realGridQuality(grid);
+      return { model, grid, loo, gridQuality, error: "" };
     } catch (e) {
       return {
         model: null,
         grid: null,
         section: [],
         loo: [],
+        gridQuality: null,
         error: (e as Error).message,
       };
     }
@@ -438,6 +452,8 @@ export default function RealGroundPage({
     v.parameters.range,
     v.parameters.sill,
     v.parameters.nugget,
+    assets,
+    assetError,
   ]);
   const sectionPoints = useMemo(
     () => (analysis.model ? realSection(analysis.model, v.sectionNorth) : []),
@@ -534,7 +550,11 @@ export default function RealGroundPage({
       };
     }
   }, [volumes.layers, slice.axis, slice.positions[slice.axis], slice.keep]);
-  const geometryError = volumes.error || slices.error || coordinateError;
+  const orderError = analysis.gridQuality?.crossedPointCount
+    ? `${analysis.gridQuality.crossedPointCount.toLocaleString("ko-KR")}개 격자점에서 지층 경계가 역전됩니다. 보간 설정의 모형·범위를 조정하세요. 추정 표고를 임의로 정렬하지 않습니다.`
+    : "";
+  const geometryError =
+    orderError || volumes.error || slices.error || coordinateError;
   const saved = records
     .filter((r) => r.payload.kind === "real-ground-model")
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
@@ -641,14 +661,16 @@ export default function RealGroundPage({
         .filter((h) => h.qc.length)
         .map((h) => ({ id: h.id, messages: h.qc })),
       loo: analysis.loo,
+      grid: analysis.gridQuality,
       limitations: source.limitations,
     },
     visualization: {
       baseElevation,
       rockBottomObserved: false,
       boundary: v.extrapolate
-        ? "grid-domain-extrapolation"
+        ? "site-rectangle-extrapolation"
         : "observed-hull-clipped",
+      domain: analysis.model?.domain,
       sliceCoordinateFrame: "X=E,Y=N,Z=EL(m)",
     },
     methodVersion: REAL_GROUND_VERSION,
@@ -1262,8 +1284,8 @@ export default function RealGroundPage({
             <div className="real-model-visual">
               {analysis.error ||
               (v.mode === "ground" &&
-                representation === "solid" &&
-                geometryError) ? (
+                (orderError ||
+                  (representation === "solid" && geometryError))) ? (
                 <div className="real-warning" role="alert">
                   {analysis.error || geometryError}
                 </div>
@@ -1338,19 +1360,23 @@ export default function RealGroundPage({
             <span>드래그로 회전 · 휠 또는 두 손가락으로 확대</span>
             <span>
               {v.mode === "ground"
-                ? `관측자료 보간 · 암반 하부는 표시 하한 EL. ${f(baseElevation, 1)} m까지의 가정`
+                ? `${v.extrapolate ? `대지경계 + ${SITE_MODEL_PADDING_M}m 사각형 · 시추공 밖은 외삽` : "시추공 관측범위만 표시"} · 암반 하한 EL. ${f(baseElevation, 1)} m`
                 : "촬영일·수직기준 미확인 · 높이 차이를 침하량으로 해석하지 마세요."}
             </span>
           </div>
           <details className="real-disclosure real-model-notes">
             <summary>모델 해석과 자료 한계</summary>
             <p className="real-muted real-under-view">
-              채운 지층은 관측 경계 사이의 보간 영역입니다. 표층 복합층은 공구
-              표고부터 풍화토 상단까지, 풍화토는 암반 출현면까지 표시합니다.
-              암반은 모델 표시 하한 EL. {f(baseElevation, 1)} m까지 연장한
-              가정입니다. 외곽은 시추공 분포에 따른 모델 범위이며 실제 수직 지층
-              경계를 뜻하지 않습니다. DSM·점군 높이와 과거 공구 표고의 차이는
-              침하량이 아닙니다.
+              채운 지층은 관측 경계 사이의 보간·외삽 영역입니다. 표층 복합층은
+              공구 표고부터 풍화토 상단까지, 풍화토는 암반 출현면까지
+              표시합니다. 암반은 모델 표시 하한 EL. {f(baseElevation, 1)} m까지
+              연장한 가정입니다. 모델은 대지경계와 전체 조사공을 감싸는
+              사각형에서 사방으로 {SITE_MODEL_PADDING_M}m씩 넓힌 범위입니다.
+              조사차수와 무관하게 같은 범위를 사용하며, 시추공 분포 밖은 외삽
+              추정입니다. 지층별 관측공이 달라 분포범위 안에서도 일부 경계면은
+              외삽일 수 있습니다. 사각형 외곽은 실제 수직 지층 경계를 뜻하지
+              않습니다. ‘외삽 영역 표시’를 끄면 관측범위만 볼 수 있습니다.
+              DSM·점군 높이와 과거 공구 표고의 차이는 침하량이 아닙니다.
             </p>
           </details>
           <details
@@ -1365,7 +1391,11 @@ export default function RealGroundPage({
                   : "참고 단면"}
               </span>
             </summary>
-            {representation === "solid" && !geometryError ? (
+            {orderError ? (
+              <p className="real-warning" role="alert">
+                {orderError}
+              </p>
+            ) : representation === "solid" && !geometryError ? (
               <ModelSliceSection
                 layers={slices.layers}
                 slice={slice}
@@ -1374,6 +1404,10 @@ export default function RealGroundPage({
                 baseElevation={baseElevation}
                 topElevation={topElevation}
                 holes={modelHoles}
+                observationHull={
+                  analysis.model?.horizons[0].model?.hull ?? null
+                }
+                extrapolate={v.extrapolate}
                 linked={v.mode === "ground" && slice.enabled}
                 assets={assets}
                 showPlanBoundary={v.showPlanBoundary ?? true}
@@ -1406,8 +1440,8 @@ export default function RealGroundPage({
                       <input
                         aria-label="실제 지층 단면 북쪽 좌표"
                         type="range"
-                        min={Math.min(...modelHoles.map((h) => h.northing))}
-                        max={Math.max(...modelHoles.map((h) => h.northing))}
+                        min={bounds[1]}
+                        max={bounds[3]}
                         step={0.5}
                         value={v.sectionNorth}
                         onChange={(e) =>
@@ -1440,7 +1474,10 @@ export default function RealGroundPage({
               </>
             )}
           </details>
-          <details className="real-disclosure" open={!!analysis.error}>
+          <details
+            className="real-disclosure"
+            open={!!analysis.error || !!orderError}
+          >
             <summary>
               보간 설정·검증 <span>베리오그램 · 교차검증</span>
             </summary>

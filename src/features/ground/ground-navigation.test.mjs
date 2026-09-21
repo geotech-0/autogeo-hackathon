@@ -5,6 +5,8 @@ import { registerHooks } from "node:module";
 import { readFile } from "node:fs/promises";
 import React from "react";
 import { create, act } from "react-test-renderer";
+import { siteModelDomain } from "./model-domain.mjs";
+import { realGridQuality } from "./real-engine.mjs";
 import {
   writeDraft,
   readDraft,
@@ -26,6 +28,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const { default: RealGroundPage } = await import("./RealGroundPage.tsx");
 const { default: RealGroundScene } = await import("./RealGroundScene.tsx");
 const { default: RealSiteMap } = await import("./RealSiteMap.tsx");
+const { default: ModelSliceSection } = await import("./ModelSliceSection.tsx");
 const source = JSON.parse(
   await readFile(
     new URL("../../data/real-ground/boreholes.json", import.meta.url),
@@ -80,6 +83,209 @@ const initial = {
   parameters: { model: "spherical", range: "150", sill: "50", nugget: "0" },
   registration: { east: 0, north: 0, rotation: 0, scale: 1, height: 0 },
 };
+
+test("Legacy views adopt the shared site rectangle, while an explicit observed-only choice survives navigation, draft and record restoration", async () => {
+  const originalFetch = globalThis.fetch;
+  const cad = JSON.parse(
+    await readFile(
+      new URL("../../../public/data/ground/cad-linework.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  globalThis.fetch = async (url) => ({
+    ok: true,
+    json: async () => (String(url).endsWith("site-assets.json") ? assets : cad),
+  });
+  const originalHoles = structuredClone(source.holes);
+  const expectedDomain = siteModelDomain(source.holes, assets.cad.boundaryEN);
+  assert.equal(expectedDomain.padding, 10);
+  await writeDraft("real-ground-view-v2", {
+    ...initial,
+    tab: "model",
+    slice: { ...initial.slice, axis: "z" },
+  });
+  const records = [];
+  const props = {
+    records,
+    notify() {},
+    onSave: async (value) => {
+      const saved = await saveRecord(value);
+      records.splice(0, records.length, saved);
+      return saved;
+    },
+  };
+  const checkbox = (label) =>
+    r.root
+      .findAllByType("label")
+      .find((n) => textOf(n).trim() === label)
+      .findByType("input");
+  const toggle = (label, checked) =>
+    act(async () => checkbox(label).props.onChange({ target: { checked } }));
+  const scene = () => r.root.findByType(RealGroundScene).props;
+  const section = () => r.root.findByType(ModelSliceSection).props;
+  const checkSharedDomain = () => {
+    assert.deepEqual(scene().grid.bounds, expectedDomain.bounds);
+    assert.deepEqual(section().bounds, expectedDomain.bounds);
+    assert.equal(section().slice.axis, "z");
+    assert.equal(section().extrapolate, scene().extrapolate);
+  };
+  const checkPayload = (extrapolate) => {
+    const payload = records[0].payload;
+    assert.equal(payload.view.modelDomainVersion, 1);
+    assert.equal(payload.view.extrapolate, extrapolate);
+    assert.deepEqual(payload.visualization.domain, expectedDomain);
+    assert.equal(
+      payload.visualization.boundary,
+      extrapolate ? "site-rectangle-extrapolation" : "observed-hull-clipped",
+    );
+    assert.deepEqual(payload.quality.grid, realGridQuality(scene().grid));
+    assert.deepEqual(payload.holes, originalHoles);
+  };
+  let r;
+  const render = async () => {
+    await act(async () => {
+      r = create(React.createElement(RealGroundPage, props));
+    });
+    await act(settle);
+  };
+  try {
+    await render();
+    assert.equal(
+      scene().extrapolate,
+      true,
+      "the pre-domain false default migrates to the new site-wide view",
+    );
+    checkSharedDomain();
+    await click(r, "검토 저장");
+    checkPayload(true);
+    const recordId = records[0].id;
+
+    const beforeOverlay = scene().grid;
+    await toggle("도면경계", false);
+    await toggle("흙막이 도면선", false);
+    assert.equal(
+      scene().grid,
+      beforeOverlay,
+      "drawing visibility cannot change the model domain or its predictions",
+    );
+    checkSharedDomain();
+    await change(field(r, "모델 조사차수"), "2023-11");
+    assert.ok(scene().holes.every((h) => h.campaign === "2023-11"));
+    assert.equal(scene().extrapolate, true);
+    checkSharedDomain();
+
+    await toggle("외삽 영역 표시", false);
+    assert.equal(scene().extrapolate, false);
+    await act(async () => r.unmount());
+    await act(settle);
+    const draft = await readDraft("real-ground-view-v2");
+    assert.equal(draft.modelDomainVersion, 1);
+    assert.equal(draft.extrapolate, false);
+    await render();
+    assert.equal(
+      scene().extrapolate,
+      false,
+      "a deliberate new-version choice must not migrate back to true",
+    );
+    checkSharedDomain();
+    await click(r, "개정 저장");
+    assert.equal(records[0].id, recordId);
+    assert.equal(records[0].revision, 2);
+    checkPayload(false);
+
+    await toggle("외삽 영역 표시", true);
+    await click(r, "불러오기");
+    assert.equal(scene().extrapolate, false);
+    assert.equal(field(r, "모델 조사차수").props.value, "2023-11");
+    checkSharedDomain();
+    assert.deepEqual(
+      source.holes,
+      originalHoles,
+      "view migration and extrapolation must preserve the transcribed observations",
+    );
+  } finally {
+    if (r) await act(async () => r.unmount());
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("The actual ground page exposes Gaussian layer inversions and blocks model saving until the parameters recover", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => ({
+    ok: true,
+    json: async () =>
+      String(url).endsWith("site-assets.json") ? assets : { points: [] },
+  });
+  await writeDraft("real-ground-view-v2", {
+    ...initial,
+    tab: "model",
+    modelCampaign: "all",
+    modelDomainVersion: 1,
+    extrapolate: true,
+  });
+  let r,
+    saves = 0;
+  const variogram = () =>
+    r.root
+      .findAllByType("select")
+      .find((n) =>
+        n.findAllByType("option").some((o) => o.props.value === "gaussian"),
+      );
+  try {
+    await act(async () => {
+      r = create(
+        React.createElement(RealGroundPage, {
+          records: [],
+          notify() {},
+          onSave() {
+            saves++;
+            throw Error("inverted data must not be saved");
+          },
+        }),
+      );
+    });
+    await act(settle);
+    assert.equal(button(r, "검토 저장").props.disabled, false);
+    assert.equal(r.root.findAllByType(RealGroundScene).length, 1);
+    await change(variogram(), "gaussian");
+    const alerts = r.root.findAllByProps({ role: "alert" }).map(textOf);
+    assert.ok(alerts.some((text) => text.includes("지층 경계가 역전됩니다")));
+    assert.ok(
+      alerts.some((text) =>
+        text.includes("추정 표고를 임의로 정렬하지 않습니다"),
+      ),
+    );
+    assert.equal(r.root.findAllByType(RealGroundScene).length, 0);
+    assert.equal(r.root.findAllByType(ModelSliceSection).length, 0);
+    assert.equal(button(r, "검토 저장").props.disabled, true);
+    assert.equal(button(r, "JSON 내보내기").props.disabled, true);
+    assert.equal(
+      r.root
+        .findAllByType("details")
+        .find((n) =>
+          n
+            .findAllByType("summary")
+            .some((s) => textOf(s).includes("보간 설정·검증")),
+        ).props.open,
+      true,
+      "the controls needed to resolve the error are expanded",
+    );
+    await click(r, "검토 저장");
+    assert.equal(saves, 0, "the save handler also rejects invalid geometry");
+    await change(variogram(), "spherical");
+    assert.equal(button(r, "검토 저장").props.disabled, false);
+    assert.equal(r.root.findAllByType(RealGroundScene).length, 1);
+    assert.equal(r.root.findAllByType(ModelSliceSection).length, 1);
+    assert.ok(
+      !r.root
+        .findAllByProps({ role: "alert" })
+        .some((n) => textOf(n).includes("지층 경계가 역전됩니다")),
+    );
+  } finally {
+    if (r) await act(async () => r.unmount());
+    globalThis.fetch = originalFetch;
+  }
+});
 
 test("Z drawing options keep independent map settings and survive both draft and saved-view restoration", async () => {
   const originalFetch = globalThis.fetch;

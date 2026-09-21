@@ -30,6 +30,8 @@ export default function ModelSliceSection({
   showPlanLinework,
   onPlanOverlayChange,
   disabled = false,
+  observationHull = null,
+  extrapolate = false,
 }: {
   layers: GroundVolume[];
   slice: SliceState;
@@ -44,6 +46,8 @@ export default function ModelSliceSection({
   showPlanLinework: boolean;
   onPlanOverlayChange: (key: "boundary" | "linework", checked: boolean) => void;
   disabled?: boolean;
+  observationHull?: number[][] | null;
+  extrapolate?: boolean;
 }) {
   const ref = useRef<SVGSVGElement>(null),
     [width, setWidth] = useState(800);
@@ -266,6 +270,23 @@ export default function ModelSliceSection({
             vectorEffect="non-scaling-stroke"
           />
         )}
+        {axis === "z" && extrapolate && observationHull && (
+          <polygon
+            aria-label="시추공 분포범위"
+            points={observationHull
+              .map((p) => `${x(p[0])},${y(p[1])}`)
+              .join(" ")}
+            fill="none"
+            stroke="#273b50"
+            strokeWidth={1.4}
+            strokeDasharray="5 4"
+            vectorEffect="non-scaling-stroke"
+          >
+            <title>
+              점선: 선택 조사차수의 시추공 분포범위 · 바깥은 외삽 추정
+            </title>
+          </polygon>
+        )}
         {holes
           .filter(
             (h) =>
@@ -337,6 +358,9 @@ export default function ModelSliceSection({
         {axis === "z"
           ? "원은 이 높이에서 관측된 시추공 위치입니다."
           : "막대는 단면에서 3m 이내의 관측 주상도입니다."}{" "}
+        {axis === "z" &&
+          extrapolate &&
+          "점선은 시추공 분포범위이며 바깥은 외삽 추정입니다. "}
         {axis === "z" &&
           (showPlanBoundary || showPlanLinework) &&
           "도면은 높이와 무관한 평면 위치입니다. "}
