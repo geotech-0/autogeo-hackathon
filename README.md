@@ -6,6 +6,10 @@
 
 공개 대상은 실제 수치·좌표·영상·3D를 포함한 파생자료 앱입니다. [Vercel 공개 주소](https://autogeo-hackathon.vercel.app/)의 배포 소스는 [공개 version.json](https://autogeo-hackathon.vercel.app/version.json)의 커밋 SHA를 [GitHub 저장소](https://github.com/geotech-0/autogeo-hackathon)와 대조해 확인합니다. 배포 진행 및 검수 결과는 `CHECKPOINT.md`에 기록합니다.
 
+## 기능 소개영상
+
+[한국어 음성·자막 소개영상](https://autogeo-hackathon.vercel.app/data/demo/index.html)은 약 2분 47초이며 로그인 없이 재생할 수 있습니다. 실제 화면과 도식을 활용한 설명영상이며, 실제 조작은 공개 앱에서 확인합니다.
+
 ## 대표 흐름
 
 1. 실제 정사영상 위에서 4개 조사차수의 32공을 선택하고, 해당 주상도 원문과 관측 구간을 확인합니다.
