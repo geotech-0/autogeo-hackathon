@@ -24,5 +24,13 @@ export function validateArchive(value){
  if(!value||typeof value!=='object'||value.schema_version!==1||value.site_id!==SITE||!Array.isArray(value.records))throw new Error('AutoGeo A현장의 지원되는 내보내기 파일이 아닙니다.');
  if(value.records.length>2000)throw new Error('한 번에 2,000개까지 가져올 수 있습니다.');
  const seen=new Set();for(const record of value.records){verify(record);if(seen.has(record.id))throw new Error('같은 ID의 기록이 중복되어 있습니다.');seen.add(record.id);}
+ if(value.revisions!==undefined){
+  if(!Array.isArray(value.revisions)||value.revisions.length>10000)throw new Error('개정 이력 형식이나 개수가 올바르지 않습니다.');
+  const history=new Map();for(const record of value.revisions){verify(record);const key=`${record.id}@${record.revision}`;if(history.has(key))throw new Error('개정 이력이 중복되어 있습니다.');history.set(key,record);if(!seen.has(record.id))throw new Error('현재 기록이 없는 개정 이력입니다.');if(record.revision>value.records.find(r=>r.id===record.id).revision)throw new Error('현재 기록보다 최신인 보관 개정이 있습니다.');}
+  for(const record of value.records){const historical=history.get(`${record.id}@${record.revision}`);if(historical&&!sameRevision(historical,record))throw new Error('현재 기록과 같은 개정의 이력 내용이 다릅니다.');}
+ }
  return structuredClone(value);
 }
+
+export function sameRevision(a,b){return canonical(a)===canonical(b);}
+function canonical(value){if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}';return JSON.stringify(value);}
