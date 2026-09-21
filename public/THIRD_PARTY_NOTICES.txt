@@ -8,3 +8,5 @@ lucide-react 0.468.0 — ISC — licenses/lucide-react.txt
 
 PretendardVariable — SIL Open Font License — fonts/LICENSE
 GS corporate artwork: supplied design reference for this hackathon demonstration. Not an official corporate service.
+
+PDF.js / pdfjs-dist 6.3.289 — Mozilla and contributors, Apache License 2.0. See /pdfjs/LICENSE and bundled font/CMap/WASM notices. https://mozilla.github.io/pdf.js/

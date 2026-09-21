@@ -1,0 +1,1225 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Map,
+  Layers3,
+  FileText,
+  Save,
+  Download,
+  RotateCcw,
+  Search,
+  ExternalLink,
+  CheckCircle2,
+  AlertTriangle,
+  SlidersHorizontal,
+} from "lucide-react";
+import type { FeatureProps } from "../../contracts";
+import { useDraft } from "../../storage/useDraft";
+import source from "../../data/real-ground/boreholes.json";
+import {
+  HAS_PROVIDED_ORIGINALS,
+  PROVIDED_SOURCE_NOTICE,
+} from "../../data/source-access";
+import RealSiteMap, { CAMPAIGN_COLORS, useSiteAssets } from "./RealSiteMap";
+import RealGroundScene from "./RealGroundScene";
+import type { RealHole, RealPoint, RealHorizon } from "./real-types";
+import {
+  createRealModel,
+  realGrid,
+  realSection,
+  realLOO,
+  REAL_GROUND_VERSION,
+  LITHOLOGY_COLORS,
+  restoreRealGround,
+} from "./real-engine.mjs";
+import { registrationMatrix, inverse } from "./engine.mjs";
+import "./ground.css";
+import "./real-ground.css";
+const holes = source.holes as RealHole[],
+  colors = LITHOLOGY_COLORS as Record<string, string>,
+  campaigns = source.campaigns;
+const f = (n: number, d = 2) =>
+  Number.isFinite(n)
+    ? n.toLocaleString("ko-KR", {
+        maximumFractionDigits: d,
+        minimumFractionDigits: d,
+      })
+    : "—";
+const download = (name: string, obj: unknown) => {
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }),
+  );
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+};
+type GroundView = {
+  recordId?: string;
+  tab: "map" | "model" | "sources" | "quality";
+  selected: string;
+  modelCampaign: string;
+  shownCampaigns: string[];
+  sectionNorth: number;
+  mode: "ground" | "dsm" | "pointcloud";
+  visible: boolean[];
+  showHoles: boolean;
+  showCAD: boolean;
+  showCADLinework: boolean;
+  showGCP: boolean;
+  extrapolate: boolean;
+  showVariance: boolean;
+  verticalScale: number;
+  parameters: { model: string; range: string; sill: string; nugget: string };
+  registration: {
+    east: number;
+    north: number;
+    rotation: number;
+    scale: number;
+    height: number;
+  };
+};
+const initial = (): GroundView => ({
+  tab: "map",
+  selected: "2022-08:NBH-6",
+  modelCampaign: "2022-08",
+  shownCampaigns: campaigns.map((c) => c.id),
+  sectionNorth: 521622.7,
+  mode: "ground",
+  visible: [true, true, true],
+  showHoles: true,
+  showCAD: true,
+  showCADLinework: false,
+  showGCP: false,
+  extrapolate: false,
+  showVariance: false,
+  verticalScale: 1.5,
+  parameters: { model: "spherical", range: "150", sill: "50", nugget: "0" },
+  registration: { east: 0, north: 0, rotation: 0, scale: 1, height: 0 },
+});
+function Section({
+  points,
+  horizons,
+  north,
+  holes: selectedHoles,
+  selected,
+  onSelect,
+}: {
+  points: RealPoint[];
+  horizons: RealHorizon[];
+  north: number;
+  holes: RealHole[];
+  selected: string;
+  onSelect: (id: string) => void;
+}) {
+  const ref = useRef<SVGSVGElement>(null),
+    [width, setWidth] = useState(800);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () =>
+      setWidth(Math.max(200, Math.min(1100, el.getBoundingClientRect().width)));
+    measure();
+    const o = new ResizeObserver(measure);
+    o.observe(el);
+    return () => o.disconnect();
+  }, []);
+  if (!points.length) return null;
+  const compact = width < 500,
+    height = 300,
+    left = 46,
+    right = 22,
+    top = 25,
+    bottom = 44,
+    e0 = points[0].e,
+    e1 = points.at(-1)!.e,
+    allH = points.flatMap((p) => p.values.flatMap((v) => (v ? [v.value] : []))),
+    near = selectedHoles.filter((h) => Math.abs(h.northing - north) <= 12),
+    z0 =
+      Math.floor(
+        Math.min(...allH, ...near.map((h) => h.collar - h.observedBottom)) / 5,
+      ) *
+        5 -
+      5,
+    z1 = Math.ceil(Math.max(...allH, ...near.map((h) => h.collar)) / 5) * 5 + 5,
+    x = (e: number) => left + ((e - e0) / (e1 - e0)) * (width - left - right),
+    y = (h: number) =>
+      height - bottom - ((h - z0) / (z1 - z0)) * (height - top - bottom);
+  return (
+    <svg
+      ref={ref}
+      className="real-section"
+      viewBox={`0 0 ${width} ${height}`}
+      aria-label={`실제 주상도 기반 동서 단면, 북쪽 좌표 ${north}m. 가로축 동쪽 좌표, 세로축 표고 m.`}
+      role="img"
+    >
+      {Array.from({ length: 5 }, (_, i) => z0 + ((z1 - z0) * i) / 4).map(
+        (z) => (
+          <g key={z}>
+            <line
+              x1={left}
+              x2={width - right}
+              y1={y(z)}
+              y2={y(z)}
+              stroke="#e6ecf1"
+            />
+            <text x={left - 7} y={y(z) + 4} textAnchor="end">
+              {f(z, 0)}
+            </text>
+          </g>
+        ),
+      )}
+      {horizons.map((h, k) => (
+        <g key={h.id}>
+          {points.slice(1).map((p, i) => {
+            const a = points[i],
+              v = p.values[k],
+              av = a.values[k];
+            if (!v || !av) return null;
+            return (
+              <line
+                key={i}
+                x1={x(a.e)}
+                y1={y(av.value)}
+                x2={x(p.e)}
+                y2={y(v.value)}
+                stroke={h.color}
+                strokeWidth={2.5}
+                strokeDasharray={
+                  v.extrapolated || av.extrapolated ? "4 3" : undefined
+                }
+              />
+            );
+          })}
+        </g>
+      ))}
+      {near.map((h) => (
+        <g
+          key={h.id}
+          role="button"
+          tabIndex={0}
+          aria-label={`${h.campaign} ${h.label} 단면 주상도 선택`}
+          onClick={() => onSelect(h.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSelect(h.id);
+          }}
+          style={{ cursor: "pointer" }}
+        >
+          {h.layers.map((l, i) => (
+            <rect
+              key={i}
+              x={x(h.easting) - 4}
+              y={y(h.collar - l.from)}
+              width={8}
+              height={Math.max(0.5, y(h.collar - l.to) - y(h.collar - l.from))}
+              fill={colors[l.name] ?? "#aaa"}
+              stroke={h.id === selected ? "#0f6fff" : "#fff"}
+              strokeWidth={h.id === selected ? 1.5 : 0.5}
+            />
+          ))}
+          <text
+            x={x(h.easting)}
+            y={y(h.collar) - 7}
+            textAnchor="middle"
+            className="real-section-hole"
+          >
+            {h.label}
+          </text>
+          <path
+            d={`M${x(h.easting) - 4} ${y(h.collar - h.observedBottom) + 2}l4 5 4-5`}
+            fill="none"
+            stroke="#52677a"
+          />
+        </g>
+      ))}
+      {Array.from(
+        { length: compact ? 3 : 5 },
+        (_, i) => e0 + ((e1 - e0) * i) / (compact ? 2 : 4),
+      ).map((e) => (
+        <text key={e} x={x(e)} y={height - 22} textAnchor="middle">
+          {f(e, 0)}
+        </text>
+      ))}
+      <text x={left} y={15}>
+        표고 EL. (m)
+      </text>
+      <text x={width - right} y={height - 4} textAnchor="end">
+        동쪽 E (m)
+      </text>
+    </svg>
+  );
+}
+export default function RealGroundPage({
+  records,
+  onSave,
+  notify,
+  requestedRecordId,
+}: FeatureProps) {
+  const appliedRequest = useRef<string | null>(null);
+  const [v, setV, { ready, error: draftError }] = useDraft<GroundView>(
+      "real-ground-view-v2",
+      initial,
+    ),
+    { assets, error: assetError } = useSiteAssets(),
+    [reset, setReset] = useState(0),
+    [search, setSearch] = useState(""),
+    [selectedRecord, setSelectedRecord] = useState(""),
+    [busy, setBusy] = useState(false),
+    [logIndex, setLogIndex] = useState(0);
+  const set = <K extends keyof GroundView>(key: K, value: GroundView[K]) =>
+    setV({ ...v, [key]: value });
+  const selected = holes.find((h) => h.id === v.selected) ?? holes[0];
+  const shown = holes.filter((h) => v.shownCampaigns.includes(h.campaign)),
+    modelHoles = holes.filter(
+      (h) => v.modelCampaign === "all" || h.campaign === v.modelCampaign,
+    ),
+    parameters = {
+      model: v.parameters.model,
+      range: Number(v.parameters.range),
+      sill: Number(v.parameters.sill),
+      nugget: Number(v.parameters.nugget),
+    };
+  const analysis = useMemo(() => {
+    try {
+      if (Object.values(v.parameters).some((x) => x === ""))
+        throw Error("크리깅 입력값을 채워 주세요.");
+      const model = createRealModel(modelHoles, parameters),
+        grid = realGrid(model),
+        section = realSection(model, v.sectionNorth),
+        loo = realLOO(model);
+      return { model, grid, section, loo, error: "" };
+    } catch (e) {
+      return {
+        model: null,
+        grid: null,
+        section: [],
+        loo: [],
+        error: (e as Error).message,
+      };
+    }
+  }, [
+    v.modelCampaign,
+    v.parameters.model,
+    v.parameters.range,
+    v.parameters.sill,
+    v.parameters.nugget,
+    v.sectionNorth,
+  ]);
+  const saved = records
+    .filter((r) => r.payload.kind === "real-ground-model")
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  useEffect(() => setLogIndex(0), [selected.id]);
+  const pick = (id: string) => {
+    const h = holes.find((h) => h.id === id);
+    if (h) setV({ ...v, selected: id, sectionNorth: h.northing });
+  };
+  const getPayload = () => ({
+    kind: "real-ground-model",
+    schemaVersion: 2,
+    sourceRevision: "source-32-holes-r1",
+    frame: source.frame,
+    holeIds: holes.map((h) => h.id),
+    holes,
+    sourceCampaigns: campaigns.map((c) => ({
+      id: c.id,
+      sourceId: c.sourceId,
+      sourceSha256: c.sourceSha256,
+    })),
+    parameters,
+    view: { ...v, recordId: undefined },
+    registration: {
+      ...v.registration,
+      masterOriginENH: source.frame.originENH,
+      localMatrix: registrationMatrix(v.registration),
+      inverseLocalMatrix: inverse(registrationMatrix(v.registration)),
+      cad: assets?.cad,
+      independentDroneChecks: [],
+      verticalCorrectionApplied: v.registration.height !== 0,
+    },
+    assets: {
+      orthophotoId: assets?.orthophoto.id,
+      DSM: assets?.dsm,
+      pointcloud: assets?.pointcloud,
+      geoid: assets?.geoid,
+    },
+    quality: {
+      conflicts: holes
+        .filter((h) => h.qc.length)
+        .map((h) => ({ id: h.id, messages: h.qc })),
+      loo: analysis.loo,
+      limitations: source.limitations,
+    },
+    methodVersion: REAL_GROUND_VERSION,
+  });
+  async function save() {
+    if (!analysis.model || !assets) return;
+    setBusy(true);
+    try {
+      const r = await onSave({
+        id: v.recordId,
+        site_id: "icheon-xi-deriche",
+        zone_id: "IC-EXC",
+        asset_id: "icheon-ground-investigations",
+        source_id: "icheon-ground-32-r1",
+        source_revision: "1",
+        stage: "tender",
+        analysis_id: "real-ground-" + (v.recordId ?? Date.now()),
+        method_version: REAL_GROUND_VERSION,
+        origin: "calculated",
+        title: `실제 지반 · ${v.modelCampaign === "all" ? "전체 차수" : v.modelCampaign} · ${modelHoles.length}공 모델`,
+        status: "pending",
+        summary: `전체 32공·96구간 연결 / ${modelHoles.length}공 보간 / 실제 정사영상·DSM·점군 / NH-4 총심도 원문 충돌 1건`,
+        assumptions: source.limitations,
+        payload: getPayload(),
+      });
+      setV({ ...v, recordId: r.id });
+      notify("실제 지반 모델과 보기·정합 상태를 저장했습니다.", "success");
+    } catch (e) {
+      notify((e as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+  function load() {
+    const r = saved.find((r) => r.id === selectedRecord);
+    if (!r) return;
+    try {
+      const restored = restoreRealGround(
+        r.payload,
+        holes.map((h) => h.id),
+        holes,
+      );
+      setV({ ...initial(), ...restored, recordId: r.id });
+      notify("저장한 실제 지반 검토를 불러왔습니다.", "success");
+    } catch (e) {
+      notify((e as Error).message, "error");
+    }
+  }
+  useEffect(() => {
+    if (
+      !ready ||
+      !requestedRecordId ||
+      appliedRequest.current === requestedRecordId
+    )
+      return;
+    const r = records.find(
+      (r) =>
+        r.id === requestedRecordId && r.payload.kind === "real-ground-model",
+    );
+    if (!r) return;
+    appliedRequest.current = requestedRecordId;
+    try {
+      const restored = restoreRealGround(
+        r.payload,
+        holes.map((h) => h.id),
+        holes,
+      );
+      setV({ ...initial(), ...restored, recordId: r.id });
+      setSelectedRecord(r.id);
+      notify("통합 이력의 실제 지반 검토를 불러왔습니다.", "success");
+    } catch (e) {
+      notify((e as Error).message, "error");
+    }
+  }, [requestedRecordId, ready, records]);
+  const filtered = holes.filter((h) =>
+    `${h.campaign} ${h.label}`.toLowerCase().includes(search.toLowerCase()),
+  );
+  const HoleCard = () => (
+    <aside className="real-hole-card">
+      <div className="real-card-eyebrow">
+        <span style={{ background: CAMPAIGN_COLORS[selected.campaign] }} />
+        {selected.campaign} 조사자료
+      </div>
+      <h2>{selected.label}</h2>
+      <p className="real-muted">{selected.id} · 원문 좌표 보존</p>
+      <div className="real-hole-numbers">
+        <div>
+          <small>공구 표고</small>
+          <strong>
+            {f(selected.collar)} <em>m</em>
+          </strong>
+        </div>
+        <div>
+          <small>기재 총심도</small>
+          <strong>
+            {f(selected.declaredTotalDepth, 1)} <em>m</em>
+          </strong>
+        </div>
+      </div>
+      <div className="real-coordinates">
+        E {f(selected.easting)}
+        <br />N {f(selected.northing)}
+      </div>
+      {selected.qc.map((q) => (
+        <div className="real-warning" key={q}>
+          <AlertTriangle size={16} />
+          <span>{q}</span>
+        </div>
+      ))}
+      <div className="real-log-rows">
+        {selected.layers.map((l, i) => (
+          <div key={i}>
+            <span
+              className="real-layer-swatch"
+              style={{ background: colors[l.name] }}
+            />
+            <strong>{l.name}</strong>
+            <span>
+              {f(l.from, 1)}–{f(l.to, 1)} m
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="real-muted">
+        마지막 {f(selected.observedBottom, 1)} m는 관찰 종료심도입니다. 해당
+        지층의 바닥 경계는 미확인입니다.
+      </p>
+      <button
+        className="btn btn-primary"
+        onClick={() => {
+          set("tab", "sources");
+          requestAnimationFrame(() =>
+            document
+              .getElementById("real-ground-original")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+          );
+        }}
+      >
+        <FileText size={16} />{" "}
+        {HAS_PROVIDED_ORIGINALS ? "실제 주상도 보기" : "지층 자료·출처 보기"}
+      </button>
+      <a
+        className="real-link"
+        href={`/documents/${selected.sourceId}.pdf#page=${selected.coordinatePage}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        좌표표 원문 · PDF {selected.coordinatePage}쪽 <ExternalLink size={13} />
+      </a>
+    </aside>
+  );
+  if (!ready)
+    return (
+      <div className="real-map-loading">저장한 현장 보기를 불러오는 중…</div>
+    );
+  return (
+    <div className="ground-page real-ground-page">
+      <header className="ground-page-heading">
+        <div>
+          <p className="ground-kicker">REAL SITE · SOURCE-LINKED GROUND</p>
+          <h1>현장 지반과 공간 자료</h1>
+          <p>
+            이천자이더리체 · 4개 조사차수, 32개 시추공, 96개 지층 구간을 원문과
+            연결했습니다.
+          </p>
+        </div>
+        <button
+          className="btn btn-primary"
+          disabled={busy || !!analysis.error || !assets}
+          onClick={save}
+        >
+          <Save size={16} />
+          {busy ? "저장 중…" : v.recordId ? "검토 개정 저장" : "지반 검토 저장"}
+        </button>
+      </header>
+      {(draftError || assetError) && (
+        <div className="real-warning" role="alert">
+          {draftError || assetError}
+        </div>
+      )}
+      <div className="real-metrics">
+        <div>
+          <span>지반조사</span>
+          <strong>
+            4 <small>차수</small>
+          </strong>
+        </div>
+        <div>
+          <span>원문 연결 시추공</span>
+          <strong>
+            32 <small>공</small>
+          </strong>
+        </div>
+        <div>
+          <span>확인된 지층 구간</span>
+          <strong>
+            96 <small>구간</small>
+          </strong>
+        </div>
+        <div>
+          <span>실제 공간 자료</span>
+          <strong>정사영상 · DSM · LAS</strong>
+        </div>
+      </div>
+      <nav className="ground-tabs" aria-label="실제 지반 보기">
+        {(
+          [
+            ["map", "현장 지도", Map],
+            ["model", "3D·단면", Layers3],
+            ["sources", "조사자료·원문", FileText],
+            ["quality", "정합·검수", SlidersHorizontal],
+          ] as const
+        ).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            className={v.tab === id ? "active" : ""}
+            onClick={() => set("tab", id)}
+          >
+            <Icon size={16} />
+            {label}
+          </button>
+        ))}
+      </nav>
+      {v.tab === "map" && (
+        <>
+          <div className="real-toolbar">
+            <div className="real-campaign-pills">
+              {campaigns.map((c) => (
+                <label key={c.id}>
+                  <input
+                    type="checkbox"
+                    checked={v.shownCampaigns.includes(c.id)}
+                    onChange={(e) =>
+                      set(
+                        "shownCampaigns",
+                        e.target.checked
+                          ? [...v.shownCampaigns, c.id]
+                          : v.shownCampaigns.filter((x) => x !== c.id),
+                      )
+                    }
+                  />
+                  <i style={{ background: CAMPAIGN_COLORS[c.id] }} />
+                  {c.id} · {c.holeCount}공
+                </label>
+              ))}
+            </div>
+            <div className="real-options">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={v.showCAD}
+                  onChange={(e) => set("showCAD", e.target.checked)}
+                />{" "}
+                도면 경계
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!v.showCADLinework}
+                  onChange={(e) => set("showCADLinework", e.target.checked)}
+                />{" "}
+                흙막이 도면선
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={v.showGCP}
+                  onChange={(e) => set("showGCP", e.target.checked)}
+                />{" "}
+                GCP 13점
+              </label>
+            </div>
+          </div>
+          <div className="real-map-layout">
+            <RealSiteMap
+              assets={assets ?? undefined}
+              holes={shown}
+              selected={selected.id}
+              onSelect={pick}
+              showCAD={v.showCAD}
+              showCADLinework={v.showCADLinework}
+              showGCP={v.showGCP}
+              sectionNorth={v.sectionNorth}
+              transform={v.registration}
+            />
+            <HoleCard />
+          </div>
+          <div className="real-info-line">
+            <CheckCircle2 size={16} /> 원본 GeoTIFF 좌표를 유지한 실제
+            정사영상입니다. 촬영일과 수직기준은 미확인입니다. 시추 좌표계는 현장
+            위치를 기준으로 개략 대응했습니다.
+          </div>
+        </>
+      )}
+      {v.tab === "model" && (
+        <>
+          <div className="real-toolbar">
+            <label className="real-select-label">
+              모델 조사차수
+              <select
+                value={v.modelCampaign}
+                onChange={(e) => {
+                  const next = holes.filter(
+                      (h) =>
+                        e.target.value === "all" ||
+                        h.campaign === e.target.value,
+                    ),
+                    north =
+                      next.reduce((s, h) => s + h.northing, 0) / next.length;
+                  setV({
+                    ...v,
+                    modelCampaign: e.target.value,
+                    sectionNorth: north,
+                  });
+                }}
+              >
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label} · {c.holeCount}공
+                  </option>
+                ))}
+                <option value="all">전체 32공 비교 · 조사 시점 혼재</option>
+              </select>
+            </label>
+            <div className="real-mode-buttons">
+              {(
+                [
+                  ["ground", "지층 모델"],
+                  ["dsm", "DSM + 영상"],
+                  ["pointcloud", "실제 점군"],
+                ] as const
+              ).map(([id, l]) => (
+                <button
+                  key={id}
+                  className={v.mode === id ? "active" : ""}
+                  onClick={() => set("mode", id)}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setReset(reset + 1)}
+            >
+              <RotateCcw size={14} /> 모델 전체 보기
+            </button>
+          </div>
+          {v.modelCampaign === "all" && (
+            <div className="real-warning">
+              <AlertTriangle size={16} />
+              서로 다른 조사 시점의 공구 표고를 함께 비교합니다. 이 모델을 현재
+              지표면이나 시공 변화량으로 해석하지 마세요.
+            </div>
+          )}
+          {analysis.error ? (
+            <div className="real-warning" role="alert">
+              {analysis.error}
+            </div>
+          ) : (
+            analysis.grid &&
+            assets && (
+              <RealGroundScene
+                assets={assets}
+                grid={analysis.grid}
+                holes={shown}
+                horizons={analysis.model!.horizons}
+                selected={selected.id}
+                onSelect={pick}
+                visible={v.visible}
+                showHoles={v.showHoles}
+                extrapolate={v.extrapolate}
+                showVariance={v.showVariance}
+                verticalScale={v.verticalScale}
+                sectionNorth={v.sectionNorth}
+                mode={v.mode}
+                registration={v.registration}
+                resetKey={reset}
+              />
+            )
+          )}
+          <p className="real-help">
+            드래그: 회전 · 휠/두 손가락: 확대 · 페이지는 3D 밖에서 스크롤 · 모델
+            전체 보기로 시점을 복원합니다.
+          </p>
+          <div className="real-model-controls">
+            <div className="real-campaign-pills">
+              {analysis.model?.horizons.map((h, i) => (
+                <label key={h.id}>
+                  <input
+                    type="checkbox"
+                    checked={v.visible[i]}
+                    onChange={(e) =>
+                      set(
+                        "visible",
+                        v.visible.map((x, j) =>
+                          i === j ? e.target.checked : x,
+                        ),
+                      )
+                    }
+                  />
+                  <i style={{ background: h.color }} />
+                  {h.name}
+                </label>
+              ))}
+            </div>
+            <div className="real-options">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={v.showHoles}
+                  onChange={(e) => set("showHoles", e.target.checked)}
+                />{" "}
+                관측 주상도
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={v.extrapolate}
+                  onChange={(e) => set("extrapolate", e.target.checked)}
+                />{" "}
+                외삽면 표시
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={v.showVariance}
+                  onChange={(e) => set("showVariance", e.target.checked)}
+                />{" "}
+                보간 분산
+              </label>
+              <label>
+                높이 배율{" "}
+                <select
+                  value={v.verticalScale}
+                  onChange={(e) => set("verticalScale", Number(e.target.value))}
+                >
+                  <option value={1}>1×</option>
+                  <option value={1.5}>1.5×</option>
+                  <option value={2}>2×</option>
+                </select>
+              </label>
+            </div>
+          </div>
+          <p className="real-muted real-under-view">
+            시추공은 관측 구간을, 면은 확인된 경계의 보간값을 표시합니다.
+            관찰되지 않은 암반 하단면은 만들지 않습니다. DSM·점군 높이와 과거
+            공구 표고의 차이는 침하량이 아닙니다.
+          </p>
+          <section className="real-panel">
+            <div className="real-panel-heading">
+              <div>
+                <h2>동서 지층 단면</h2>
+                <p>
+                  실선: 공 분포 내부 보간 · 점선: 외삽 · 막대: 단면 ±12m 내
+                  관측공
+                </p>
+              </div>
+              <label>
+                N {f(v.sectionNorth, 1)} m
+                <input
+                  aria-label="실제 지층 단면 북쪽 좌표"
+                  type="range"
+                  min={Math.min(...holes.map((h) => h.northing)) - 10}
+                  max={Math.max(...holes.map((h) => h.northing)) + 10}
+                  step={0.5}
+                  value={v.sectionNorth}
+                  onChange={(e) => set("sectionNorth", Number(e.target.value))}
+                />
+              </label>
+            </div>
+            <Section
+              points={analysis.section}
+              horizons={analysis.model?.horizons ?? []}
+              north={v.sectionNorth}
+              holes={modelHoles}
+              selected={selected.id}
+              onSelect={pick}
+            />
+          </section>
+          <div className="real-model-bottom">
+            <section className="real-panel">
+              <h3>베리오그램 설정</h3>
+              <div className="real-input-grid">
+                <label>
+                  모델
+                  <select
+                    value={v.parameters.model}
+                    onChange={(e) =>
+                      set("parameters", {
+                        ...v.parameters,
+                        model: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="spherical">구형</option>
+                    <option value="exponential">지수형</option>
+                    <option value="gaussian">가우시안</option>
+                  </select>
+                </label>
+                {(
+                  [
+                    ["range", "범위 (m)"],
+                    ["sill", "부분 문턱값 (m²)"],
+                    ["nugget", "너깃 (m²)"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <label key={id}>
+                    {label}
+                    <input
+                      type="number"
+                      min={id === "nugget" ? 0 : 0.001}
+                      value={v.parameters[id]}
+                      onChange={(e) =>
+                        set("parameters", {
+                          ...v.parameters,
+                          [id]: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="real-muted">
+                설정값은 해석자가 선택한 보간 가정입니다. 원문 설계 지반정수와
+                별개입니다.
+              </p>
+            </section>
+            <section className="real-panel">
+              <h3>공 하나씩 제외한 교차검증</h3>
+              {analysis.loo.map(
+                (row: { id: string; name: string; rmse: number | null }) => (
+                  <div className="real-qc-row" key={row.id}>
+                    <span>{row.name}</span>
+                    <strong>
+                      {row.rmse === null ? "관측공 부족" : `${f(row.rmse)} m`}
+                    </strong>
+                  </div>
+                ),
+              )}
+              <p className="real-muted">
+                RMSE는 동일 차수 내 예측 일관성 지표입니다. 측량 정확도나 설계
+                적합 판정이 아닙니다.
+              </p>
+            </section>
+          </div>
+        </>
+      )}
+      {v.tab === "sources" && (
+        <>
+          <div className="real-source-campaigns">
+            {campaigns.map((c) => (
+              <article key={c.id}>
+                <div
+                  className="real-card-eyebrow"
+                  style={{ color: CAMPAIGN_COLORS[c.id] }}
+                >
+                  {c.label}
+                </div>
+                <strong>
+                  {c.holeCount}공 · {c.pageCount}쪽
+                </strong>
+                <p>
+                  {"surveyPeriod" in c
+                    ? String(c.surveyPeriod)
+                    : "원문 조사기간 참조"}
+                </p>
+                <a
+                  className="real-link"
+                  href={c.pdfUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  보고서 원문 <ExternalLink size={13} />
+                </a>
+              </article>
+            ))}
+          </div>
+          <div className="real-source-layout">
+            <section className="real-panel real-hole-list">
+              <label className="real-search">
+                <Search size={16} />
+                <input
+                  placeholder="공번 또는 조사차수 검색"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </label>
+              <div className="real-table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>조사차수 / 공번</th>
+                      <th>표고 EL.m</th>
+                      <th>총심도 m</th>
+                      <th>구간 / 검수</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((h) => (
+                      <tr
+                        key={h.id}
+                        className={selected.id === h.id ? "selected" : ""}
+                        onClick={() => pick(h.id)}
+                      >
+                        <td>
+                          <button onClick={() => pick(h.id)}>
+                            <small>{h.campaign}</small>
+                            <strong>{h.label}</strong>
+                          </button>
+                        </td>
+                        <td>{f(h.collar)}</td>
+                        <td>{f(h.declaredTotalDepth, 1)}</td>
+                        <td>
+                          {h.layers.length}개{" "}
+                          {h.qc.length ? (
+                            <span className="real-qc-alert">원문 충돌</span>
+                          ) : (
+                            <span className="real-qc-good">전사 검수</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            <HoleCard />
+          </div>
+          <section
+            id="real-ground-original"
+            className="real-panel real-original"
+          >
+            <div className="real-panel-heading">
+              <div>
+                <h2>
+                  {selected.campaign} · {selected.label} 원문 주상도
+                </h2>
+                <p>
+                  {HAS_PROVIDED_ORIGINALS
+                    ? "원본 PDF의 해당 페이지입니다. 요약표 전사와 원문을 함께 확인하세요."
+                    : "원문 페이지 번호와 전사한 지층 자료를 함께 확인하세요."}
+                </p>
+              </div>
+              <div className="real-original-pages">
+                {selected.logPages.map((p, i) => (
+                  <button
+                    key={p}
+                    className={i === logIndex ? "active" : ""}
+                    onClick={() => setLogIndex(i)}
+                  >
+                    PDF {p}쪽
+                  </button>
+                ))}
+                <a
+                  className="real-link"
+                  href={`/documents/${selected.sourceId}.pdf#page=${selected.logPages[logIndex] ?? selected.layerPage}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  PDF 열기 <ExternalLink size={13} />
+                </a>
+              </div>
+            </div>
+            {HAS_PROVIDED_ORIGINALS ? (
+              selected.logImages?.[logIndex] && (
+                <img
+                  src={selected.logImages[logIndex]}
+                  alt={`${selected.campaign} ${selected.label} 원본 주상도 PDF ${selected.logPages[logIndex]}쪽`}
+                />
+              )
+            ) : (
+              <div className="real-warning" role="note">
+                <FileText size={20} aria-hidden="true" />
+                <div>
+                  <strong>
+                    원문 주상도는 현장 원자료본에서 열람할 수 있습니다.
+                  </strong>
+                  <p>{PROVIDED_SOURCE_NOTICE}</p>
+                  <p>
+                    {selected.campaign} · {selected.label} · PDF{" "}
+                    {selected.logPages[logIndex] ?? selected.layerPage}쪽
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="real-original-links">
+              <a
+                href={`/documents/${selected.sourceId}.pdf#page=${selected.coordinatePage}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                좌표·표고 근거: PDF {selected.coordinatePage}쪽
+              </a>
+              <a
+                href={`/documents/${selected.sourceId}.pdf#page=${selected.layerPage}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                지층 구간 근거: PDF {selected.layerPage}쪽
+              </a>
+            </div>
+          </section>
+        </>
+      )}
+      {v.tab === "quality" && (
+        <>
+          <div className="real-model-bottom">
+            <section className="real-panel">
+              <h2>좌표와 정합</h2>
+              <dl className="real-definition">
+                <dt>기준 원점 ENH</dt>
+                <dd>239800 / 521450 / 0 m</dd>
+                <dt>원문 시추 좌표</dt>
+                <dd>E = 원문 Y, N = 원문 X · 원문 값 유지</dd>
+                <dt>드론 좌표계</dt>
+                <dd>EPSG:5186 (GeoTIFF·GCP 파일)</dd>
+                <dt>시추 좌표계</dt>
+                <dd>원문 표기 미확인 · 현장 위치 기반 개략 대응</dd>
+                <dt>영상 독립 검사점</dt>
+                <dd>대응점 미확보 · RMSE 산출 안 함</dd>
+                <dt>높이 보정</dt>
+                <dd>기본 0 m · KNGeoid18 미적용</dd>
+              </dl>
+              <p className="real-muted">
+                주상도 좌표·표고가 기준입니다. GCP의 지상 좌표만으로 영상의 독립
+                정합 정확도를 산출하지 않습니다.
+              </p>
+            </section>
+            <section className="real-panel">
+              <h2>CAD 정합 근거</h2>
+              <dl className="real-definition">
+                <dt>도면 축척</dt>
+                <dd>{assets ? f(assets.cad.scale, 6) : "…"} (mm → m)</dd>
+                <dt>회전각</dt>
+                <dd>{assets ? f(assets.cad.rotationDegrees, 6) : "…"}°</dd>
+                <dt>적합에 사용한 점</dt>
+                <dd>3점</dd>
+                <dt>적합 제외 경계점</dt>
+                <dd>
+                  43점 · RMSE{" "}
+                  {assets ? assets.cad.heldOutRMSE.toExponential(2) : "…"} m
+                </dd>
+                <dt>별도 CAD 좌표 검사</dt>
+                <dd>
+                  4점 · RMSE{" "}
+                  {assets ? assets.cad.CADControlRMSE.toExponential(2) : "…"} m
+                </dd>
+              </dl>
+              <p className="real-muted">
+                동일 CAD의 도면·좌표 간 내부 일관성 검사입니다. 현장 측량 정확도
+                또는 독립 영상 정합 정확도를 의미하지 않습니다.
+              </p>
+            </section>
+          </div>
+          <section className="real-panel">
+            <h2>원자료 검수 상태</h2>
+            <div className="real-qc-summary">
+              <CheckCircle2 size={20} />
+              <span>
+                4개 보고서 · 32공 좌표·표고 및 96구간 전사 · 원본 주상도 페이지
+                연결
+              </span>
+            </div>
+            {holes
+              .filter((h) => h.qc.length)
+              .map((h) => (
+                <div className="real-warning" key={h.id}>
+                  <AlertTriangle size={18} />
+                  <span>
+                    <strong>{h.id}</strong> — {h.qc.join(" ")}
+                  </span>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      pick(h.id);
+                      setV({ ...v, selected: h.id, tab: "sources" });
+                    }}
+                  >
+                    원문 확인
+                  </button>
+                </div>
+              ))}
+            <p className="real-muted">
+              단위·구간 연속성·중복 ID·시추 종료와 지층 경계를 분리하여
+              검사합니다. 불일치를 자동 수정하지 않습니다.
+            </p>
+          </section>
+          <section className="real-panel">
+            <h2>드론 추가 맞춤</h2>
+            <p className="real-muted">
+              기본은 원본 지리좌표를 그대로 사용합니다. 현장 원점 주변의 추가
+              이동·회전·축척만 설정하며, 시추 좌표는 바뀌지 않습니다. 수직
+              차이의 원인을 확인하지 않은 상태에서 높이를 맞추지 마세요.
+            </p>
+            <div className="real-input-grid">
+              {(
+                [
+                  ["east", "동쪽 이동 (m)", -100, 100, 0.1],
+                  ["north", "북쪽 이동 (m)", -100, 100, 0.1],
+                  ["rotation", "회전 (°)", -30, 30, 0.1],
+                  ["scale", "축척", 0.5, 1.5, 0.001],
+                ] as const
+              ).map(([id, label, min, max, step]) => (
+                <label key={id}>
+                  {label}
+                  <input
+                    type="number"
+                    value={v.registration[id]}
+                    min={min}
+                    max={max}
+                    step={step}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (Number.isFinite(n) && n >= min && n <= max)
+                        set("registration", { ...v.registration, [id]: n });
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+            <button
+              className="btn btn-secondary"
+              onClick={() => set("registration", initial().registration)}
+            >
+              <RotateCcw size={14} /> 원본 정합으로
+            </button>
+            <p className="real-muted">
+              추가 맞춤값은 검토 저장에 포함됩니다. 독립 검사점이 없어 정확도
+              판정은 보류합니다.
+            </p>
+          </section>
+        </>
+      )}
+      <section className="real-save-bar">
+        <div>
+          <strong>검토 이력과 원자료</strong>
+          <p>
+            저장 시 전체 원자료 스냅샷·차수·보간 설정·정합·보기 상태를 함께
+            보존합니다.
+          </p>
+        </div>
+        <div className="real-save-actions">
+          <select
+            aria-label="저장된 실제 지반 검토"
+            value={selectedRecord}
+            onChange={(e) => setSelectedRecord(e.target.value)}
+          >
+            <option value="">저장된 지반 검토 ({saved.length}건)</option>
+            {saved.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.title} · r{r.revision}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn btn-secondary"
+            disabled={!selectedRecord}
+            onClick={load}
+          >
+            불러오기
+          </button>
+          <button
+            className="btn btn-secondary"
+            disabled={!!analysis.error}
+            onClick={() =>
+              download("이천자이더리체_실제지반검토.json", getPayload())
+            }
+          >
+            <Download size={15} /> JSON 내보내기
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}

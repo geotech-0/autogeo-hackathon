@@ -11,7 +11,7 @@ const draft = {
 };
 const archive = (record) => ({
   schema_version: 1,
-  site_id: "synthetic-a",
+  site_id: "icheon-xi-deriche",
   records: [record],
 });
 test("stored result retains numeric input, source and dependency revision across JSON export/import", () => {
@@ -20,11 +20,11 @@ test("stored result retains numeric input, source and dependency revision across
     .records[0];
   assert.equal(restored.payload.Rmax, 40);
   assert.equal(restored.payload.Jf, 105.3963);
-  assert.equal(restored.source_id, "synthetic-a-v1");
+  assert.equal(restored.source_id, "icheon-user-record");
   assert.deepEqual(restored.dependencies, [
     { analysis_id: "anchor-a", revision: 1 },
   ]);
-  assert.equal(restored.origin, "synthetic");
+  assert.equal(restored.origin, "manual_record");
 });
 test("updating a record increments revision and retains identity, analysis and creation time", () => {
   const before = makeRecord(draft);
@@ -89,7 +89,7 @@ test("rejects duplicate IDs and unsupported archives before any import", () => {
     () =>
       validateArchive({
         schema_version: 1,
-        site_id: "synthetic-a",
+        site_id: "icheon-xi-deriche",
         records: [r, r],
       }),
     /중복/,

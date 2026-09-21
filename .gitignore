@@ -9,3 +9,9 @@ test-results/
 .DS_Store
 
 *.tsbuildinfo
+
+# Provided originals contain signatures and personal contact details.
+# Keep in the local evidence copy; derived public builds omit these directories.
+public/documents/
+public/data/ground/logs/
+public/data/field/quality/

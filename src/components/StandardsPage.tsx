@@ -8,6 +8,7 @@ import {
   Search,
 } from "lucide-react";
 import type { FeatureProps } from "../contracts";
+import ProjectReferences from "./ProjectReferences";
 const NOTICE =
   "https://www.codil.or.kr/filebank/moct2014/202409/MOCT3217_0.PDF?nserialno=3217";
 const catalog = [
@@ -117,165 +118,172 @@ export default function StandardsPage({
     }
   };
   return (
-    <div className="standards-layout">
-      <section className="panel standard-list">
-        <div className="panel-header">
-          <h2>
-            선정 기준 <span className="muted">{catalog.length}</span>
-          </h2>
-          <BookOpen size={20} />
-        </div>
-        <label className="search-input">
-          <Search size={18} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="기준 코드, 이름, 키워드"
-            aria-label="건설기준 검색"
-          />
-        </label>
-        <div className="section-tabs" role="group" aria-label="기준 종류">
-          {[
-            ["all", "전체"],
-            ["KDS", "설계기준 KDS"],
-            ["KCS", "시방서 KCS"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              className={filter === key ? "active" : ""}
-              onClick={() => setFilter(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div>
-          {found.length ? (
-            found.map((s) => (
-              <button
-                className={`standard-item ${s.code === active.code ? "selected" : ""}`}
-                key={s.code}
-                onClick={() => {
-                  setActive(s);
-                  setEdition(s.edition);
-                  setClause("");
-                  setMemo("");
-                }}
-              >
-                <div>
-                  <span className="code-label">{s.code}</span>
-                  <span className="badge badge-neutral">{s.type}</span>
-                </div>
-                <h3>{s.name}</h3>
-                <p>
-                  {s.category} · 확인판 {s.edition}
-                </p>
-                <span className="standard-date">고시 확인 {s.revised}</span>
-              </button>
-            ))
-          ) : (
-            <div className="empty-state">
-              <Search />
-              <h3>검색 결과가 없습니다</h3>
-              <p>등록된 3개 기준의 코드와 이름에서 검색합니다.</p>
-            </div>
-          )}
-        </div>
-        <div className="notice">
-          선정 기준의 메타데이터입니다. 전국 기준 전체를 동기화하거나 최신판을
-          자동 확정하지 않습니다.
-        </div>
-      </section>
-      <section className="panel standard-detail">
-        <div className="eyebrow">OFFICIAL REFERENCE</div>
-        <span className="code-label">{active.code}</span>
-        <h2>{active.name}</h2>
-        <p className="standard-scope">{active.scope}</p>
-        <dl className="record-meta">
-          <div>
-            <dt>확인한 판본</dt>
-            <dd>{active.edition} · 부분 개정</dd>
+    <>
+      <ProjectReferences records={records} onSave={onSave} notify={notify} />
+      <div className="standards-layout">
+        <section className="panel standard-list">
+          <div className="panel-header">
+            <h2>
+              선정 기준 <span className="muted">{catalog.length}</span>
+            </h2>
+            <BookOpen size={20} />
           </div>
-          <div>
-            <dt>개정 고시일</dt>
-            <dd>{active.revised}</dd>
-          </div>
-          <div>
-            <dt>공식 출처</dt>
-            <dd>국토교통부 · CODIL 고시 원문</dd>
-          </div>
-          <div>
-            <dt>확인 위치</dt>
-            <dd>{active.page}</dd>
-          </div>
-        </dl>
-        <div className="notice notice-warning">
-          <FileText size={18} />
-          <span>{active.detail}</span>
-        </div>
-        <div className="standard-links">
-          <a
-            className="btn btn-secondary"
-            href={NOTICE}
-            target="_blank"
-            rel="noreferrer"
-          >
-            공식 개정 고시 <ArrowUpRight size={16} />
-          </a>
-          <a
-            className="text-link"
-            href="https://www.kcsc.re.kr/"
-            target="_blank"
-            rel="noreferrer"
-          >
-            국가건설기준센터 <ArrowUpRight size={15} />
-          </a>
-        </div>
-        <div className="standard-adoption">
-          <h3>
-            <Link2 size={18} /> 현장 검토와 연결
-          </h3>
-          <p className="muted">
-            공식 원문을 확인한 후 채택할 판본과 조항을 기록하세요.
-          </p>
-          <div className="field-grid">
-            <label className="field">
-              <span>
-                검토할 판본 <b>*</b>
-              </span>
-              <input
-                value={edition}
-                onChange={(e) => setEdition(e.target.value)}
-                aria-label="현장 검토판"
-              />
-            </label>
-            <label className="field">
-              <span>확인한 본문 조항</span>
-              <input
-                value={clause}
-                onChange={(e) => setClause(e.target.value)}
-                placeholder="미입력 시 확인 필요"
-              />
-            </label>
-          </div>
-          <label className="field">
-            <span>적용 조건과 검토 의견</span>
-            <textarea
-              rows={3}
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="이번 구역에서 확인할 조건을 기록하세요."
+          <label className="search-input">
+            <Search size={18} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="기준 코드, 이름, 키워드"
+              aria-label="건설기준 검색"
             />
           </label>
-          <button className="btn btn-primary" onClick={save} disabled={saving}>
-            <CheckCircle2 size={16} />
-            {saving ? "연결 중…" : "A-01 검토 이력에 연결"}
-          </button>
-          <p className="muted small">
-            현재 연결된 기준 검토 {linked.length}건 · 판정 보류로 기록됩니다.
-          </p>
-        </div>
-      </section>
-    </div>
+          <div className="section-tabs" role="group" aria-label="기준 종류">
+            {[
+              ["all", "전체"],
+              ["KDS", "설계기준 KDS"],
+              ["KCS", "시방서 KCS"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                className={filter === key ? "active" : ""}
+                onClick={() => setFilter(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div>
+            {found.length ? (
+              found.map((s) => (
+                <button
+                  className={`standard-item ${s.code === active.code ? "selected" : ""}`}
+                  key={s.code}
+                  onClick={() => {
+                    setActive(s);
+                    setEdition(s.edition);
+                    setClause("");
+                    setMemo("");
+                  }}
+                >
+                  <div>
+                    <span className="code-label">{s.code}</span>
+                    <span className="badge badge-neutral">{s.type}</span>
+                  </div>
+                  <h3>{s.name}</h3>
+                  <p>
+                    {s.category} · 확인판 {s.edition}
+                  </p>
+                  <span className="standard-date">고시 확인 {s.revised}</span>
+                </button>
+              ))
+            ) : (
+              <div className="empty-state">
+                <Search />
+                <h3>검색 결과가 없습니다</h3>
+                <p>등록된 3개 기준의 코드와 이름에서 검색합니다.</p>
+              </div>
+            )}
+          </div>
+          <div className="notice">
+            선정 기준의 메타데이터입니다. 전국 기준 전체를 동기화하거나 최신판을
+            자동 확정하지 않습니다.
+          </div>
+        </section>
+        <section className="panel standard-detail">
+          <div className="eyebrow">OFFICIAL REFERENCE</div>
+          <span className="code-label">{active.code}</span>
+          <h2>{active.name}</h2>
+          <p className="standard-scope">{active.scope}</p>
+          <dl className="record-meta">
+            <div>
+              <dt>확인한 판본</dt>
+              <dd>{active.edition} · 부분 개정</dd>
+            </div>
+            <div>
+              <dt>개정 고시일</dt>
+              <dd>{active.revised}</dd>
+            </div>
+            <div>
+              <dt>공식 출처</dt>
+              <dd>국토교통부 · CODIL 고시 원문</dd>
+            </div>
+            <div>
+              <dt>확인 위치</dt>
+              <dd>{active.page}</dd>
+            </div>
+          </dl>
+          <div className="notice notice-warning">
+            <FileText size={18} />
+            <span>{active.detail}</span>
+          </div>
+          <div className="standard-links">
+            <a
+              className="btn btn-secondary"
+              href={NOTICE}
+              target="_blank"
+              rel="noreferrer"
+            >
+              공식 개정 고시 <ArrowUpRight size={16} />
+            </a>
+            <a
+              className="text-link"
+              href="https://www.kcsc.re.kr/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              국가건설기준센터 <ArrowUpRight size={15} />
+            </a>
+          </div>
+          <div className="standard-adoption">
+            <h3>
+              <Link2 size={18} /> 현장 검토와 연결
+            </h3>
+            <p className="muted">
+              공식 원문을 확인한 후 채택할 판본과 조항을 기록하세요.
+            </p>
+            <div className="field-grid">
+              <label className="field">
+                <span>
+                  검토할 판본 <b>*</b>
+                </span>
+                <input
+                  value={edition}
+                  onChange={(e) => setEdition(e.target.value)}
+                  aria-label="현장 검토판"
+                />
+              </label>
+              <label className="field">
+                <span>확인한 본문 조항</span>
+                <input
+                  value={clause}
+                  onChange={(e) => setClause(e.target.value)}
+                  placeholder="미입력 시 확인 필요"
+                />
+              </label>
+            </div>
+            <label className="field">
+              <span>적용 조건과 검토 의견</span>
+              <textarea
+                rows={3}
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                placeholder="이번 구역에서 확인할 조건을 기록하세요."
+              />
+            </label>
+            <button
+              className="btn btn-primary"
+              onClick={save}
+              disabled={saving}
+            >
+              <CheckCircle2 size={16} />
+              {saving ? "연결 중…" : "현장 검토 이력에 연결"}
+            </button>
+            <p className="muted small">
+              현재 연결된 기준 검토 {linked.length}건 · 판정 보류로 기록됩니다.
+            </p>
+          </div>
+        </section>
+      </div>
+    </>
   );
 }

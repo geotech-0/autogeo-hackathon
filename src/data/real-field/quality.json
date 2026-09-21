@@ -1,0 +1,2331 @@
+{
+  "sources": [
+    {
+      "id": "plate-1.jpg",
+      "name": "평판재하시험 예시데이터_1.jpg",
+      "url": "/data/field/quality/plate-1.jpg",
+      "sha256": "26f3945643993fefa022a3184544c6f4ac1ee1e93cbc17a1859bbef0c9dd0f36"
+    },
+    {
+      "id": "plate-2.jpg",
+      "name": "평판재하시험 예시데이터_2.jpg",
+      "url": "/data/field/quality/plate-2.jpg",
+      "sha256": "51ef80a2b83ed7f602caec15ea51ae8fdfa4155237a196e9b6ee48fa1ebfbf57"
+    },
+    {
+      "id": "pile.png",
+      "name": "말뚝재하시험 예시 데이터.png",
+      "url": "/data/field/quality/pile.png",
+      "sha256": "e254b59f26ef1f1489763316a4f3e007cd9e9ac6ca54d84a11eec71542865b82"
+    },
+    {
+      "id": "tension.jpg",
+      "name": "마이크로파일 인장시험 예시데이터.jpg",
+      "url": "/data/field/quality/tension.jpg",
+      "sha256": "bd61270d9c5fd31b44fb4576280886165477a793a8bcd5d9a55e274265e58efd"
+    },
+    {
+      "id": "dcpt.jpg",
+      "name": "DCPT 예시데이터.jpg",
+      "url": "/data/field/quality/dcpt.jpg",
+      "sha256": "135e3355aff4c21bafc400b50e320384521c0329ff7db10b942eb78bdedb53f5"
+    },
+    {
+      "id": "dcpt-correlation.jpg",
+      "name": "DCPT 상관관계 그래프.jpg",
+      "url": "/data/field/quality/dcpt-correlation.jpg",
+      "sha256": "aeea42a633e43467f7de5955f9779bf2070442eae3d6763111899a81e69b094e"
+    },
+    {
+      "id": "notes.txt",
+      "name": "참고자료.txt",
+      "url": "/data/field/quality/notes.txt",
+      "sha256": "e9ec61fb4ce90cccf7c19953ffa7e2394b5d144883ee92764610022544107417"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "plate",
+      "name": "평판재하시험",
+      "subtitle": "다른 현장 참고 예시 · 2026-02-10",
+      "provenance": "역삼동(758, 은하수, 760) 주택재건축정비사업 · 104동 주변 주차장 #1",
+      "sources": [
+        "plate-1.jpg",
+        "plate-2.jpg"
+      ],
+      "rows": [
+        {
+          "stage": "0",
+          "time": 0,
+          "load": 0,
+          "pressure": 0,
+          "displacement": 0,
+          "hold": 0,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "1",
+          "time": 0,
+          "load": 6,
+          "correctedLoad": 5.97,
+          "pressure": 84.43,
+          "displacement": 1.72,
+          "hold": 0,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "1",
+          "time": 1,
+          "load": 6,
+          "correctedLoad": 5.97,
+          "pressure": 84.43,
+          "displacement": 1.74,
+          "hold": 1,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "1",
+          "time": 2,
+          "load": 6,
+          "correctedLoad": 5.97,
+          "pressure": 84.43,
+          "displacement": 1.74,
+          "hold": 2,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "1",
+          "time": 3,
+          "load": 6,
+          "correctedLoad": 5.97,
+          "pressure": 84.43,
+          "displacement": 1.74,
+          "hold": 3,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "1",
+          "time": 5,
+          "load": 6,
+          "correctedLoad": 5.97,
+          "pressure": 84.43,
+          "displacement": 1.74,
+          "hold": 5,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "1",
+          "time": 10,
+          "load": 6,
+          "correctedLoad": 5.97,
+          "pressure": 84.43,
+          "displacement": 1.74,
+          "hold": 10,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "1",
+          "time": 15,
+          "load": 6,
+          "correctedLoad": 5.97,
+          "pressure": 84.43,
+          "displacement": 1.74,
+          "hold": 15,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "1",
+          "time": 16,
+          "load": 6,
+          "correctedLoad": 5.97,
+          "pressure": 84.43,
+          "displacement": 1.74,
+          "hold": 16,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "2",
+          "time": 16,
+          "load": 12,
+          "correctedLoad": 11.93,
+          "pressure": 168.86,
+          "displacement": 3.54,
+          "hold": 0,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "2",
+          "time": 17,
+          "load": 12,
+          "correctedLoad": 11.93,
+          "pressure": 168.86,
+          "displacement": 3.57,
+          "hold": 1,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "2",
+          "time": 18,
+          "load": 12,
+          "correctedLoad": 11.93,
+          "pressure": 168.86,
+          "displacement": 3.57,
+          "hold": 2,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "2",
+          "time": 19,
+          "load": 12,
+          "correctedLoad": 11.93,
+          "pressure": 168.86,
+          "displacement": 3.57,
+          "hold": 3,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "2",
+          "time": 21,
+          "load": 12,
+          "correctedLoad": 11.93,
+          "pressure": 168.86,
+          "displacement": 3.57,
+          "hold": 5,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "2",
+          "time": 26,
+          "load": 12,
+          "correctedLoad": 11.93,
+          "pressure": 168.86,
+          "displacement": 3.57,
+          "hold": 10,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "2",
+          "time": 31,
+          "load": 12,
+          "correctedLoad": 11.93,
+          "pressure": 168.86,
+          "displacement": 3.57,
+          "hold": 15,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "2",
+          "time": 32,
+          "load": 12,
+          "correctedLoad": 11.93,
+          "pressure": 168.86,
+          "displacement": 3.57,
+          "hold": 16,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "3",
+          "time": 32,
+          "load": 18,
+          "correctedLoad": 17.9,
+          "pressure": 253.29,
+          "displacement": 6.07,
+          "hold": 0,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "3",
+          "time": 33,
+          "load": 18,
+          "correctedLoad": 17.9,
+          "pressure": 253.29,
+          "displacement": 6.12,
+          "hold": 1,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "3",
+          "time": 34,
+          "load": 18,
+          "correctedLoad": 17.9,
+          "pressure": 253.29,
+          "displacement": 6.15,
+          "hold": 2,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "3",
+          "time": 35,
+          "load": 18,
+          "correctedLoad": 17.9,
+          "pressure": 253.29,
+          "displacement": 6.15,
+          "hold": 3,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "3",
+          "time": 37,
+          "load": 18,
+          "correctedLoad": 17.9,
+          "pressure": 253.29,
+          "displacement": 6.15,
+          "hold": 5,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "3",
+          "time": 42,
+          "load": 18,
+          "correctedLoad": 17.9,
+          "pressure": 253.29,
+          "displacement": 6.15,
+          "hold": 10,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "3",
+          "time": 47,
+          "load": 18,
+          "correctedLoad": 17.9,
+          "pressure": 253.29,
+          "displacement": 6.15,
+          "hold": 15,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "3",
+          "time": 48,
+          "load": 18,
+          "correctedLoad": 17.9,
+          "pressure": 253.29,
+          "displacement": 6.15,
+          "hold": 16,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "4",
+          "time": 48,
+          "load": 24,
+          "correctedLoad": 23.86,
+          "pressure": 337.72,
+          "displacement": 8.4,
+          "hold": 0,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "4",
+          "time": 49,
+          "load": 24,
+          "correctedLoad": 23.86,
+          "pressure": 337.72,
+          "displacement": 8.47,
+          "hold": 1,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "4",
+          "time": 50,
+          "load": 24,
+          "correctedLoad": 23.86,
+          "pressure": 337.72,
+          "displacement": 8.51,
+          "hold": 2,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "4",
+          "time": 51,
+          "load": 24,
+          "correctedLoad": 23.86,
+          "pressure": 337.72,
+          "displacement": 8.53,
+          "hold": 3,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "4",
+          "time": 53,
+          "load": 24,
+          "correctedLoad": 23.86,
+          "pressure": 337.72,
+          "displacement": 8.53,
+          "hold": 5,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "4",
+          "time": 58,
+          "load": 24,
+          "correctedLoad": 23.86,
+          "pressure": 337.72,
+          "displacement": 8.53,
+          "hold": 10,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "4",
+          "time": 63,
+          "load": 24,
+          "correctedLoad": 23.86,
+          "pressure": 337.72,
+          "displacement": 8.53,
+          "hold": 15,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "4",
+          "time": 64,
+          "load": 24,
+          "correctedLoad": 23.86,
+          "pressure": 337.72,
+          "displacement": 8.53,
+          "hold": 16,
+          "source": "plate-1.jpg"
+        },
+        {
+          "stage": "5",
+          "time": 64,
+          "load": 30,
+          "correctedLoad": 29.83,
+          "pressure": 422.15,
+          "displacement": 10.45,
+          "hold": 0,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "5",
+          "time": 65,
+          "load": 30,
+          "correctedLoad": 29.83,
+          "pressure": 422.15,
+          "displacement": 10.51,
+          "hold": 1,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "5",
+          "time": 66,
+          "load": 30,
+          "correctedLoad": 29.83,
+          "pressure": 422.15,
+          "displacement": 10.54,
+          "hold": 2,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "5",
+          "time": 67,
+          "load": 30,
+          "correctedLoad": 29.83,
+          "pressure": 422.15,
+          "displacement": 10.55,
+          "hold": 3,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "5",
+          "time": 69,
+          "load": 30,
+          "correctedLoad": 29.83,
+          "pressure": 422.15,
+          "displacement": 10.55,
+          "hold": 5,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "5",
+          "time": 74,
+          "load": 30,
+          "correctedLoad": 29.83,
+          "pressure": 422.15,
+          "displacement": 10.55,
+          "hold": 10,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "5",
+          "time": 79,
+          "load": 30,
+          "correctedLoad": 29.83,
+          "pressure": 422.15,
+          "displacement": 10.55,
+          "hold": 15,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "5",
+          "time": 80,
+          "load": 30,
+          "correctedLoad": 29.83,
+          "pressure": 422.15,
+          "displacement": 10.55,
+          "hold": 16,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "6",
+          "time": 80,
+          "load": 36,
+          "correctedLoad": 35.79,
+          "pressure": 506.58,
+          "displacement": 12.51,
+          "hold": 0,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "6",
+          "time": 81,
+          "load": 36,
+          "correctedLoad": 35.79,
+          "pressure": 506.58,
+          "displacement": 12.56,
+          "hold": 1,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "6",
+          "time": 82,
+          "load": 36,
+          "correctedLoad": 35.79,
+          "pressure": 506.58,
+          "displacement": 12.58,
+          "hold": 2,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "6",
+          "time": 83,
+          "load": 36,
+          "correctedLoad": 35.79,
+          "pressure": 506.58,
+          "displacement": 12.59,
+          "hold": 3,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "6",
+          "time": 85,
+          "load": 36,
+          "correctedLoad": 35.79,
+          "pressure": 506.58,
+          "displacement": 12.59,
+          "hold": 5,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "6",
+          "time": 90,
+          "load": 36,
+          "correctedLoad": 35.79,
+          "pressure": 506.58,
+          "displacement": 12.59,
+          "hold": 10,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "6",
+          "time": 95,
+          "load": 36,
+          "correctedLoad": 35.79,
+          "pressure": 506.58,
+          "displacement": 12.59,
+          "hold": 15,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "6",
+          "time": 96,
+          "load": 36,
+          "correctedLoad": 35.79,
+          "pressure": 506.58,
+          "displacement": 12.59,
+          "hold": 16,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "7",
+          "time": 96,
+          "load": 42,
+          "correctedLoad": 41.76,
+          "pressure": 591.01,
+          "displacement": 15.37,
+          "hold": 0,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "7",
+          "time": 97,
+          "load": 42,
+          "correctedLoad": 41.76,
+          "pressure": 591.01,
+          "displacement": 15.43,
+          "hold": 1,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "7",
+          "time": 98,
+          "load": 42,
+          "correctedLoad": 41.76,
+          "pressure": 591.01,
+          "displacement": 15.46,
+          "hold": 2,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "7",
+          "time": 99,
+          "load": 42,
+          "correctedLoad": 41.76,
+          "pressure": 591.01,
+          "displacement": 15.47,
+          "hold": 3,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "7",
+          "time": 101,
+          "load": 42,
+          "correctedLoad": 41.76,
+          "pressure": 591.01,
+          "displacement": 15.47,
+          "hold": 5,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "7",
+          "time": 106,
+          "load": 42,
+          "correctedLoad": 41.76,
+          "pressure": 591.01,
+          "displacement": 15.47,
+          "hold": 10,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "7",
+          "time": 111,
+          "load": 42,
+          "correctedLoad": 41.76,
+          "pressure": 591.01,
+          "displacement": 15.47,
+          "hold": 15,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "7",
+          "time": 112,
+          "load": 42,
+          "correctedLoad": 41.76,
+          "pressure": 591.01,
+          "displacement": 15.47,
+          "hold": 16,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "8",
+          "time": 112,
+          "load": 48,
+          "correctedLoad": 47.72,
+          "pressure": 675.44,
+          "displacement": 18.91,
+          "hold": 0,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "8",
+          "time": 113,
+          "load": 48,
+          "correctedLoad": 47.72,
+          "pressure": 675.44,
+          "displacement": 18.98,
+          "hold": 1,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "8",
+          "time": 114,
+          "load": 48,
+          "correctedLoad": 47.72,
+          "pressure": 675.44,
+          "displacement": 19.02,
+          "hold": 2,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "8",
+          "time": 115,
+          "load": 48,
+          "correctedLoad": 47.72,
+          "pressure": 675.44,
+          "displacement": 19.04,
+          "hold": 3,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "8",
+          "time": 117,
+          "load": 48,
+          "correctedLoad": 47.72,
+          "pressure": 675.44,
+          "displacement": 19.04,
+          "hold": 5,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "8",
+          "time": 122,
+          "load": 48,
+          "correctedLoad": 47.72,
+          "pressure": 675.44,
+          "displacement": 19.04,
+          "hold": 10,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "8",
+          "time": 127,
+          "load": 48,
+          "correctedLoad": 47.72,
+          "pressure": 675.44,
+          "displacement": 19.04,
+          "hold": 15,
+          "source": "plate-2.jpg"
+        },
+        {
+          "stage": "8",
+          "time": 128,
+          "load": 48,
+          "correctedLoad": 47.72,
+          "pressure": 675.44,
+          "displacement": 19.04,
+          "hold": 16,
+          "source": "plate-2.jpg"
+        }
+      ],
+      "qc": [
+        "이천 현장 실측자료가 아닌 다른 현장 예시",
+        "보정하중·하중강도는 원문값 보존. 재하판 면적0.07065m², 직경0.3m",
+        "단계별 시간은 유지시간 0~16분. 전체 경과시간은 단계 연결용이며 원문 시각 아님",
+        "설계지내력200kPa는 입력 요구값. 항복/극한/허용지지력은 원문 판정·근거 미제공으로 보류"
+      ]
+    },
+    {
+      "id": "pile",
+      "name": "말뚝재하시험",
+      "subtitle": "현장 미상 참고 예시 · 2026-06-23",
+      "provenance": "제공 이미지의 현장명·말뚝 제원 미확인",
+      "sources": [
+        "pile.png"
+      ],
+      "rows": [
+        {
+          "stage": "1L-0",
+          "timestamp": "2026-06-23T11:19:00",
+          "time": 0,
+          "hold": 0.0,
+          "planned": 0.0,
+          "load": 0.0,
+          "displacement": 0.0,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-1",
+          "timestamp": "2026-06-23T11:21:00",
+          "time": 2,
+          "hold": 0.0,
+          "planned": 100.0,
+          "load": 100.67,
+          "displacement": -0.2,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-1",
+          "timestamp": "2026-06-23T11:22:00",
+          "time": 3,
+          "hold": 1.0,
+          "planned": 100.0,
+          "load": 99.99,
+          "displacement": -0.21,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-1",
+          "timestamp": "2026-06-23T11:23:00",
+          "time": 4,
+          "hold": 2.0,
+          "planned": 100.0,
+          "load": 99.99,
+          "displacement": -0.21,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-1",
+          "timestamp": "2026-06-23T11:26:00",
+          "time": 7,
+          "hold": 5.0,
+          "planned": 100.0,
+          "load": 106.03,
+          "displacement": -0.23,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-1",
+          "timestamp": "2026-06-23T11:31:00",
+          "time": 12,
+          "hold": 10.0,
+          "planned": 100.0,
+          "load": 105.36,
+          "displacement": -0.24,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-1",
+          "timestamp": "2026-06-23T11:36:00",
+          "time": 17,
+          "hold": 15.0,
+          "planned": 100.0,
+          "load": 104.69,
+          "displacement": -0.26,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-1",
+          "timestamp": "2026-06-23T11:41:00",
+          "time": 22,
+          "hold": 20.0,
+          "planned": 100.0,
+          "load": 104.69,
+          "displacement": -0.26,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-2",
+          "timestamp": "2026-06-23T11:42:00",
+          "time": 23,
+          "hold": 0.0,
+          "planned": 200.0,
+          "load": 202.0,
+          "displacement": -0.61,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-2",
+          "timestamp": "2026-06-23T11:43:00",
+          "time": 24,
+          "hold": 1.0,
+          "planned": 200.0,
+          "load": 199.32,
+          "displacement": -0.61,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-2",
+          "timestamp": "2026-06-23T11:44:00",
+          "time": 25,
+          "hold": 2.0,
+          "planned": 200.0,
+          "load": 210.73,
+          "displacement": -0.66,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-2",
+          "timestamp": "2026-06-23T11:47:00",
+          "time": 28,
+          "hold": 5.0,
+          "planned": 200.0,
+          "load": 208.04,
+          "displacement": -0.65,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-2",
+          "timestamp": "2026-06-23T11:52:00",
+          "time": 33,
+          "hold": 10.0,
+          "planned": 200.0,
+          "load": 206.7,
+          "displacement": -0.67,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-2",
+          "timestamp": "2026-06-23T11:57:00",
+          "time": 38,
+          "hold": 15.0,
+          "planned": 200.0,
+          "load": 205.36,
+          "displacement": -0.67,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-2",
+          "timestamp": "2026-06-23T12:02:00",
+          "time": 43,
+          "hold": 20.0,
+          "planned": 200.0,
+          "load": 204.69,
+          "displacement": -0.68,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-3",
+          "timestamp": "2026-06-23T12:03:00",
+          "time": 44,
+          "hold": 0.0,
+          "planned": 300.0,
+          "load": 299.31,
+          "displacement": -1.05,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-3",
+          "timestamp": "2026-06-23T12:04:00",
+          "time": 45,
+          "hold": 1.0,
+          "planned": 300.0,
+          "load": 299.31,
+          "displacement": -1.06,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-3",
+          "timestamp": "2026-06-23T12:05:00",
+          "time": 46,
+          "hold": 2.0,
+          "planned": 300.0,
+          "load": 297.3,
+          "displacement": -1.07,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-3",
+          "timestamp": "2026-06-23T12:08:00",
+          "time": 49,
+          "hold": 5.0,
+          "planned": 300.0,
+          "load": 307.36,
+          "displacement": -1.11,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-3",
+          "timestamp": "2026-06-23T12:13:00",
+          "time": 54,
+          "hold": 10.0,
+          "planned": 300.0,
+          "load": 304.68,
+          "displacement": -1.11,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-3",
+          "timestamp": "2026-06-23T12:18:00",
+          "time": 59,
+          "hold": 15.0,
+          "planned": 300.0,
+          "load": 303.34,
+          "displacement": -1.11,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-3",
+          "timestamp": "2026-06-23T12:23:00",
+          "time": 64,
+          "hold": 20.0,
+          "planned": 300.0,
+          "load": 302.67,
+          "displacement": -1.11,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T12:24:00",
+          "time": 65,
+          "hold": 0.0,
+          "planned": 400.0,
+          "load": 403.33,
+          "displacement": -1.51,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T12:25:00",
+          "time": 66,
+          "hold": 1.0,
+          "planned": 400.0,
+          "load": 400.65,
+          "displacement": -1.56,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T12:26:00",
+          "time": 67,
+          "hold": 2.0,
+          "planned": 400.0,
+          "load": 401.99,
+          "displacement": -1.58,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T12:29:00",
+          "time": 70,
+          "hold": 5.0,
+          "planned": 400.0,
+          "load": 403.33,
+          "displacement": -1.6,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T12:34:00",
+          "time": 75,
+          "hold": 10.0,
+          "planned": 400.0,
+          "load": 400.65,
+          "displacement": -1.61,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T12:39:00",
+          "time": 80,
+          "hold": 15.0,
+          "planned": 400.0,
+          "load": 404.67,
+          "displacement": -1.65,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T12:44:00",
+          "time": 85,
+          "hold": 20.0,
+          "planned": 400.0,
+          "load": 402.66,
+          "displacement": -1.65,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T12:54:00",
+          "time": 95,
+          "hold": 30.0,
+          "planned": 400.0,
+          "load": 407.36,
+          "displacement": -1.67,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T13:09:00",
+          "time": 110,
+          "hold": 45.0,
+          "planned": 400.0,
+          "load": 404.67,
+          "displacement": -1.7,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1L-4",
+          "timestamp": "2026-06-23T13:24:00",
+          "time": 125,
+          "hold": 60.0,
+          "planned": 400.0,
+          "load": 404.67,
+          "displacement": -1.71,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-1",
+          "timestamp": "2026-06-23T13:25:00",
+          "time": 126,
+          "hold": 0.0,
+          "planned": 200.0,
+          "load": 203.34,
+          "displacement": -0.98,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-1",
+          "timestamp": "2026-06-23T13:26:00",
+          "time": 127,
+          "hold": 1.0,
+          "planned": 200.0,
+          "load": 204.01,
+          "displacement": -0.98,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-1",
+          "timestamp": "2026-06-23T13:27:00",
+          "time": 128,
+          "hold": 2.0,
+          "planned": 200.0,
+          "load": 204.01,
+          "displacement": -0.98,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-1",
+          "timestamp": "2026-06-23T13:28:00",
+          "time": 129,
+          "hold": 3.0,
+          "planned": 200.0,
+          "load": 204.69,
+          "displacement": -0.98,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-1",
+          "timestamp": "2026-06-23T13:30:00",
+          "time": 131,
+          "hold": 5.0,
+          "planned": 200.0,
+          "load": 204.69,
+          "displacement": -0.98,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-2",
+          "timestamp": "2026-06-23T13:31:00",
+          "time": 132,
+          "hold": 0.0,
+          "planned": 0.0,
+          "load": 0.0,
+          "displacement": -0.22,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-2",
+          "timestamp": "2026-06-23T13:32:00",
+          "time": 133,
+          "hold": 1.0,
+          "planned": 0.0,
+          "load": 0.0,
+          "displacement": -0.21,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-2",
+          "timestamp": "2026-06-23T13:33:00",
+          "time": 134,
+          "hold": 2.0,
+          "planned": 0.0,
+          "load": -0.67,
+          "displacement": -0.2,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-2",
+          "timestamp": "2026-06-23T13:34:00",
+          "time": 135,
+          "hold": 3.0,
+          "planned": 0.0,
+          "load": -0.67,
+          "displacement": -0.2,
+          "source": "pile.png"
+        },
+        {
+          "stage": "1U-2",
+          "timestamp": "2026-06-23T13:36:00",
+          "time": 137,
+          "hold": 5.0,
+          "planned": 0.0,
+          "load": -0.67,
+          "displacement": -0.19,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-1",
+          "timestamp": "2026-06-23T13:37:00",
+          "time": 138,
+          "hold": 0.0,
+          "planned": 200.0,
+          "load": 215.42,
+          "displacement": -0.78,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-1",
+          "timestamp": "2026-06-23T13:38:00",
+          "time": 139,
+          "hold": 1.0,
+          "planned": 200.0,
+          "load": 213.41,
+          "displacement": -0.78,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-1",
+          "timestamp": "2026-06-23T13:39:00",
+          "time": 140,
+          "hold": 2.0,
+          "planned": 200.0,
+          "load": 212.74,
+          "displacement": -0.78,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-1",
+          "timestamp": "2026-06-23T13:42:00",
+          "time": 143,
+          "hold": 5.0,
+          "planned": 200.0,
+          "load": 212.07,
+          "displacement": -0.79,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-2",
+          "timestamp": "2026-06-23T13:43:00",
+          "time": 144,
+          "hold": 0.0,
+          "planned": 400.0,
+          "load": 406.02,
+          "displacement": -1.55,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-2",
+          "timestamp": "2026-06-23T13:44:00",
+          "time": 145,
+          "hold": 1.0,
+          "planned": 400.0,
+          "load": 401.32,
+          "displacement": -1.55,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-2",
+          "timestamp": "2026-06-23T13:45:00",
+          "time": 146,
+          "hold": 2.0,
+          "planned": 400.0,
+          "load": 399.98,
+          "displacement": -1.55,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-2",
+          "timestamp": "2026-06-23T13:48:00",
+          "time": 149,
+          "hold": 5.0,
+          "planned": 400.0,
+          "load": 402.66,
+          "displacement": -1.57,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-3",
+          "timestamp": "2026-06-23T13:49:00",
+          "time": 150,
+          "hold": 0.0,
+          "planned": 500.0,
+          "load": 498.63,
+          "displacement": -2.06,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-3",
+          "timestamp": "2026-06-23T13:50:00",
+          "time": 151,
+          "hold": 1.0,
+          "planned": 500.0,
+          "load": 498.63,
+          "displacement": -2.09,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-3",
+          "timestamp": "2026-06-23T13:51:00",
+          "time": 152,
+          "hold": 2.0,
+          "planned": 500.0,
+          "load": 504.67,
+          "displacement": -2.12,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-3",
+          "timestamp": "2026-06-23T13:54:00",
+          "time": 155,
+          "hold": 5.0,
+          "planned": 500.0,
+          "load": 499.3,
+          "displacement": -2.12,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-3",
+          "timestamp": "2026-06-23T13:59:00",
+          "time": 160,
+          "hold": 10.0,
+          "planned": 500.0,
+          "load": 507.35,
+          "displacement": -2.16,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-3",
+          "timestamp": "2026-06-23T14:04:00",
+          "time": 165,
+          "hold": 15.0,
+          "planned": 500.0,
+          "load": 503.33,
+          "displacement": -2.17,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-3",
+          "timestamp": "2026-06-23T14:09:00",
+          "time": 170,
+          "hold": 20.0,
+          "planned": 500.0,
+          "load": 502.65,
+          "displacement": -2.17,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-4",
+          "timestamp": "2026-06-23T14:10:00",
+          "time": 171,
+          "hold": 0.0,
+          "planned": 600.0,
+          "load": 600.63,
+          "displacement": -2.81,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-4",
+          "timestamp": "2026-06-23T14:11:00",
+          "time": 172,
+          "hold": 1.0,
+          "planned": 600.0,
+          "load": 597.95,
+          "displacement": -2.84,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-4",
+          "timestamp": "2026-06-23T14:12:00",
+          "time": 173,
+          "hold": 2.0,
+          "planned": 600.0,
+          "load": 599.96,
+          "displacement": -2.89,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-4",
+          "timestamp": "2026-06-23T14:15:00",
+          "time": 176,
+          "hold": 5.0,
+          "planned": 600.0,
+          "load": 603.99,
+          "displacement": -2.94,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-4",
+          "timestamp": "2026-06-23T14:20:00",
+          "time": 181,
+          "hold": 10.0,
+          "planned": 600.0,
+          "load": 600.63,
+          "displacement": -2.97,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-4",
+          "timestamp": "2026-06-23T14:25:00",
+          "time": 186,
+          "hold": 15.0,
+          "planned": 600.0,
+          "load": 600.63,
+          "displacement": -2.99,
+          "source": "pile.png"
+        },
+        {
+          "stage": "2L-4",
+          "timestamp": "2026-06-23T14:30:00",
+          "time": 191,
+          "hold": 20.0,
+          "planned": 600.0,
+          "load": 601.98,
+          "displacement": -3.02,
+          "source": "pile.png"
+        }
+      ],
+      "qc": [
+        "이미지 하단이 잘려 2L-4, 14:30까지 64개 완전한 행만 추출",
+        "후속 하중·완전 제하·말뚝 직경·판정 기준 미제공. 허용지지력 자동 확정 불가",
+        "변위 원문 부호를 보존. 1차 제하 후 잔류변위 −0.19mm",
+        "원문 Slab Movement 1·2는 이미지에서 대조 가능하며 현재 차트는 말뚝두부 변위 대상"
+      ]
+    },
+    {
+      "id": "tension",
+      "name": "마이크로파일 인장시험",
+      "subtitle": "현장·시험일 미상 참고 예시",
+      "provenance": "제공 이미지 · 좌/우 평균계기값 수기대조",
+      "sources": [
+        "tension.jpg"
+      ],
+      "rows": [
+        {
+          "stage": "1: 450kN",
+          "time": 1,
+          "load": 450,
+          "rawGauge": 1.295,
+          "displacement": 0.01295,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "1: 450kN",
+          "time": 2,
+          "load": 450,
+          "rawGauge": 1.73,
+          "displacement": 0.0173,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "1: 450kN",
+          "time": 3,
+          "load": 450,
+          "rawGauge": 2,
+          "displacement": 0.02,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "1: 450kN",
+          "time": 4,
+          "load": 450,
+          "rawGauge": 2.055,
+          "displacement": 0.020550000000000002,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "1: 450kN",
+          "time": 5,
+          "load": 450,
+          "rawGauge": 2.055,
+          "displacement": 0.020550000000000002,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "2: 525kN",
+          "time": 6,
+          "load": 525,
+          "rawGauge": 2.42,
+          "displacement": 0.0242,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "2: 525kN",
+          "time": 7,
+          "load": 525,
+          "rawGauge": 2.42,
+          "displacement": 0.0242,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "2: 525kN",
+          "time": 8,
+          "load": 525,
+          "rawGauge": 2.42,
+          "displacement": 0.0242,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "2: 525kN",
+          "time": 9,
+          "load": 525,
+          "rawGauge": 2.42,
+          "displacement": 0.0242,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "2: 525kN",
+          "time": 10,
+          "load": 525,
+          "rawGauge": 2.365,
+          "displacement": 0.02365,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "3: 600kN",
+          "time": 11,
+          "load": 600,
+          "rawGauge": 2.65,
+          "displacement": 0.0265,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "3: 600kN",
+          "time": 12,
+          "load": 600,
+          "rawGauge": 2.65,
+          "displacement": 0.0265,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "3: 600kN",
+          "time": 13,
+          "load": 600,
+          "rawGauge": 2.65,
+          "displacement": 0.0265,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "3: 600kN",
+          "time": 14,
+          "load": 600,
+          "rawGauge": 2.655,
+          "displacement": 0.026549999999999997,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "3: 600kN",
+          "time": 15,
+          "load": 600,
+          "rawGauge": 2.645,
+          "displacement": 0.02645,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "4: 675kN",
+          "time": 16,
+          "load": 675,
+          "rawGauge": 2.95,
+          "displacement": 0.029500000000000002,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "4: 675kN",
+          "time": 17,
+          "load": 675,
+          "rawGauge": 2.895,
+          "displacement": 0.02895,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "4: 675kN",
+          "time": 18,
+          "load": 675,
+          "rawGauge": 3.16,
+          "displacement": 0.0316,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "4: 675kN",
+          "time": 19,
+          "load": 675,
+          "rawGauge": 3.13,
+          "displacement": 0.0313,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "4: 675kN",
+          "time": 20,
+          "load": 675,
+          "rawGauge": 3.13,
+          "displacement": 0.0313,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "5: 750kN",
+          "time": 21,
+          "load": 750,
+          "rawGauge": 3.595,
+          "displacement": 0.03595,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "5: 750kN",
+          "time": 22,
+          "load": 750,
+          "rawGauge": 3.685,
+          "displacement": 0.03685,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "5: 750kN",
+          "time": 23,
+          "load": 750,
+          "rawGauge": 3.76,
+          "displacement": 0.037599999999999995,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "5: 750kN",
+          "time": 24,
+          "load": 750,
+          "rawGauge": 3.91,
+          "displacement": 0.0391,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "5: 750kN",
+          "time": 25,
+          "load": 750,
+          "rawGauge": 3.91,
+          "displacement": 0.0391,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "6: 825kN",
+          "time": 26,
+          "load": 825,
+          "rawGauge": 4.345,
+          "displacement": 0.043449999999999996,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "6: 825kN",
+          "time": 27,
+          "load": 825,
+          "rawGauge": 4.37,
+          "displacement": 0.0437,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "6: 825kN",
+          "time": 28,
+          "load": 825,
+          "rawGauge": 4.43,
+          "displacement": 0.0443,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "6: 825kN",
+          "time": 29,
+          "load": 825,
+          "rawGauge": 4.445,
+          "displacement": 0.04445,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "6: 825kN",
+          "time": 30,
+          "load": 825,
+          "rawGauge": 4.6,
+          "displacement": 0.046,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "7: 900kN",
+          "time": 31,
+          "load": 900,
+          "rawGauge": 5.57,
+          "displacement": 0.0557,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "7: 900kN",
+          "time": 32,
+          "load": 900,
+          "rawGauge": 5.305,
+          "displacement": 0.05305,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "7: 900kN",
+          "time": 33,
+          "load": 900,
+          "rawGauge": 5.345,
+          "displacement": 0.05345,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "7: 900kN",
+          "time": 34,
+          "load": 900,
+          "rawGauge": 5.345,
+          "displacement": 0.05345,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "7: 900kN",
+          "time": 35,
+          "load": 900,
+          "rawGauge": 5.705,
+          "displacement": 0.057050000000000003,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "8: 975kN",
+          "time": 36,
+          "load": 975,
+          "rawGauge": 6.125,
+          "displacement": 0.06125,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "8: 975kN",
+          "time": 37,
+          "load": 975,
+          "rawGauge": 6.41,
+          "displacement": 0.0641,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "8: 975kN",
+          "time": 38,
+          "load": 975,
+          "rawGauge": 6.41,
+          "displacement": 0.0641,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "8: 975kN",
+          "time": 39,
+          "load": 975,
+          "rawGauge": 6.435,
+          "displacement": 0.06434999999999999,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "8: 975kN",
+          "time": 40,
+          "load": 975,
+          "rawGauge": 6.42,
+          "displacement": 0.0642,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "9: 1050kN",
+          "time": 41,
+          "load": 1050,
+          "rawGauge": 7.325,
+          "displacement": 0.07325,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "9: 1050kN",
+          "time": 42,
+          "load": 1050,
+          "rawGauge": 7.335,
+          "displacement": 0.07335,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "9: 1050kN",
+          "time": 43,
+          "load": 1050,
+          "rawGauge": 7.33,
+          "displacement": 0.0733,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "9: 1050kN",
+          "time": 44,
+          "load": 1050,
+          "rawGauge": 7.335,
+          "displacement": 0.07335,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "9: 1050kN",
+          "time": 45,
+          "load": 1050,
+          "rawGauge": 7.66,
+          "displacement": 0.0766,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "10: 787kN",
+          "time": 46,
+          "load": 787,
+          "rawGauge": 8.24,
+          "displacement": 0.0824,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "10: 787kN",
+          "time": 47,
+          "load": 787,
+          "rawGauge": 8.205,
+          "displacement": 0.08205,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "10: 787kN",
+          "time": 48,
+          "load": 787,
+          "rawGauge": 8.41,
+          "displacement": 0.08410000000000001,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "10: 787kN",
+          "time": 49,
+          "load": 787,
+          "rawGauge": 8.41,
+          "displacement": 0.08410000000000001,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "10: 787kN",
+          "time": 50,
+          "load": 787,
+          "rawGauge": 8.41,
+          "displacement": 0.08410000000000001,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "11: 525kN",
+          "time": 51,
+          "load": 525,
+          "rawGauge": 9.335,
+          "displacement": 0.09335,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "11: 525kN",
+          "time": 52,
+          "load": 525,
+          "rawGauge": 9.635,
+          "displacement": 0.09634999999999999,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "11: 525kN",
+          "time": 53,
+          "load": 525,
+          "rawGauge": 9.75,
+          "displacement": 0.0975,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "11: 525kN",
+          "time": 54,
+          "load": 525,
+          "rawGauge": 9.845,
+          "displacement": 0.09845000000000001,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "11: 525kN",
+          "time": 55,
+          "load": 525,
+          "rawGauge": 9.83,
+          "displacement": 0.0983,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "12: 262kN",
+          "time": 56,
+          "load": 262,
+          "rawGauge": 10.455,
+          "displacement": 0.10455,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "12: 262kN",
+          "time": 57,
+          "load": 262,
+          "rawGauge": 10.44,
+          "displacement": 0.10439999999999999,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "12: 262kN",
+          "time": 58,
+          "load": 262,
+          "rawGauge": 10.445,
+          "displacement": 0.10445,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "12: 262kN",
+          "time": 59,
+          "load": 262,
+          "rawGauge": 10.415,
+          "displacement": 0.10414999999999999,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "12: 262kN",
+          "time": 60,
+          "load": 262,
+          "rawGauge": 10.055,
+          "displacement": 0.10055,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "13: 975kN",
+          "time": 61,
+          "load": 975,
+          "rawGauge": 11.36,
+          "displacement": 0.11359999999999999,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "13: 975kN",
+          "time": 62,
+          "load": 975,
+          "rawGauge": 11.36,
+          "displacement": 0.11359999999999999,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "13: 975kN",
+          "time": 63,
+          "load": 975,
+          "rawGauge": 11.41,
+          "displacement": 0.11410000000000001,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "13: 975kN",
+          "time": 64,
+          "load": 975,
+          "rawGauge": 11.41,
+          "displacement": 0.11410000000000001,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "13: 975kN",
+          "time": 65,
+          "load": 975,
+          "rawGauge": 11.415,
+          "displacement": 0.11414999999999999,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "14: 1050kN",
+          "time": 66,
+          "load": 1050,
+          "rawGauge": 12.145,
+          "displacement": 0.12145,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "14: 1050kN",
+          "time": 68,
+          "load": 1050,
+          "rawGauge": 12.225,
+          "displacement": 0.12225,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "14: 1050kN",
+          "time": 70,
+          "load": 1050,
+          "rawGauge": 12.225,
+          "displacement": 0.12225,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "14: 1050kN",
+          "time": 75,
+          "load": 1050,
+          "rawGauge": 12.435,
+          "displacement": 0.12435,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "14: 1050kN",
+          "time": 80,
+          "load": 1050,
+          "rawGauge": 12.435,
+          "displacement": 0.12435,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "15: 787kN",
+          "time": 81,
+          "load": 787,
+          "rawGauge": 12.08,
+          "displacement": 0.1208,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "15: 787kN",
+          "time": 82,
+          "load": 787,
+          "rawGauge": 11.985,
+          "displacement": 0.11985,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "15: 787kN",
+          "time": 83,
+          "load": 787,
+          "rawGauge": 11.775,
+          "displacement": 0.11775000000000001,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "15: 787kN",
+          "time": 84,
+          "load": 787,
+          "rawGauge": 11.28,
+          "displacement": 0.1128,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "15: 787kN",
+          "time": 85,
+          "load": 787,
+          "rawGauge": 10.93,
+          "displacement": 0.1093,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "16: 525kN",
+          "time": 86,
+          "load": 525,
+          "rawGauge": 8.58,
+          "displacement": 0.0858,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "16: 525kN",
+          "time": 87,
+          "load": 525,
+          "rawGauge": 8.295,
+          "displacement": 0.08295,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "16: 525kN",
+          "time": 88,
+          "load": 525,
+          "rawGauge": 8.12,
+          "displacement": 0.0812,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "16: 525kN",
+          "time": 89,
+          "load": 525,
+          "rawGauge": 7.545,
+          "displacement": 0.07545,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "16: 525kN",
+          "time": 90,
+          "load": 525,
+          "rawGauge": 6.775,
+          "displacement": 0.06775,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "17: 262kN",
+          "time": 91,
+          "load": 262,
+          "rawGauge": 4.255,
+          "displacement": 0.04255,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "17: 262kN",
+          "time": 92,
+          "load": 262,
+          "rawGauge": 4.26,
+          "displacement": 0.0426,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "17: 262kN",
+          "time": 93,
+          "load": 262,
+          "rawGauge": 4.255,
+          "displacement": 0.04255,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "17: 262kN",
+          "time": 94,
+          "load": 262,
+          "rawGauge": 4.24,
+          "displacement": 0.0424,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "17: 262kN",
+          "time": 95,
+          "load": 262,
+          "rawGauge": 3.89,
+          "displacement": 0.038900000000000004,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "18: 0kN",
+          "time": 96,
+          "load": 0,
+          "rawGauge": 3.56,
+          "displacement": 0.0356,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "18: 0kN",
+          "time": 97,
+          "load": 0,
+          "rawGauge": 2.41,
+          "displacement": 0.0241,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "18: 0kN",
+          "time": 98,
+          "load": 0,
+          "rawGauge": 2.42,
+          "displacement": 0.0242,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "18: 0kN",
+          "time": 99,
+          "load": 0,
+          "rawGauge": 2.42,
+          "displacement": 0.0242,
+          "source": "tension.jpg"
+        },
+        {
+          "stage": "18: 0kN",
+          "time": 100,
+          "load": 0,
+          "rawGauge": 2.42,
+          "displacement": 0.0242,
+          "source": "tension.jpg"
+        }
+      ],
+      "qc": [
+        "원문 제목 침하량(1/100mm)을 그대로 적용해 평균계기값/100으로 mm 환산. 실제 계기 단위 확인 필요",
+        "하중은 450→900→787→525→262→975→1050 등 원문 순서 보존. 단조증가 시험으로 재정렬하지 않음",
+        "최대1050kN 구간 유지·회복 곡선 표시. 항복하중 자동 결정은 보류"
+      ]
+    },
+    {
+      "id": "dcpt",
+      "name": "DCPT 상관 검토",
+      "subtitle": "실측 타격수 없음 · 문헌 환산표",
+      "provenance": "제공 DCPT 예시데이터 및 사질토 상관관계 그래프",
+      "sources": [
+        "dcpt.jpg",
+        "dcpt-correlation.jpg"
+      ],
+      "rows": [
+        {
+          "penetration": 0.4,
+          "ndcpt": 75,
+          "nspt": 95,
+          "qa": 1181
+        },
+        {
+          "penetration": 0.6,
+          "ndcpt": 50,
+          "nspt": 63,
+          "qa": 788
+        },
+        {
+          "penetration": 0.8,
+          "ndcpt": 38,
+          "nspt": 47,
+          "qa": 591
+        },
+        {
+          "penetration": 1.0,
+          "ndcpt": 30,
+          "nspt": 38,
+          "qa": 473
+        },
+        {
+          "penetration": 1.2,
+          "ndcpt": 25,
+          "nspt": 32,
+          "qa": 394
+        },
+        {
+          "penetration": 1.4,
+          "ndcpt": 21,
+          "nspt": 27,
+          "qa": 338
+        },
+        {
+          "penetration": 1.6,
+          "ndcpt": 19,
+          "nspt": 24,
+          "qa": 295
+        },
+        {
+          "penetration": 1.8,
+          "ndcpt": 17,
+          "nspt": 21,
+          "qa": 263
+        },
+        {
+          "penetration": 2.0,
+          "ndcpt": 15,
+          "nspt": 19,
+          "qa": 236
+        },
+        {
+          "penetration": 2.2,
+          "ndcpt": 14,
+          "nspt": 17,
+          "qa": 215
+        },
+        {
+          "penetration": 2.4,
+          "ndcpt": 13,
+          "nspt": 16,
+          "qa": 197
+        },
+        {
+          "penetration": 2.6,
+          "ndcpt": 12,
+          "nspt": 15,
+          "qa": 182
+        },
+        {
+          "penetration": 2.8,
+          "ndcpt": 11,
+          "nspt": 14,
+          "qa": 169
+        },
+        {
+          "penetration": 3.0,
+          "ndcpt": 10,
+          "nspt": 13,
+          "qa": 158
+        },
+        {
+          "penetration": 3.2,
+          "ndcpt": 9,
+          "nspt": 12,
+          "qa": 148
+        },
+        {
+          "penetration": 3.4,
+          "ndcpt": 9,
+          "nspt": 11,
+          "qa": 139
+        },
+        {
+          "penetration": 3.6,
+          "ndcpt": 8,
+          "nspt": 11,
+          "qa": 131
+        },
+        {
+          "penetration": 3.8,
+          "ndcpt": 8,
+          "nspt": 10,
+          "qa": 124
+        },
+        {
+          "penetration": 4.0,
+          "ndcpt": 8,
+          "nspt": 9,
+          "qa": 118
+        },
+        {
+          "penetration": 4.2,
+          "ndcpt": 7,
+          "nspt": 9,
+          "qa": 113
+        },
+        {
+          "penetration": 4.4,
+          "ndcpt": 7,
+          "nspt": 9,
+          "qa": 107
+        },
+        {
+          "penetration": 4.6,
+          "ndcpt": 7,
+          "nspt": 8,
+          "qa": 103
+        },
+        {
+          "penetration": 4.8,
+          "ndcpt": 6,
+          "nspt": 8,
+          "qa": 98
+        },
+        {
+          "penetration": 5.0,
+          "ndcpt": 6,
+          "nspt": 8,
+          "qa": 95
+        },
+        {
+          "penetration": 5.2,
+          "ndcpt": 6,
+          "nspt": 7,
+          "qa": 91
+        },
+        {
+          "penetration": 5.4,
+          "ndcpt": 6,
+          "nspt": 7,
+          "qa": 88
+        },
+        {
+          "penetration": 5.6,
+          "ndcpt": 5,
+          "nspt": 7,
+          "qa": 84
+        },
+        {
+          "penetration": 5.8,
+          "ndcpt": 5,
+          "nspt": 7,
+          "qa": 81
+        },
+        {
+          "penetration": 6.0,
+          "ndcpt": 5,
+          "nspt": 7,
+          "qa": 79
+        },
+        {
+          "penetration": 6.2,
+          "ndcpt": 5,
+          "nspt": 6,
+          "qa": 76
+        },
+        {
+          "penetration": 6.4,
+          "ndcpt": 5,
+          "nspt": 6,
+          "qa": 74
+        },
+        {
+          "penetration": 6.6,
+          "ndcpt": 5,
+          "nspt": 6,
+          "qa": 72
+        },
+        {
+          "penetration": 6.8,
+          "ndcpt": 4,
+          "nspt": 6,
+          "qa": 69
+        },
+        {
+          "penetration": 7.0,
+          "ndcpt": 4,
+          "nspt": 5,
+          "qa": 68
+        }
+      ],
+      "qc": [
+        "실제 깊이별 타격수·관입량 측정자료가 아닌 문헌 기반 환산표",
+        "표·곡선은 제공 이미지의 반올림 정수값, 입력 환산기는 식 계산값을 구분하여 표시",
+        "N_DCPT=30/관입량(cm/타), N_SPT=1.26×N_DCPT, qa=12.5×N_SPT는 제공자료의 참고식",
+        "그림의 N_DCPT=0.792N_SPT와 역수1.2626은 1.26으로 반올림됨. 토질·장비·현장 상관 검증 전 설계값 사용 불가"
+      ]
+    }
+  ],
+  "gprProvided": false
+}

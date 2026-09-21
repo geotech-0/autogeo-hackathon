@@ -75,7 +75,7 @@ test("conflicting same revision aborts the entire import, including unrelated re
   await assert.rejects(
     importProject({
       schema_version: 1,
-      site_id: "synthetic-a",
+      site_id: "icheon-xi-deriche",
       records: [unrelated, conflict],
     }),
     /동일/,
@@ -93,7 +93,7 @@ test("missing provenance and other-site imports make no writes", async () => {
     await assert.rejects(
       importProject({
         schema_version: 1,
-        site_id: "synthetic-a",
+        site_id: "icheon-xi-deriche",
         records: [{ ...first, ...patch }],
       }),
     );

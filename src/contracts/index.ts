@@ -17,6 +17,7 @@ export type DataOrigin =
   | "measured"
   | "imported_analysis"
   | "official_reference"
+  | "manual_record"
   | "calculated";
 export interface ProjectRecord {
   id: string;
@@ -48,20 +49,11 @@ export type ProjectRecordDraft = Pick<
   >;
 export interface FeatureProps {
   records: ProjectRecord[];
+  requestedRecordId?: string | null;
   onSave: (draft: ProjectRecordDraft) => Promise<ProjectRecord>;
   notify: (message: string, tone?: "success" | "error" | "info") => void;
 }
-export const SITE = {
-  id: "synthetic-a",
-  name: "A 지반개발 프로젝트",
-  zone_id: "A-01",
-  zone_name: "A-01 굴착 구역",
-  area: "12,000 m²",
-  coordinate_frame: "local-synthetic-meters",
-  origin: { easting: 0, northing: 0, elevation: 0 },
-  source_id: "synthetic-a-v1",
-  source_revision: "1",
-} as const;
+export { SITE } from "../data/site.mjs";
 export const STATUS_LABELS: Record<RecordStatus, string> = {
   draft: "작성 중",
   pass: "검토 적합",

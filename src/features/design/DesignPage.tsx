@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, SetStateAction } from "react";
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import type { FeatureProps, ProjectRecord } from "../../contracts";
 import { useDraft } from "../../storage/useDraft";
+import { HAS_PROVIDED_ORIGINALS } from "../../data/source-access";
 import {
   MEMBER_IDS,
   MODULES,
@@ -32,7 +33,13 @@ import {
   comparisonRows,
   computeWorkspace,
   confirmGeometry,
-  createWorkspace,
+  createRealWorkspace,
+  getModule,
+  getPreset,
+  getSection,
+  REAL_DESIGN,
+  sourceComparison,
+  RESULT_LABELS,
   exportDesign,
   importDesign,
   makeDesignDraft,
@@ -159,7 +166,7 @@ function MemberDiagram({ id, state }: { id: MemberId; state: Workspace }) {
           />
           <path d="M83 38H136" stroke="#9DACBC" strokeDasharray="4 3" />
           <text x="33" y="44">
-            EA-01
+            {getModule(state, id).asset}
           </text>
           <text x="128" y="90">
             Lf {v.adoptedFreeLengthM} m
@@ -192,7 +199,7 @@ function MemberDiagram({ id, state }: { id: MemberId; state: Workspace }) {
             2H / 상단 분담
           </text>
           <text x="198" y="41">
-            Jf · 30°
+            Jf · {getModule(state, "wale").fixed.angleDeg}°
           </text>
           <text x="111" y="103">
             c / a = {fmt(Number(v.leverCMm) / Number(v.leverAMm), 3)}
@@ -230,7 +237,7 @@ function MemberDiagram({ id, state }: { id: MemberId; state: Workspace }) {
             {state.members.pile.quantities.displacementMm.unit}
           </text>
           <text x="108" y="183">
-            H = 10.0 m
+            H = {getModule(state, "pile").fixed.excavationDepthM} m
           </text>
         </>
       ) : (
@@ -265,9 +272,52 @@ function MemberDiagram({ id, state }: { id: MemberId; state: Workspace }) {
   );
 }
 
-export default function DesignPage({ records, onSave, notify }: FeatureProps) {
-  const [state, setState, { ready, error: storageError, retry }] =
-    useDraft<Workspace>("design-form-v2", createWorkspace);
+export default function DesignPage({
+  records,
+  onSave,
+  notify,
+  requestedRecordId,
+}: FeatureProps) {
+  type DraftLibrary = {
+    activePresetId: string;
+    workspaces: Record<string, Workspace>;
+  };
+  const [library, setLibrary, { ready, error: storageError, retry }] =
+    useDraft<DraftLibrary>("design-real-library-v1", () => ({
+      activePresetId: "b-left-1",
+      workspaces: { "b-left-1": createRealWorkspace() },
+    }));
+  const state =
+    library.workspaces[library.activePresetId] ||
+    createRealWorkspace(library.activePresetId);
+  const setState = (action: SetStateAction<Workspace>) =>
+    setLibrary((lib) => {
+      const previous =
+        lib.workspaces[lib.activePresetId] ||
+        createRealWorkspace(lib.activePresetId);
+      const next = typeof action === "function" ? action(previous) : action;
+      const key = next.presetId || lib.activePresetId;
+      return {
+        activePresetId: key,
+        workspaces: { ...lib.workspaces, [key]: next },
+      };
+    });
+  const preset = getPreset(state)!;
+  const section = getSection(state)!;
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [sourceOpen, setSourceOpen] = useState(false);
+  const [resetPending, setResetPending] = useState(false);
+  const selectPreset = (id: string) => {
+    setLibrary((lib) => ({
+      activePresetId: id,
+      workspaces: {
+        ...lib.workspaces,
+        [id]: lib.workspaces[id] || createRealWorkspace(id),
+      },
+    }));
+    setLoadedId(null);
+    setStep(0);
+  };
   const [member, setMember] = useState<MemberId>("anchor");
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -276,6 +326,7 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
   const [compareId, setCompareId] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
+  const restoredRequestId = useRef<string | null>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (!reportOpen) return;
@@ -313,7 +364,7 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
   }, [reportOpen]);
   const calculated = useMemo(() => computeWorkspace(state), [state]);
   const current = calculated[member];
-  const module = MODULES[member];
+  const module = getModule(state, member);
   const saved = records
     .filter((r) => r.stage === "design" && r.payload.kind === "design-review")
     .slice()
@@ -383,7 +434,10 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
   };
   const load = (record: ProjectRecord) => {
     try {
-      setState(restoreWorkspace(record.payload.workspace));
+      const restored = restoreWorkspace(record.payload.workspace);
+      if (!restored.presetId)
+        throw new Error("이 화면은 이천자이더리체 원문 검토안만 불러옵니다.");
+      setState(restored);
       setLoadedId(record.id);
       setStep(3);
       notify(
@@ -397,13 +451,53 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
       );
     }
   };
+  useEffect(() => {
+    if (!requestedRecordId) {
+      restoredRequestId.current = null;
+      return;
+    }
+    if (!ready || restoredRequestId.current === requestedRecordId) return;
+    const record = records.find(
+      (r) =>
+        r.id === requestedRecordId &&
+        r.stage === "design" &&
+        r.payload.kind === "design-review",
+    );
+    if (!record) return;
+    // Restore once per navigation request. Later record refreshes must not replace edits.
+    restoredRequestId.current = requestedRecordId;
+    try {
+      const restored = restoreWorkspace(record.payload.workspace);
+      if (!restored.presetId)
+        throw new Error("이 화면은 이천자이더리체 원문 검토안만 불러옵니다.");
+      const key = restored.presetId;
+      setLibrary((lib) => ({
+        activePresetId: key,
+        workspaces: { ...lib.workspaces, [key]: restored },
+      }));
+      setLoadedId(record.id);
+      setStep(3);
+      notify(
+        `선택한 검토안 · 개정 ${record.revision}을 불러왔습니다.`,
+        "success",
+      );
+    } catch (e) {
+      notify(
+        e instanceof Error ? e.message : "기록을 읽을 수 없습니다.",
+        "error",
+      );
+    }
+  }, [ready, requestedRecordId, records, setLibrary, notify]);
   const importFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
       if (file.size > 1000000)
         throw new Error("설계 JSON은 1 MB 이하만 가져올 수 있습니다.");
-      setState(importDesign(await file.text()));
+      const restored = importDesign(await file.text());
+      if (!restored.presetId)
+        throw new Error("이천자이더리체 원문 단면이 지정된 JSON을 가져오세요.");
+      setState(restored);
       setLoadedId(null);
       setStep(0);
       notify(
@@ -423,7 +517,12 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
     try {
       download(
         `${fileName}_부재검토.html`,
-        makeReport(state),
+        makeReport(
+          state,
+          new Date().toISOString(),
+          window.location.origin,
+          HAS_PROVIDED_ORIGINALS,
+        ),
         "text/html;charset=utf-8",
       );
       notify(
@@ -477,6 +576,15 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
           />
           <span>{f.unit}</span>
         </div>
+        <small className="design-value-origin">
+          {state.members[member].origins?.[f.key] === "imported_analysis"
+            ? "원문 초기값"
+            : "사용자 수정값"}
+          {Number(state.members[member].values[f.key]) !==
+          preset.inputs[member][f.key]
+            ? ` · 초기 ${preset.inputs[member][f.key]} ${f.unit}`
+            : ""}
+        </small>
         {error && <small role="alert">{error}</small>}
       </label>
     );
@@ -492,7 +600,8 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
       <div className="design-topline">
         <div>
           <div className="design-breadcrumb">
-            설계 검토 <ChevronRight size={13} /> A-01 굴착 구역
+            설계 검토 <ChevronRight size={13} /> 이천자이더리체{" "}
+            <ChevronRight size={13} /> {section.label}
           </div>
           <h1>흙막이 부재 검토</h1>
           <p>
@@ -531,13 +640,13 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
       <div className="design-project-strip">
         <span className="design-source-pill">
           {state.source.origin === "synthetic"
-            ? "합성 A현장 · 시연 데이터"
-            : "사용자 채택 해석값"}
+            ? "합성 자료"
+            : "2023.06 원문 기반"}
         </span>
         <span>H-Pile + 토류판 + 어스앵커</span>
         <span className="design-strip-divider" />
         <span>
-          굴착깊이 <b>10.0 m</b>
+          변위 검토 깊이 <b>{section.depth} m</b>
         </span>
         <span className="design-strip-divider" />
         <span>
@@ -547,6 +656,191 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
           <ShieldCheck size={14} /> 수동 해석값 기반 부재 검토
         </span>
       </div>
+      <section className="panel design-case-selector">
+        <div className="design-case-heading">
+          <div>
+            <span className="design-section-kicker">
+              실제 단면 · 앵커 단 선택
+            </span>
+            <h2>검토할 위치를 선택하세요</h2>
+            <p>
+              검토안별로 수정값을 따로 보관합니다. H-Pile·토류판은 같은 단면의
+              원문값으로 시작합니다.
+            </p>
+          </div>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setCatalogOpen((v) => !v)}
+          >
+            <FolderOpen size={16} />
+            전체 원문 검토 목록
+          </button>
+        </div>
+        <div className="design-case-controls">
+          <label className="design-field">
+            <span>흙막이 단면</span>
+            <select
+              aria-label="흙막이 단면"
+              value={preset.sectionId}
+              onChange={(e) => selectPreset(`${e.target.value}-1`)}
+            >
+              {REAL_DESIGN.sections
+                .filter((s) => s.supported)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label} · {s.method}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="design-field">
+            <span>앵커 · 연결 띠장</span>
+            <select
+              aria-label="앵커 단"
+              value={state.presetId}
+              onChange={(e) => selectPreset(e.target.value)}
+            >
+              {REAL_DESIGN.presets
+                .filter((p) => p.sectionId === preset.sectionId)
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.level}단 · GL -{[1.01, 4.11, 7.21][p.level - 1]} m
+                  </option>
+                ))}
+            </select>
+          </label>
+          <div className="design-case-links">
+            <a
+              href={`${REAL_DESIGN.source.url}#page=${section.sectionPage}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <FileText size={15} />
+              계산서 단면 p{section.sectionPage}
+            </a>
+            <a
+              href={`${REAL_DESIGN.source.drawingUrl}#page=${section.drawingPage}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Layers size={15} />
+              원본 도면 p{section.drawingPage}
+            </a>
+            <button
+              className="btn btn-ghost"
+              onClick={() => setSourceOpen((v) => !v)}
+            >
+              단면 그림 {sourceOpen ? "접기" : "보기"}
+            </button>
+          </div>
+        </div>
+        {sourceOpen && (
+          <div className="design-source-drawing">
+            <img
+              src={`/data/design/section-${section.id}.png`}
+              alt={`${section.label} 원문 표준단면과 지층·사용부재 표`}
+            />
+            <p>
+              계산서 PDF p{section.sectionPage} · 원문 그림 · 확대는 위의 계산서
+              링크를 이용하세요.
+            </p>
+          </div>
+        )}
+        {section.issue && (
+          <div className="design-source-issue" role="status">
+            <TriangleAlert size={18} />
+            <div>
+              <b>D-D′ 원문 깊이 확인 필요</b>
+              <p>{section.issue}</p>
+              <a
+                href={`${REAL_DESIGN.source.url}#page=172`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                단계표 p172 ↗
+              </a>{" "}
+              ·{" "}
+              <a
+                href={`${REAL_DESIGN.source.url}#page=168`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                변위 검토 p168 ↗
+              </a>
+            </div>
+          </div>
+        )}
+        {catalogOpen && (
+          <div className="design-source-catalog">
+            <div className="design-catalog-summary">
+              <b>6개 단면 중 3개 흙막이 단면을 자동 재계산</b>
+              <p>
+                앵커 7개 단 + 띠장 7개 단 + H-Pile 3개 단면 + 토류판 3개 단면.
+                사면·전체 안정·기초·배수 결과는 원문 검토 자료입니다.
+              </p>
+            </div>
+            {REAL_DESIGN.sections.map((s) => (
+              <article key={s.id}>
+                <div>
+                  <b>{s.label}</b>
+                  <span
+                    className={
+                      s.supported
+                        ? "design-catalog-auto"
+                        : "design-catalog-reference"
+                    }
+                  >
+                    {s.supported ? "4부재 자동 재계산" : "원문 결과 열람"}
+                  </span>
+                </div>
+                <p>{s.description}</p>
+                {s.summary && (
+                  <p className="design-original-result">{s.summary}</p>
+                )}
+                <a
+                  href={`${REAL_DESIGN.source.url}#page=${s.pages[0]}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  계산서 p{s.pages.join("~")} ↗
+                </a>
+                {s.supported && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      selectPreset(`${s.id}-1`);
+                      setCatalogOpen(false);
+                    }}
+                  >
+                    이 단면 검토 <ArrowRight size={13} />
+                  </button>
+                )}
+              </article>
+            ))}
+            {REAL_DESIGN.additionalReviews.map((r) => (
+              <article key={r.label}>
+                <div>
+                  <b>{r.label}</b>
+                  <span className="design-catalog-reference">
+                    원문 결과 열람
+                  </span>
+                </div>
+                <p>{r.description}</p>
+                {r.summary && (
+                  <p className="design-original-result">{r.summary}</p>
+                )}
+                <a
+                  href={`${REAL_DESIGN.source.url}#page=${r.pages[0]}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  결과 근거 p{r.pages.join("~")} ↗
+                </a>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
       <div className="design-member-tabs" role="tablist" aria-label="검토 부재">
         {MEMBER_IDS.map((id, i) => {
           const Icon = iconMap[id];
@@ -609,7 +903,7 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
                 </h2>
                 <p>
                   {step === 0
-                    ? "현재 시연은 합성 입력을 사용합니다. 실제 입력을 가져오면 출처와 개정을 함께 남기세요."
+                    ? "계산서에서 옮긴 초기값입니다. 원문 페이지를 확인하고 변경 자료의 출처와 개정을 남기세요."
                     : step === 1
                       ? "GEOX 입력 화면에서 허용된 제원만 수정합니다. 재료·방법 상수는 읽기 전용입니다."
                       : step === 2
@@ -621,6 +915,27 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
             </div>
             {step === 0 && (
               <>
+                <div className="design-evidence-bar">
+                  <FileText size={18} />
+                  <div>
+                    <strong>
+                      {preset.label} · {module.title} 원문 입력
+                    </strong>
+                    <p>
+                      {preset.verification} · 계산서 PDF p
+                      {preset.pages[member].join("~")} · 개정{" "}
+                      {preset.sourceRevision}
+                    </p>
+                  </div>
+                  <a
+                    href={`${REAL_DESIGN.source.url}#page=${preset.pages[member][0]}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    원문 확인 ↗
+                  </a>
+                </div>
+
                 <div className="design-fields">
                   <label className="design-field design-span-2">
                     <span>검토안 이름</span>
@@ -639,9 +954,8 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
                       value={state.source.origin}
                       onChange={(e) => patchSource("origin", e.target.value)}
                     >
-                      <option value="synthetic">합성 데이터 · 시연</option>
                       <option value="imported_analysis">
-                        사용자 채택 외부 해석결과
+                        원문 / 외부 해석결과 채택
                       </option>
                     </select>
                   </label>
@@ -827,8 +1141,9 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
                         <small>kN/개</small>
                       </strong>
                       <p>
-                        설치각 30°로 수평성분을 계산한 뒤 c/a로 상단 띠장에
-                        분담합니다. R′와 Treq를 중복 적용하지 않습니다.
+                        설치각 {module.fixed.angleDeg}°로 수평성분을 계산한 뒤
+                        c/a로 상단 띠장에 분담합니다. R′와 Treq를 중복 적용하지
+                        않습니다.
                       </p>
                       <button
                         className="btn btn-secondary"
@@ -852,7 +1167,11 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
                         <div className="design-analysis-card" key={f.key}>
                           <div className="design-analysis-title">
                             <strong>{f.label}</strong>
-                            <span>수동 입력</span>
+                            <span>
+                              {q.origin === "imported_analysis"
+                                ? "원문 채택값"
+                                : "사용자 수동 입력"}
+                            </span>
                           </div>
                           <div className="design-analysis-value">
                             <input
@@ -884,6 +1203,12 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
                             </p>
                           )}
                           <p className="design-direction">{f.direction}</p>
+                          {q.origin === "manual_record" && (
+                            <p className="design-source-hint">
+                              수동 입력값입니다. 아래 지배단계·위치·근거를
+                              이번에 채택한 해석결과에 맞게 확인하세요.
+                            </p>
+                          )}
                           <div className="design-fields">
                             <label className="design-field">
                               <span>지배 시공단계 / 하중 출처</span>
@@ -945,7 +1270,7 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
                       );
                     })
                 )}
-                {current.status === "stale" && (
+                {current.status === "stale" && !section.issue && (
                   <div className="design-reconfirm">
                     <TriangleAlert size={21} />
                     <div>
@@ -998,6 +1323,87 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
                   </div>
                 ) : (
                   <>
+                    <details
+                      className="design-details design-original-comparison"
+                      open
+                    >
+                      <summary>
+                        <FileText size={16} />
+                        원문 표시값과 현재 계산 비교
+                        <ChevronDown size={16} />
+                      </summary>
+                      <p>
+                        {member === "wale"
+                          ? "원문은 표시된 Jf를 사용하고, 현재 검토는 앵커 재계산 Jf를 반올림 없이 연결합니다."
+                          : member === "pile"
+                            ? "Qu는 원문 표시값 2,118.24 kN을 직접 사용합니다."
+                            : "원문 표시 정밀도를 보존하며 중간값을 임의로 보정하지 않습니다."}{" "}
+                        입력을 바꾸면 차이는 설계 변경과 반올림을 함께
+                        포함합니다.
+                      </p>
+                      <div className="design-comparison-scroll">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>결과</th>
+                              <th>원문 표시값</th>
+                              <th>현재 계산</th>
+                              <th>차이</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sourceComparison(state, member)
+                              .filter((row) =>
+                                [
+                                  "designForceKn",
+                                  "jackingForceKn",
+                                  "requiredFreeLengthM",
+                                  "frictionLengthM",
+                                  "bondLengthM",
+                                  "elongationMm",
+                                  "supportReactionKn",
+                                  "lineLoadKnm",
+                                  "momentKnm",
+                                  "shearKn",
+                                  "interaction",
+                                  "displacementLimitMm",
+                                  "allowableBearingKn",
+                                  "spanMm",
+                                  "stressMpa",
+                                  "averageShearMpa",
+                                  "requiredThicknessMm",
+                                ].includes(row.key),
+                              )
+                              .map((row) => (
+                                <tr key={row.key}>
+                                  <td>
+                                    {current.steps.find(
+                                      (s) => s.key === row.key,
+                                    )?.title ||
+                                      resultMetric[member].find(
+                                        (s) => s.key === row.key,
+                                      )?.label ||
+                                      RESULT_LABELS[row.key] ||
+                                      row.key}
+                                  </td>
+                                  <td>
+                                    {fmt(row.printed, 4)} {row.unit}
+                                  </td>
+                                  <td>{fmt(row.current, 4)}</td>
+                                  <td>{fmt(row.difference, 5)}</td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <a
+                        href={`${REAL_DESIGN.source.url}#page=${preset.pages[member][0]}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        원문 계산 p{preset.pages[member].join("~")} 확인 ↗
+                      </a>
+                    </details>
                     <div className="design-check-list">
                       {current.checks.map((c) => (
                         <div className="design-check" key={c.key}>
@@ -1077,7 +1483,7 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
                     </details>
                   </>
                 )}
-                {current.status === "stale" && (
+                {current.status === "stale" && !section.issue && (
                   <div className="design-reconfirm">
                     <TriangleAlert size={20} />
                     <div>
@@ -1186,7 +1592,7 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
               {invalid
                 ? "필수 입력을 완료하면 기록할 수 있습니다."
                 : stale
-                  ? "제원 변경 부재의 해석결과 재확인이 필요합니다."
+                  ? "입력 조건 또는 원문 불일치에 대한 해석 재확인이 필요합니다."
                   : exceeded
                     ? "기준 초과 항목을 확인하고 검토 이력을 남기세요."
                     : "네 부재의 입력과 계산 근거를 함께 저장할 수 있습니다."}
@@ -1205,6 +1611,50 @@ export default function DesignPage({ records, onSave, notify }: FeatureProps) {
           </section>
         </aside>
       </div>
+      <section className="panel design-deliverables">
+        <div>
+          <span className="design-section-kicker">ORIGINAL INPUT</span>
+          <h3>원문 초기값으로 돌아가기</h3>
+          <p>
+            선택한 {preset.label}의 현재 입력만 복원합니다. 저장한 검토 기록은
+            그대로 남습니다.
+          </p>
+        </div>
+        {resetPending ? (
+          <div className="design-deliverable-actions">
+            <span>현재 입력을 원문 값으로 바꿉니다.</span>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setResetPending(false)}
+            >
+              취소
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                setState(createRealWorkspace(preset.id));
+                setLoadedId(null);
+                setResetPending(false);
+                setStep(0);
+                notify(
+                  "선택한 단면·단의 원문 초기값을 복원했습니다.",
+                  "success",
+                );
+              }}
+            >
+              원문 값 복원
+            </button>
+          </div>
+        ) : (
+          <button
+            className="btn btn-secondary"
+            onClick={() => setResetPending(true)}
+          >
+            <RotateCcw size={15} />
+            초기값 복원
+          </button>
+        )}
+      </section>
       <section className="panel design-deliverables">
         <div>
           <span className="design-section-kicker">REVIEW RECORD</span>

@@ -1,26 +1,12 @@
-# AutoGeo 실행 상태
+# 실자료 릴리스 체크포인트
 
-- T0: 2026-09-21 17:24 KST. 18:28 KST 기준 경과 약64분. 시간 채우기 대기 없음.
-- 공개 GitHub: https://github.com/geotech-0/autogeo-hackathon
-- Production: https://autogeo-hackathon.vercel.app/
-- 기능 완성 정상배포/검증 commit: 46c852ab58feb69682214cc570cf9552b191ef0c. 최종 문서와 모바일 단면 가독성 수정 개정은 /version.json 및 제출 배포 기록으로 확인.
+- 현장: 이천자이더리체. 이전 합성 A현장 공개판과 다른 작업본.
+- 원본29파일을 조사하고 실제지반32공/96구간·정사영상/DSM/LAS/CAD·실계산서·3개월계측을 연결했다.
+- 실제설계4부재 재계산, 기타안정/기초/배수는원문결과검토로구분한다.
+- 통합시험106개 통과. 실제UI 저장·원문·첨부·개정·내보내기/복원과대표반응형을검수했다.
+- 공개후보는 `node scripts/build-derived.mjs`. 원문PDF/주상도이미지/품질원본 폴더3개는 Git과dist에서 제외한다. `.gitignore`는 로컬원본을삭제하지않는다.
+- 원문폴더가 있는 로컬앱은 full모드, 공개저장소를clone하면원문존재감지에의해derived모드다.
+- 아직 실제자료를GitHub/Vercel에push하거나배포하지않았다. 현재공개주소는이전합성판이다.
+- 다음: 파생자료 공개범위 확인 → 최종commit push → Vercel 새배포의SHA/HTTP/UI 검수 → 새제출자료·영상·로그·팀대표제출.
 
-## 완료
-
-입찰/설계/시공/유지관리 P0, 공통 저장/개정/JSON, GEOX 허용목록과 수동최대값, 원문137시험·20사례 회귀, 실제 NH14/41구간·개략정합·독립수치대조.
-74/74 통합시험, Production build, 공개 Preview→Production, 인증 없는8경로/11자산확인, 새공개clone npm ci/test/build, 라이선스/출처감사 완료.
-실제 CUA 시연·저장/새로고침·전역JSON왕복·CSV파일업로드·Production HTML/JSON다운로드·3뷰포트·키보드·503/WebGL오류복구·초안실패회귀 완료.
-발표5페이지PDF/PPTX, 실제goal원문, 시연대본, 최종제출설명, 110분사람체크리스트, 종료후로그사본준비안내 완료.
-
-## 최종 검증 상태
-
-최종 단면 단위/모바일 가독성 수정은 관련 시험·빌드·3뷰포트 확인 후 게시한다. 이 commit 이후 확인되는 최종 SHA·Production 검증·완료 시각은 공개 repo 밖 제출 패키지의 배포검증.json과 최종 인수 문서에 기록해 소스 개정을 다시 바꾸지 않는다. P1은 추가하지 않음.
-
-## 사람의 후속 작업
-
-영상 녹화/공개, 이세션종료후JSONL사본준비/업로드, 대표계정행사4개항목최종제출. 이작업들은 제출완료로 표시하지않는다.
-
-## 자료 위치/소유권
-
-app repo는 공개 합성자료만 포함. 실제 검산/정합은 repo밖 제출폴더 local-private. root공통/배포, design·ground·field/maintenance 담당 위임 종료.
-TEST_REPORT.md/VISUAL_QA.md/DATA_SOURCES.md/DECISIONS.md 참고. 재실행 npm ci && npm run dev.
+기록은 브라우저·도메인별이다. 제공된현장수치를 사용자검토이력으로 미리채우지않는다. 공개판으로검토기록을옮기려면같은실제현장JSON을가져온다. 합성현장JSON은거부한다.

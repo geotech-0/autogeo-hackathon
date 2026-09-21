@@ -41,6 +41,7 @@ import type {
 import { SITE, STAGE_LABELS, STATUS_LABELS } from "./contracts";
 import {
   exportProject,
+  exportRecord,
   importProject,
   initializeRecords,
   listRecords,
@@ -52,6 +53,13 @@ import { SEED_RECORDS } from "./data/seed";
 import ScenePreview from "./components/ScenePreview";
 import ErrorBoundary from "./components/ErrorBoundary";
 import StandardsPage from "./components/StandardsPage";
+import SourceLibrary from "./components/SourceLibrary";
+import sourceCatalog from "./data/source-catalog.json";
+import {
+  HAS_PROVIDED_ORIGINALS,
+  isProvidedOriginal,
+} from "./data/source-access";
+const PdfDocument = lazy(() => import("./components/PdfDocument"));
 const modules = import.meta.glob("./features/**/*Page.tsx");
 function feature(path: string) {
   return modules[path]
@@ -79,7 +87,8 @@ type Page =
   | "construction"
   | "maintenance"
   | "history"
-  | "standards";
+  | "standards"
+  | "documents";
 const NAV = [
   { id: "overview", name: "현장 개요", icon: LayoutDashboard },
   { id: "tender", name: "입찰 · 지반 모델", icon: Layers3, n: "01" },
@@ -87,6 +96,7 @@ const NAV = [
   { id: "construction", name: "시공 · 품질 관리", icon: Building2, n: "03" },
   { id: "maintenance", name: "유지관리 · 조사", icon: ShieldCheck, n: "04" },
   { id: "history", name: "통합 검토 이력", icon: History },
+  { id: "documents", name: "현장 자료함", icon: FolderOpen },
   { id: "standards", name: "건설기준 라이브러리", icon: BookOpen },
 ] as const;
 const PAGE_META: Record<Page, [string, string]> = {
@@ -109,7 +119,11 @@ const PAGE_META: Record<Page, [string, string]> = {
   ],
   history: [
     "모든 검토를 한 곳에서",
-    "A-01 구역의 입력, 결과, 판단과 조치가 연결됩니다.",
+    "이천자이더리체의 자료, 검토, 판단과 조치가 연결됩니다.",
+  ],
+  documents: [
+    "현장 자료함",
+    "조사보고서·계산서·도면·계측 원문과 검토 근거를 확인하세요.",
   ],
   standards: [
     "건설기준 라이브러리",
@@ -141,6 +155,9 @@ function download(name: string, data: unknown) {
 }
 export default function App() {
   const [page, setPage] = useState<Page>(initialPage);
+  const [requestedRecordId, setRequestedRecordId] = useState<string | null>(
+    () => new URLSearchParams(location.search).get("record"),
+  );
   const [records, setRecords] = useState<ProjectRecord[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [dbError, setDbError] = useState("");
@@ -149,6 +166,11 @@ export default function App() {
     null,
   );
   const [help, setHelp] = useState(false);
+  const [documentView, setDocumentView] = useState<{
+    url: string;
+    page: number;
+    title: string;
+  } | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [siteOpen, setSiteOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -187,22 +209,79 @@ export default function App() {
       .then(setVersions)
       .catch(() => setVersions([]));
   }, [selected?.id]);
-  const navigate = useCallback((next: Page) => {
+  const navigate = useCallback((next: Page, recordId?: string) => {
     setPage(next);
+    setRequestedRecordId(recordId || null);
     setMenuOpen(false);
     setSiteOpen(false);
-    history.pushState(null, "", next === "overview" ? "/" : `/${next}`);
+    history.pushState(
+      null,
+      "",
+      (next === "overview" ? "/" : `/${next}`) +
+        (recordId ? `?record=${encodeURIComponent(recordId)}` : ""),
+    );
     document.querySelector(".main-scroll")?.scrollTo({ top: 0 });
   }, []);
   useEffect(() => {
-    const pop = () => setPage(initialPage());
+    const pop = () => {
+      setPage(initialPage());
+      setRequestedRecordId(new URLSearchParams(location.search).get("record"));
+    };
     window.addEventListener("popstate", pop);
     return () => window.removeEventListener("popstate", pop);
+  }, []);
+  useEffect(() => {
+    const openSource = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      const link = (event.target as Element)?.closest<HTMLAnchorElement>(
+        "a[href]",
+      );
+      if (!link) return;
+      const url = new URL(link.href, location.href);
+      if (
+        url.origin === location.origin &&
+        !HAS_PROVIDED_ORIGINALS &&
+        isProvidedOriginal(url.pathname)
+      ) {
+        event.preventDefault();
+        const p =
+          Number(new URLSearchParams(url.hash.slice(1)).get("page")) || 1;
+        setDocumentView({
+          url: url.pathname,
+          page: Number.isFinite(p) ? p : 1,
+          title:
+            sourceCatalog.find((s) => s.url === url.pathname)?.title ||
+            link.textContent?.trim() ||
+            "원문 출처",
+        });
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
+        return;
+      if (link.hasAttribute("download")) return;
+      if (
+        url.origin !== location.origin ||
+        !/^\/documents\/[^/]+\.pdf$/.test(url.pathname)
+      )
+        return;
+      event.preventDefault();
+      const p = Number(new URLSearchParams(url.hash.slice(1)).get("page")) || 1;
+      setDocumentView({
+        url: url.pathname,
+        page: Number.isFinite(p) ? p : 1,
+        title:
+          sourceCatalog.find((s) => s.url === url.pathname)?.title ||
+          "현장 원문",
+      });
+    };
+    document.addEventListener("click", openSource);
+    return () => document.removeEventListener("click", openSource);
   }, []);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setHelp(false);
+        setDocumentView(null);
         setResetOpen(false);
         setSelected(null);
         setMenuOpen(false);
@@ -213,7 +292,7 @@ export default function App() {
     return () => document.removeEventListener("keydown", key);
   }, []);
   useEffect(() => {
-    if (!help && !selected && !resetOpen) return;
+    if (!help && !selected && !resetOpen && !documentView) return;
     const previous = document.activeElement as HTMLElement | null;
     const modal = document.querySelector<HTMLElement>(".modal");
     if (!modal) return;
@@ -243,7 +322,7 @@ export default function App() {
       document.removeEventListener("keydown", trap);
       previous?.focus();
     };
-  }, [Boolean(help || selected || resetOpen)]);
+  }, [help, selected?.id, resetOpen, documentView?.url]);
   const onSave = useCallback(
     async (draft: ProjectRecordDraft) => {
       try {
@@ -260,7 +339,7 @@ export default function App() {
     },
     [notify],
   );
-  const props: FeatureProps = { records, onSave, notify };
+  const props: FeatureProps = { records, onSave, notify, requestedRecordId };
   const filtered = records.filter(
     (r) =>
       (historyStage === "all" || r.stage === historyStage) &&
@@ -270,7 +349,7 @@ export default function App() {
   );
   const exportAll = async () => {
     try {
-      download("AutoGeo-A현장-검토이력.json", await exportProject());
+      download("AutoGeo-이천자이더리체-검토이력.json", await exportProject());
       notify(
         "저장한 현장 기록을 내보냈습니다. 작성 중인 입력은 먼저 저장해주세요.",
       );
@@ -281,8 +360,10 @@ export default function App() {
   const importFile = async (file?: File) => {
     if (!file) return;
     try {
-      if (file.size > 10 * 1024 * 1024)
-        throw new Error("10MB 이하의 AutoGeo JSON 파일을 선택해주세요.");
+      if (file.size > 150 * 1024 * 1024)
+        throw new Error(
+          "첨부를 포함해 150MB 이하의 AutoGeo JSON 파일을 선택해주세요.",
+        );
       const count = await importProject(JSON.parse(await file.text()));
       setRecords(await listRecords());
       notify(
@@ -302,7 +383,7 @@ export default function App() {
     try {
       await onSave({
         stage: "tender",
-        title: "A-01 검토 의견",
+        title: "이천자이더리체 검토 의견",
         summary: note.trim(),
         status: "draft",
         payload: { kind: "comment", content: note.trim() },
@@ -336,10 +417,10 @@ export default function App() {
         <div className="header-breadcrumb">
           <span>프로젝트</span>
           <ChevronRight size={14} />
-          <strong>A현장</strong>
+          <strong>{SITE.name}</strong>
         </div>
         <div className="header-right">
-          <span className="demo-label">HACKATHON DEMO</span>
+          <span className="demo-label">SITE WORKSPACE</span>
           <button
             className="icon-btn"
             aria-label="사용 안내"
@@ -347,7 +428,7 @@ export default function App() {
           >
             <CircleHelp size={20} />
           </button>
-          <span className="profile-avatar">A</span>
+          <span className="profile-avatar">이</span>
           <span className="profile-name">현장 검토자</span>
         </div>
       </header>
@@ -369,7 +450,7 @@ export default function App() {
             </span>
             <span>
               <small>현재 프로젝트</small>
-              <strong>A 지반개발 현장</strong>
+              <strong>{SITE.name}</strong>
             </span>
             <ChevronDown size={16} />
           </button>
@@ -381,7 +462,7 @@ export default function App() {
                   navigate("overview");
                 }}
               >
-                <Check size={16} /> A현장 · 합성 시연
+                <Check size={16} /> {SITE.name} · 실자료
               </button>
               <p>검토 이력은 이 브라우저에 저장됩니다.</p>
             </div>
@@ -411,7 +492,7 @@ export default function App() {
             <ArrowDownToLine size={16} /> 이력 내보내기
           </button>
           <p>
-            합성 A현장 · 해커톤 시제품
+            이천자이더리체 · 현장 자료 검토
             <br />
             공식 운영 서비스가 아닙니다.
           </p>
@@ -419,27 +500,29 @@ export default function App() {
       </aside>
       <div className="main-scroll">
         <main id="main-content" className="main-content">
-          {(["overview", "history", "standards"] as Page[]).includes(page) && (
+          {(
+            ["overview", "history", "standards", "documents"] as Page[]
+          ).includes(page) && (
             <div className="page-heading">
               <div>
                 <div className="eyebrow">
                   <span>AUTOGEO WORKSPACE</span>
                   <i />
-                  A-01
+                  ICHEON
                 </div>
                 <h1>{PAGE_META[page][0]}</h1>
                 <p>{PAGE_META[page][1]}</p>
               </div>
               <div className="heading-actions">
                 <span className="badge badge-neutral">
-                  <span className="small-dot" /> 합성 현장 예제
+                  <span className="small-dot" /> 제공된 현장 자료
                 </span>
                 {page === "overview" && (
                   <button
                     className="btn btn-primary"
                     onClick={() => navigate("tender")}
                   >
-                    대표 시연 시작 <ArrowRight size={16} />
+                    현장 검토 시작 <ArrowRight size={16} />
                   </button>
                 )}
               </div>
@@ -461,10 +544,11 @@ export default function App() {
                 <section className="panel overview-project">
                   <div className="panel-header">
                     <div>
-                      <div className="eyebrow">PROJECT A</div>
-                      <h2>A 지반개발 프로젝트</h2>
+                      <div className="eyebrow">ICHEON XI THE RICHE</div>
+                      <h2>{SITE.name}</h2>
                       <p className="muted">
-                        <MapPin size={14} /> A-01 굴착 구역 · 시연용 로컬 좌표
+                        <MapPin size={14} /> 4개 조사차수 · 실제 드론·설계·계측
+                        자료
                       </p>
                     </div>
                     <span className="badge badge-blue">통합 검토</span>
@@ -472,7 +556,7 @@ export default function App() {
                   <button
                     className="scene-preview-button"
                     onClick={() => navigate("tender")}
-                    aria-label="A현장 지반 모델 열기"
+                    aria-label="이천자이더리체 지반 모델 열기"
                   >
                     <ScenePreview />
                     <span className="scene-open">
@@ -481,21 +565,21 @@ export default function App() {
                   </button>
                   <div className="project-metrics">
                     <div>
-                      <span>현장 면적</span>
+                      <span>지반 조사차수</span>
                       <strong>
-                        12,000 <small>m²</small>
+                        4 <small>회</small>
                       </strong>
                     </div>
                     <div>
-                      <span>합성 시추공</span>
+                      <span>시추공 기록</span>
                       <strong>
-                        12 <small>공</small>
+                        32 <small>공</small>
                       </strong>
                     </div>
                     <div>
-                      <span>계획 굴착</span>
+                      <span>월간 계측보고서</span>
                       <strong>
-                        10.0 <small>m</small>
+                        3 <small>개월</small>
                       </strong>
                     </div>
                   </div>
@@ -529,7 +613,7 @@ export default function App() {
                         {
                           page: "tender" as const,
                           title: "시추공과 굴착영역 살펴보기",
-                          sub: "입찰 · 12공 합성 예제",
+                          sub: "입찰 · 4개 차수 32공 조사자료",
                         },
                         {
                           page: "design" as const,
@@ -539,7 +623,7 @@ export default function App() {
                         {
                           page: "construction" as const,
                           title: "시험과 계측의 이상 확인하기",
-                          sub: "시공 · 정상과 초과 예제",
+                          sub: "시공 · 1–3월 실계측 기록",
                         },
                       ].map((r, i) => (
                         <button key={r.page} onClick={() => navigate(r.page)}>
@@ -549,7 +633,7 @@ export default function App() {
                           <span>
                             <small>{r.sub}</small>
                             <strong>{r.title}</strong>
-                            <em>예제로 시작</em>
+                            <em>자료 검토</em>
                           </span>
                           <ChevronRight size={17} />
                         </button>
@@ -565,7 +649,10 @@ export default function App() {
                         <button
                           key={r.id}
                           onClick={() =>
-                            navigate(r.stage === "tender" ? "tender" : r.stage)
+                            navigate(
+                              r.stage === "tender" ? "tender" : r.stage,
+                              r.id,
+                            )
                           }
                         >
                           <span className={`focus-icon focus-icon-${i}`}>
@@ -807,7 +894,7 @@ export default function App() {
               <section className="panel comment-panel">
                 <h2>검토 의견 남기기</h2>
                 <label className="field">
-                  <span>A-01 구역의 검토 의견</span>
+                  <span>현장 검토 의견</span>
                   <textarea
                     rows={3}
                     value={note}
@@ -825,9 +912,11 @@ export default function App() {
                 </button>
               </section>
               <button className="reset-link" onClick={() => setResetOpen(true)}>
-                <RotateCcw size={14} /> 합성 예제로 초기화
+                <RotateCcw size={14} /> 검토 기록 초기화
               </button>
             </>
+          ) : page === "documents" ? (
+            <SourceLibrary />
           ) : (
             <ErrorBoundary key={page}>
               <Suspense
@@ -854,7 +943,7 @@ export default function App() {
           <footer className="page-footer">
             <span>AutoGeo · 현장의 근거를 하나로</span>
             <span>
-              합성 데이터 시연 · 저장한 기록은 JSON으로 보관할 수 있습니다
+              이천자이더리체 · 저장한 기록은 JSON으로 보관할 수 있습니다
             </span>
           </footer>
         </main>
@@ -882,6 +971,38 @@ export default function App() {
           </button>
         </div>
       )}
+      {documentView && (
+        <div className="modal-backdrop" onClick={() => setDocumentView(null)}>
+          <section
+            className="modal document-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="source-document-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="modal-close icon-btn"
+              aria-label="원문 닫기"
+              onClick={() => setDocumentView(null)}
+            >
+              <X />
+            </button>
+            <div className="eyebrow">SOURCE DOCUMENT</div>
+            <h2 id="source-document-title">{documentView.title}</h2>
+            <ErrorBoundary>
+              <Suspense
+                fallback={<p role="status">원문 뷰어를 준비하고 있습니다.</p>}
+              >
+                <PdfDocument
+                  url={documentView.url}
+                  initialPage={documentView.page}
+                  title={documentView.title}
+                />
+              </Suspense>
+            </ErrorBoundary>
+          </section>
+        </div>
+      )}
       {help && (
         <div className="modal-backdrop" onClick={() => setHelp(false)}>
           <section
@@ -899,7 +1020,7 @@ export default function App() {
               <X />
             </button>
             <div className="eyebrow">START HERE</div>
-            <h2 id="help-title">A현장으로 시작하는 검토 흐름</h2>
+            <h2 id="help-title">실제 현장 자료로 이어지는 검토 흐름</h2>
             <ol className="help-steps">
               <li>
                 <strong>입찰에서 현장 조건 확인</strong>
@@ -921,8 +1042,9 @@ export default function App() {
               </li>
             </ol>
             <p className="notice">
-              이 시연은 합성 자료를 사용합니다. 외부 탄소성해석이나 GPR 원신호
-              판독을 수행하지 않습니다.
+              제공된 조사·설계·계측 원문을 바탕으로 검토합니다. 각 결과의 조사
+              시기와 출처를 확인하세요. 부재 검토에는 외부 해석결과를 수기로
+              입력합니다.
             </p>
             <button
               className="btn btn-primary"
@@ -931,7 +1053,7 @@ export default function App() {
                 navigate("tender");
               }}
             >
-              시연 시작 <ArrowRight size={16} />
+              현장 검토 시작 <ArrowRight size={16} />
             </button>
           </section>
         </div>
@@ -992,7 +1114,9 @@ export default function App() {
                         ? "공식 참고자료"
                         : selected.origin === "imported_analysis"
                           ? "가져온 해석결과"
-                          : "실측 자료"}
+                          : selected.origin === "manual_record"
+                            ? "사용자 기록"
+                            : "실측 자료"}
                 </dd>
               </div>
               <div>
@@ -1024,14 +1148,21 @@ export default function App() {
             <div className="modal-actions">
               <button
                 className="btn btn-secondary"
-                onClick={() =>
-                  download(`AutoGeo-${selected.id}.json`, {
-                    schema_version: 1,
-                    site_id: SITE.id,
-                    exported_at: new Date().toISOString(),
-                    records: [selected],
-                  })
-                }
+                onClick={async () => {
+                  try {
+                    download(
+                      `AutoGeo-${selected.id}.json`,
+                      await exportRecord(selected),
+                    );
+                  } catch (e) {
+                    notify(
+                      e instanceof Error
+                        ? e.message
+                        : "내보내기에 실패했습니다.",
+                      "error",
+                    );
+                  }
+                }}
               >
                 <ArrowDownToLine size={16} /> 기록 내보내기
               </button>
@@ -1042,6 +1173,7 @@ export default function App() {
                     selected.payload.kind === "standard-adoption"
                       ? "standards"
                       : selected.stage,
+                    selected.id,
                   );
                   setSelected(null);
                 }}
@@ -1062,8 +1194,9 @@ export default function App() {
           >
             <h2 id="reset-title">현장 기록을 초기화할까요?</h2>
             <p>
-              이 브라우저에서 추가한 검토·조치와 작성 중인 입력을 지우고 합성
-              예제를 다시 불러옵니다. 필요한 기록은 먼저 내보내주세요.
+              이 브라우저에서 추가한 검토·조치와 작성 중인 입력을 지웁니다.
+              제공된 현장 원자료는 그대로 유지됩니다. 필요한 기록은 먼저
+              내보내주세요.
             </p>
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={exportAll}>
@@ -1083,7 +1216,7 @@ export default function App() {
                     setResetOpen(false);
                     setEpoch((x) => x + 1);
                     navigate("overview");
-                    notify("합성 예제로 초기화했습니다.");
+                    notify("검토 기록 초기화했습니다.");
                   } catch (e) {
                     notify(String(e), "error");
                   }

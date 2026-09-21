@@ -1,1 +1,1 @@
-{"buildCommand":"npm run build","outputDirectory":"dist","framework":"vite","rewrites":[{"source":"/((?!assets/).*)","destination":"/index.html"}]}
+{"buildCommand":"node scripts/build-derived.mjs","outputDirectory":"dist","framework":"vite","rewrites":[{"source":"/((?!assets/|data/|documents/|pdfjs/).*)","destination":"/index.html"}]}

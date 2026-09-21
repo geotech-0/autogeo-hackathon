@@ -1,9 +1,11 @@
+import { REAL_DESIGN } from "../../data/real-design/catalog.mjs";
+export { REAL_DESIGN };
 import { calculate as anchorCore } from "./kernels/anchor.mjs";
 import { calculate as waleCore } from "./kernels/wale.mjs";
 import { calculate as pileCore } from "./kernels/pile.mjs";
 import { calculate as timberCore } from "./kernels/timber.mjs";
 
-export const VERSION = "autogeo-members-2.0";
+export const VERSION = "autogeo-members-3.0-real";
 export const MEMBER_IDS = ["anchor", "wale", "pile", "timber"];
 const field = (key, label, unit, value, group = "geometry", extra = {}) => ({
   key,
@@ -350,6 +352,115 @@ export const MODULES = {
     ],
   },
 };
+export function getPreset(state) {
+  return state.presetId
+    ? REAL_DESIGN.presets.find((p) => p.id === state.presetId)
+    : null;
+}
+export function getSection(state) {
+  const p = getPreset(state);
+  return p ? REAL_DESIGN.sections.find((s) => s.id === p.sectionId) : null;
+}
+export function getModule(state, id) {
+  const preset = getPreset(state);
+  if (!preset) return MODULES[id];
+  const section = getSection(state),
+    module = structuredClone(MODULES[id]);
+  const input = preset.inputs[id];
+  module.fields.forEach((f) => {
+    f.value = input[f.key];
+  });
+  module.fixed = Object.fromEntries(
+    Object.keys(module.fixed).map((k) => [k, input[k]]),
+  );
+  module.asset = `${section.id.toUpperCase()}-${id === "anchor" ? "EA-" + preset.level : id === "wale" ? "WA-" + preset.level : id === "pile" ? "HP" : "TB"}`;
+  if (id === "anchor")
+    module.fixedRows[4] = [
+      "원문 자유장 기하 채택값",
+      `${input.geometricFreeLengthM} m · 계산서 PDF p${preset.pages.anchor[0]}`,
+    ];
+  if (id === "wale")
+    module.fixedRows[3] = ["앵커 설치각", "수평면에서 35° · 원문 채택값"];
+  if (id === "pile")
+    module.fixedRows[4] = [
+      "변위 검토에 채택된 굴착깊이 H",
+      `${input.excavationDepthM} m · 계산서 PDF p${preset.pages.pile[1]}${section.issue ? " · 원문 불일치 확인 필요" : ""}`,
+    ];
+  if (id === "timber")
+    module.scope = `원문 검토구간 GL 0~-${section.depth} m · 단순지지 · 등분포 면압`;
+  module.fixedRows.push([
+    "원문 근거",
+    `흙막이계산서 PDF p${preset.pages[id].join("~")} / ${section.label}`,
+  ]);
+  if (section.issue)
+    module.limitations = [section.issue, ...module.limitations];
+  return module;
+}
+export function createRealWorkspace(presetId = "b-left-1") {
+  const preset = REAL_DESIGN.presets.find((p) => p.id === presetId);
+  if (!preset) throw new Error("원문 검토안을 찾을 수 없습니다.");
+  const state = createWorkspace();
+  state.presetId = presetId;
+  state.label = `${preset.label} · 원문 초기 검토안`;
+  state.source = {
+    origin: "imported_analysis",
+    id: REAL_DESIGN.source.id,
+    revision: preset.sourceRevision,
+    label: REAL_DESIGN.source.label,
+    program: "midas GeoX · 탄소성법 / Rankine",
+    modelId: `IC-${preset.sectionId.toUpperCase()}`,
+    modelRevision: "2023.06",
+    programVersion: "GeoX V5.1.0 (원문 기재)",
+    runDate: "개별 실행일 미기재 · 보고서 2023.06",
+    combination: "성분별 최대 포락 · 원문 단계별 집계 대조",
+    enteredBy: "원문에서 전사 · 사용자 수정 가능",
+    evidence: `흙막이계산서 PDF p${preset.pages.anchor[0]}~${preset.pages.timber[0]} / ${preset.label}`,
+    quEvidence: `계산서 PDF p${preset.pages.pile[1]} 극한지지력 표시값 2118.24 kN 직접 채택 (원문 216.000 tonf 환산)`,
+  };
+  for (const id of MEMBER_IDS) {
+    const module = getModule(state, id),
+      member = state.members[id];
+    member.values = Object.fromEntries(
+      module.fields.map((f) => [f.key, String(preset.inputs[id][f.key])]),
+    );
+    member.origins = Object.fromEntries(
+      module.fields.map((f) => [f.key, "imported_analysis"]),
+    );
+    for (const f of module.fields.filter((f) => f.group === "analysis"))
+      member.quantities[f.key] = {
+        ...member.quantities[f.key],
+        ...preset.quantities[id][f.key],
+        origin: "imported_analysis",
+        sourceId: state.source.id,
+        sourceRevision: state.source.revision,
+      };
+    member.confirmedGeometry = geometrySignature(
+      id,
+      member,
+      state.source.modelId + "::" + state.source.modelRevision,
+    );
+  }
+  return state;
+}
+export function sourceComparison(state, id) {
+  const p = getPreset(state);
+  if (!p) return [];
+  const r = computeWorkspace(state)[id];
+  if (!r.ok) return [];
+  return p.printed[id]
+    .filter((item) => Number.isFinite(r.results[item.key]))
+    .map((item) => ({
+      ...item,
+      current: r.results[item.key],
+      difference: r.results[item.key] - item.printed,
+      page: p.pages[id][0],
+      changed: Object.entries(p.inputs[id]).some(
+        ([key, value]) =>
+          Object.hasOwn(state.members[id].values, key) &&
+          Number(state.members[id].values[key]) !== value,
+      ),
+    }));
+}
 const cores = {
   anchor: anchorCore,
   wale: waleCore,
@@ -406,6 +517,7 @@ export function createWorkspace() {
     const m = MODULES[id];
     const member = {
       values: Object.fromEntries(m.fields.map((f) => [f.key, String(f.value)])),
+      origins: Object.fromEntries(m.fields.map((f) => [f.key, "synthetic"])),
       quantities: Object.fromEntries(
         m.fields
           .filter((f) => f.group === "analysis")
@@ -418,6 +530,9 @@ export function createWorkspace() {
               direction: f.direction,
               aggregation: f.absolute ? "max_absolute" : "adopted_max",
               evidence: "합성 입력표 / " + f.key,
+              origin: "synthetic",
+              sourceId: state.source.id,
+              sourceRevision: state.source.revision,
             },
           ]),
       ),
@@ -438,6 +553,17 @@ export function updateValue(state, id, key, value) {
   if (!f) throw new Error("편집 허용목록에 없는 항목입니다.");
   const next = structuredClone(state);
   next.members[id].values[key] = String(value);
+  next.members[id].origins = {
+    ...next.members[id].origins,
+    [key]: "manual_record",
+  };
+  if (f.group === "analysis") {
+    Object.assign(next.members[id].quantities[key], {
+      origin: "manual_record",
+      sourceId: state.source.id,
+      sourceRevision: state.source.revision,
+    });
+  }
   next.members[id].revision++;
   return next;
 }
@@ -454,6 +580,15 @@ export function updateQuantity(state, id, key, patch) {
       throw new Error("지원하지 않는 단위입니다.");
     next.members[id].quantities[key][name] = String(value).slice(0, 1000);
   }
+  next.members[id].origins = {
+    ...next.members[id].origins,
+    [key]: "manual_record",
+  };
+  Object.assign(next.members[id].quantities[key], {
+    origin: "manual_record",
+    sourceId: state.source.id,
+    sourceRevision: state.source.revision,
+  });
   next.members[id].revision++;
   return next;
 }
@@ -520,10 +655,13 @@ export function normalizeQuantity(f, value, meta, input) {
     direction: f.direction,
     aggregation: f.absolute ? "max_absolute" : "adopted_max",
     evidence: meta.evidence || "",
+    origin: meta.origin || "manual_record",
+    sourceId: meta.sourceId || "",
+    sourceRevision: meta.sourceRevision || "",
   };
 }
 export function computeMember(state, id, anchorResult) {
-  const module = MODULES[id];
+  const module = getModule(state, id);
   const member = state.members?.[id];
   if (!member)
     return {
@@ -555,8 +693,12 @@ export function computeMember(state, id, anchorResult) {
       );
       quantities[f.key] = q;
       input[f.key] = q.value;
-      if (!q.stage?.trim() || !q.location?.trim())
-        errors[f.key] = "지배단계와 위치를 함께 입력하세요.";
+      if (
+        !q.stage?.trim() ||
+        !q.location?.trim() ||
+        (state.presetId && !q.evidence?.trim())
+      )
+        errors[f.key] = "지배단계·위치·채택값 근거를 함께 입력하세요.";
     } catch (e) {
       errors[f.key] = e.message;
     }
@@ -597,7 +739,9 @@ export function computeMember(state, id, anchorResult) {
   if (Object.keys(errors).length) return { ok: false, errors, status: "error" };
   const computed = cores[id](input);
   if (!computed.ok) return { ...computed, status: "error" };
+  const sourceIssue = Boolean(getSection(state)?.issue);
   const stale =
+    sourceIssue ||
     member.confirmedGeometry !==
       geometrySignature(
         id,
@@ -625,7 +769,7 @@ export function computeMember(state, id, anchorResult) {
     ...module.limitations,
     "채택한 허용값·방법에 대한 부재 검토이며 외부 해석 재실행 및 흙막이 전체 안정성 판정은 포함하지 않습니다.",
   ];
-  if (stale)
+  if (stale && !sourceIssue)
     warnings.unshift(
       "제원 또는 해석모델 개정이 바뀌었습니다. 입력한 해석결과가 변경 모델과 대응하는지 확인하세요.",
     );
@@ -666,7 +810,14 @@ export function computeWorkspace(state) {
 export function restoreWorkspace(raw) {
   if (!raw || raw.schemaVersion !== 2)
     throw new Error("지원하지 않는 설계 기록 형식입니다.");
-  const fresh = createWorkspace();
+  if (
+    raw.presetId !== undefined &&
+    !REAL_DESIGN.presets.some((p) => p.id === raw.presetId)
+  )
+    throw new Error("지원하지 않는 원문 단면입니다.");
+  const fresh = raw.presetId
+    ? createRealWorkspace(raw.presetId)
+    : createWorkspace();
   if (typeof raw.label === "string") fresh.label = raw.label.slice(0, 120);
   for (const k of Object.keys(fresh.source)) {
     if (typeof raw.source?.[k] !== "string")
@@ -687,6 +838,15 @@ export function restoreWorkspace(raw) {
       if (!Object.hasOwn(saved.values || {}, f.key))
         throw new Error("기록에 필수 입력이 누락되었습니다.");
       target.values[f.key] = String(saved.values[f.key]);
+      if (fresh.presetId) {
+        const supplied = saved.origins?.[f.key];
+        const isOriginal =
+          Number(saved.values[f.key]) === getPreset(fresh).inputs[id][f.key];
+        target.origins[f.key] =
+          supplied === "imported_analysis" && isOriginal
+            ? "imported_analysis"
+            : "manual_record";
+      } else target.origins[f.key] = saved.origins?.[f.key] || "synthetic";
       if (f.group === "analysis") {
         const q = saved.quantities?.[f.key];
         if (!q || !f.units.includes(q.unit))
@@ -697,6 +857,11 @@ export function restoreWorkspace(raw) {
           stage: String(q.stage || ""),
           location: String(q.location || ""),
           evidence: String(q.evidence || ""),
+          origin: fresh.presetId
+            ? target.origins[f.key]
+            : q.origin || "manual_record",
+          sourceId: String(q.sourceId || fresh.source.id),
+          sourceRevision: String(q.sourceRevision || fresh.source.revision),
         };
       }
     }
@@ -732,20 +897,34 @@ export function makeDesignDraft(state) {
     stage: "design",
     title: safe.label || "흙막이 부재 검토",
     status,
-    origin: safe.source.origin,
+    origin: safe.presetId ? "calculated" : safe.source.origin,
     source_id: safe.source.id,
     source_revision: safe.source.revision,
     method_version: VERSION,
-    asset_id: "A-01-RETAINING",
+    asset_id: safe.presetId
+      ? `IC-${getPreset(safe).sectionId.toUpperCase()}-RETAINING`
+      : "A-01-RETAINING",
     summary: `4개 부재 · ${counts}개 항목 · ${status === "pass" ? "채택 기준 만족" : status === "stale" ? "해석결과 재확인 필요" : "기준 초과 항목 있음"}`,
     assumptions: [
-      `${safe.source.origin === "synthetic" ? "합성 A현장" : "사용자 채택 해석자료"} 기준. 수동 입력한 해석결과에 대한 부재 검토.`,
+      `${safe.presetId ? "이천자이더리체 · " + getPreset(safe).label : safe.source.origin === "synthetic" ? "합성 A현장" : "사용자 채택 해석자료"} 기준. 수동 입력한 해석결과에 대한 부재 검토.`,
       "성분별 최대값의 지배 시공단계가 다를 수 있음.",
     ],
     payload: {
       kind: "design-review",
       schema_version: 2,
       workspace: safe,
+      source_origin: safe.source.origin,
+      preset: safe.presetId
+        ? {
+            id: safe.presetId,
+            sectionId: getPreset(safe).sectionId,
+            pages: getPreset(safe).pages,
+            sourceRevision: REAL_DESIGN.source.revision,
+          }
+        : null,
+      source_comparisons: Object.fromEntries(
+        MEMBER_IDS.map((id) => [id, sourceComparison(safe, id)]),
+      ),
       calculations,
       input_policy: Object.fromEntries(
         MEMBER_IDS.map((id) => [
@@ -757,9 +936,9 @@ export function makeDesignDraft(state) {
             manual_analysis: MODULES[id].fields
               .filter((f) => f.group === "analysis")
               .map((f) => f.key),
-            fixed: MODULES[id].fixed,
+            fixed: getModule(safe, id).fixed,
             derived: Object.keys(calculations[id].results),
-            method: MODULES[id].scope,
+            method: getModule(safe, id).scope,
           },
         ]),
       ),
@@ -810,3 +989,38 @@ export function comparisonRows(a, b) {
       .map((f) => f.label),
   }));
 }
+
+export const RESULT_LABELS = {
+  allowableTotalKn: "총 허용인장력",
+  allowablePerStrandKn: "강연선 1본 허용인장력",
+  requiredFreeLengthM: "필요 자유장",
+  designForceKn: "설계축력 Treq",
+  slipLossKn: "활동 손실",
+  relaxationLossKn: "릴랙세이션 손실",
+  jackingForceKn: "초기긴장력 Jf",
+  requiredStrandCount: "소요 강연선 수",
+  frictionLengthM: "마찰저항장",
+  bondLengthM: "부착저항장",
+  totalLengthM: "총 소요장",
+  elongationMm: "신장량",
+  supportReactionKn: "분담 반력",
+  lineLoadKnm: "등분포 선하중",
+  momentKnm: "최대 모멘트",
+  shearKn: "최대 전단력",
+  allowableBendingMpa: "허용휨응력",
+  bendingStressMpa: "휨응력",
+  shearStressMpa: "전단응력",
+  interaction: "합성응력비",
+  displacementLimitMm: "허용변위",
+  allowableBearingKn: "허용지지력",
+  spanMm: "설계지간",
+  stressMpa: "휨응력",
+  averageShearMpa: "평균전단응력",
+  compressionStressMpa: "압축응력",
+  compressionAllowableMpa: "허용압축응력",
+  bendingAllowableMpa: "허용휨응력",
+  eulerAllowableMpa: "오일러 허용응력",
+  shearAllowableMpa: "허용전단응력",
+  allowableShearMpa: "허용전단응력",
+  requiredThicknessMm: "휨 필요두께",
+};

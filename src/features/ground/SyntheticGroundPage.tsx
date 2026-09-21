@@ -1,0 +1,1548 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Layers3,
+  RotateCcw,
+  ScanLine,
+  SlidersHorizontal,
+  Download,
+  Upload,
+  Save,
+  Check,
+  MapPin,
+  Move,
+  Info,
+  ArrowUpRight,
+} from "lucide-react";
+import type { FeatureProps } from "../../contracts";
+import { useDraft } from "../../storage/useDraft";
+import GroundScene from "./GroundScene";
+import { restoreGroundPayload } from "./record.mjs";
+import {
+  GROUND_VERSION,
+  STRATA,
+  FRAME,
+  EXCAVATION,
+  syntheticBoreholes,
+  createKriging,
+  buildGrid,
+  sectionAt,
+  leaveOneOut,
+  syntheticError,
+  encodeBoreholeCsv,
+  parseBoreholeCsv,
+  validateBoreholes,
+  fitSimilarity,
+  transformPoint,
+  inversePoint,
+  registrationResiduals,
+  registrationMatrix,
+  inverse,
+} from "./engine.mjs";
+import "./ground.css";
+
+type Hole = {
+  id: string;
+  easting: number;
+  northing: number;
+  collar: number;
+  totalDepth: number;
+  origin?: string;
+  layers: { id: string; from: number; to: number }[];
+};
+type Transform = {
+  east: number;
+  north: number;
+  rotation: number;
+  scale: number;
+  height: number;
+};
+type GroundDraft = {
+  recordId?: string;
+  sourceRevision?: number;
+  holes: Hole[];
+  parameters: { model: string; range: string; sill: string; nugget: string };
+  sectionNorth: number;
+  depth: number;
+  selected: string;
+  layers: boolean[];
+  showHoles: boolean;
+  showVariance: boolean;
+  verticalScale: number;
+  transform: Transform;
+  transformed: boolean;
+  datasetOrigin: string;
+};
+const IDENTITY: Transform = {
+  east: 0,
+  north: 0,
+  rotation: 0,
+  scale: 1,
+  height: 0,
+};
+const REFERENCE: Transform = {
+  east: 6,
+  north: -4,
+  rotation: 7,
+  scale: 0.96,
+  height: 0,
+};
+const CONTROL_TARGETS = [
+  [18, 22],
+  [96, 18],
+  [93, 81],
+];
+const FIT = CONTROL_TARGETS.map((target, i) => ({
+  id: `P${i + 1}`,
+  source: inversePoint(target, REFERENCE),
+  target,
+}));
+const CHECKS = [
+  [21, 78],
+  [58, 48],
+].map((target, i) => ({
+  id: `C${i + 1}`,
+  source: inversePoint(
+    [target[0] + (i ? 0.2 : -0.35), target[1] + (i ? -0.25 : 0.2)],
+    REFERENCE,
+  ),
+  target,
+}));
+function initial(): GroundDraft {
+  return {
+    holes: structuredClone(syntheticBoreholes),
+    parameters: { model: "spherical", range: "95", sill: "4", nugget: "0" },
+    sectionNorth: 50,
+    depth: 10,
+    selected: "BH-06",
+    layers: [true, true, true, true],
+    showHoles: true,
+    showVariance: false,
+    verticalScale: 1.5,
+    transform: { ...IDENTITY },
+    transformed: false,
+    datasetOrigin: "synthetic",
+  };
+}
+const f = (n: number, d = 2) =>
+  Number.isFinite(n)
+    ? n.toLocaleString("ko-KR", {
+        minimumFractionDigits: d,
+        maximumFractionDigits: d,
+      })
+    : "—";
+const saveFile = (name: string, text: string, type = "application/json") => {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+};
+
+function Section({
+  points,
+  north,
+  depth,
+  holes,
+  selected,
+}: {
+  points: {
+    e: number;
+    heights: number[];
+    variance: number;
+    extrapolated: boolean;
+  }[];
+  north: number;
+  depth: number;
+  holes: Hole[];
+  selected: string;
+}) {
+  const chartRef = useRef<SVGSVGElement>(null);
+  const [width, setWidth] = useState(870);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const measure = () => {
+      const available = chart.getBoundingClientRect().width;
+      if (available > 0) setWidth(Math.min(870, Math.round(available)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(chart);
+    return () => observer.disconnect();
+  }, []);
+  const compact = width < 500;
+  const height = 245,
+    left = compact ? 38 : 52,
+    right = compact ? 16 : 25,
+    top = compact ? 26 : 20,
+    bottom = 32,
+    x = (e: number) => left + (e / 120) * (width - left - right),
+    y = (h: number) =>
+      height - bottom - ((h - 6) / 35) * (height - top - bottom);
+  return (
+    <svg
+      ref={chartRef}
+      className="ground-section-chart"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label={`북쪽 좌표 ${north}m에서 자른 A-A 프라임 지층 단면. 세로축 표고 m, 가로축 동쪽 좌표 m.`}
+    >
+      <defs>
+        <pattern
+          id="ground-excavation-hatch"
+          width="7"
+          height="7"
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(45)"
+        >
+          <line x1="0" y1="0" x2="0" y2="7" stroke="#8194AD" strokeWidth="1" />
+        </pattern>
+      </defs>
+      {[10, 20, 30, 40].map((h) => (
+        <g key={h}>
+          <line
+            x1={left}
+            y1={y(h)}
+            x2={width - right}
+            y2={y(h)}
+            stroke="#EDF1F5"
+          />
+          <text x={left - 10} y={y(h) + 4} textAnchor="end">
+            {h}
+          </text>
+        </g>
+      ))}
+      {STRATA.map((s, k) => {
+        const path = [
+          ...points.map((p) => `${x(p.e)},${y(p.heights[k])}`),
+          ...points
+            .slice()
+            .reverse()
+            .map((p) => `${x(p.e)},${y(p.heights[k + 1])}`),
+        ].join(" ");
+        return (
+          <polygon
+            key={s.id}
+            points={path}
+            fill={s.color}
+            opacity=".84"
+            stroke="white"
+            strokeWidth="1"
+          />
+        );
+      })}
+      {north >= EXCAVATION.minN && north <= EXCAVATION.maxN && depth > 0 && (
+        <g>
+          <rect
+            x={x(35)}
+            y={y(40)}
+            width={x(85) - x(35)}
+            height={y(36 - depth) - y(40)}
+            fill="#fff"
+            opacity=".77"
+          />
+          <rect
+            x={x(35)}
+            y={y(40)}
+            width={x(85) - x(35)}
+            height={y(36 - depth) - y(40)}
+            fill="url(#ground-excavation-hatch)"
+            opacity=".35"
+          />
+          <path
+            d={`M${x(35)},${y(39)}V${y(36 - depth)}H${x(85)}V${y(39)}`}
+            fill="none"
+            stroke="#1B4879"
+            strokeWidth="2"
+            strokeDasharray="5 3"
+          />
+          <text
+            x={x(60)}
+            y={y(36 - depth) + 16}
+            textAnchor="middle"
+            className="ground-chart-strong"
+          >
+            굴착저면 {f(36 - depth, 1)} m
+          </text>
+        </g>
+      )}
+      {holes
+        .filter((h) => Math.abs(h.northing - north) < 8)
+        .map((h) => (
+          <g key={h.id}>
+            <line
+              x1={x(h.easting)}
+              x2={x(h.easting)}
+              y1={y(h.collar) + 1}
+              y2={y(h.collar - h.totalDepth)}
+              stroke={h.id === selected ? "#0F6FFF" : "#4E6478"}
+              strokeWidth={h.id === selected ? 3 : 1.5}
+              strokeDasharray="3 2"
+            />
+            <circle cx={x(h.easting)} cy={y(h.collar)} r="3" fill="#0F6FFF" />
+            <text
+              x={x(h.easting)}
+              y={y(h.collar) - 8}
+              textAnchor="middle"
+              className="ground-chart-strong"
+            >
+              {h.id}
+            </text>
+          </g>
+        ))}
+      {(compact ? [0, 40, 80, 120] : [0, 20, 40, 60, 80, 100, 120]).map((e) => (
+        <text key={e} x={x(e)} y={height - 12} textAnchor="middle">
+          {e}
+        </text>
+      ))}
+      <text x="8" y="15">
+        표고 m
+      </text>
+      <text x={width - 6} y="15" textAnchor="end">
+        {compact ? "동쪽 E (m)" : "동쪽 좌표 E (m)"}
+      </text>
+    </svg>
+  );
+}
+
+function RegistrationPanel({
+  draft,
+  setDraft,
+  notify,
+}: {
+  draft: GroundDraft;
+  setDraft: React.Dispatch<React.SetStateAction<GroundDraft>>;
+  notify: FeatureProps["notify"];
+}) {
+  const [clicked, setClicked] = useState<number[] | null>(null),
+    p = draft.transformed ? draft.transform : IDENTITY;
+  const fit = registrationResiduals(FIT, p),
+    checks = registrationResiduals(CHECKS, p);
+  const x = (n: number) => 32 + n * 4.3,
+    y = (n: number) => 480 - n * 4.3;
+  const transformShape = (ps: number[][]) =>
+    ps
+      .map((pt) => {
+        const q = transformPoint(pt, p);
+        return `${x(q[0])},${y(q[1])}`;
+      })
+      .join(" ");
+  const sourceBoundary = [
+    [12, 16],
+    [103, 16],
+    [106, 85],
+    [10, 85],
+  ].map((pt) => inversePoint(pt, REFERENCE));
+  const update = (key: keyof Transform, value: number) => {
+    if (!Number.isFinite(value)) return;
+    setDraft((d) => ({
+      ...d,
+      transform: { ...d.transform, [key]: value },
+      transformed: true,
+    }));
+  };
+  return (
+    <div className="ground-registration">
+      <div className="ground-registration-map">
+        <div className="ground-subheading">
+          <span className="ground-kicker">REGISTRATION</span>
+          <h3>주상도는 고정하고, 참고 형상을 맞춥니다.</h3>
+          <p>
+            동일한 변환을 경계와 대응점에 적용합니다. 도면을 클릭하면 역변환
+            좌표를 확인합니다.
+          </p>
+        </div>
+        <svg
+          viewBox="0 0 580 525"
+          role="img"
+          aria-label="합성 기준 배치도와 이동·회전·축척으로 맞춘 참고 형상"
+          onClick={(e) => {
+            const matrix = e.currentTarget.getScreenCTM();
+            if (!matrix) return;
+            const point = new DOMPoint(e.clientX, e.clientY).matrixTransform(
+              matrix.inverse(),
+            );
+            setClicked([(point.x - 32) / 4.3, (480 - point.y) / 4.3]);
+          }}
+        >
+          <defs>
+            <pattern
+              id="ground-plan-grid"
+              width="43"
+              height="43"
+              patternUnits="userSpaceOnUse"
+              x="32"
+              y="50"
+            >
+              <path
+                d="M43 0H0V43"
+                fill="none"
+                stroke="#E5EAF0"
+                strokeWidth="1"
+              />
+            </pattern>
+          </defs>
+          <rect x="32" y="50" width="516" height="430" fill="#F6F8FA" />
+          <rect
+            x="32"
+            y="50"
+            width="516"
+            height="430"
+            fill="url(#ground-plan-grid)"
+          />
+          <path
+            d={`M${x(12)} ${y(16)}L${x(103)} ${y(16)}L${x(106)} ${y(85)}L${x(10)} ${y(85)}Z`}
+            fill="#E3EBF5"
+            stroke="#334F71"
+            strokeWidth="2"
+            strokeDasharray="6 4"
+          />
+          <polygon
+            points={transformShape(sourceBoundary)}
+            fill="#4E93FD"
+            fillOpacity=".13"
+            stroke="#0F6FFF"
+            strokeWidth="3"
+          />
+          <polygon
+            points={transformShape(
+              [
+                [35, 25],
+                [85, 25],
+                [85, 75],
+                [35, 75],
+              ].map((pt) => inversePoint(pt, REFERENCE)),
+            )}
+            fill="#CAA875"
+            fillOpacity=".35"
+            stroke="#8D7351"
+            strokeWidth="1.5"
+          />
+          {draft.holes.map((h) => (
+            <g key={h.id}>
+              <circle
+                cx={x(h.easting)}
+                cy={y(h.northing)}
+                r="4"
+                fill="#465E77"
+                stroke="white"
+                strokeWidth="1.5"
+              />
+              <text x={x(h.easting) + 7} y={y(h.northing) + 4}>
+                {h.id}
+              </text>
+            </g>
+          ))}
+          {[...FIT, ...CHECKS].map((pair, i) => {
+            const q = transformPoint(pair.source, p);
+            return (
+              <g key={pair.id}>
+                <line
+                  x1={x(pair.target[0])}
+                  y1={y(pair.target[1])}
+                  x2={x(q[0])}
+                  y2={y(q[1])}
+                  stroke={i < 3 ? "#E88741" : "#9B62DA"}
+                  strokeWidth="2"
+                />
+                <circle
+                  cx={x(pair.target[0])}
+                  cy={y(pair.target[1])}
+                  r="8"
+                  fill="white"
+                  stroke={i < 3 ? "#E88741" : "#9B62DA"}
+                  strokeWidth="2"
+                />
+                <circle cx={x(q[0])} cy={y(q[1])} r="3.5" fill="#0F6FFF" />
+                <text
+                  x={x(pair.target[0]) + 11}
+                  y={y(pair.target[1]) - 9}
+                  className="ground-chart-strong"
+                >
+                  {pair.id}
+                </text>
+              </g>
+            );
+          })}
+          <text x="33" y="27" className="ground-chart-strong">
+            N ↑
+          </text>
+          <text x="546" y="507" textAnchor="end">
+            E → 120 m
+          </text>
+        </svg>
+        <div className="ground-registration-legend">
+          <span>
+            <i style={{ background: "#0F6FFF" }} />
+            참고 형상
+          </span>
+          <span>
+            <i style={{ background: "#E88741" }} />
+            적합점 3개
+          </span>
+          <span>
+            <i style={{ background: "#9B62DA" }} />
+            검사점 2개
+          </span>
+        </div>
+        {clicked && (
+          <p className="ground-coordinate-readout">
+            선택 E/N {clicked.map((n) => f(n, 2)).join(" / ")} m → 원형상 E/N{" "}
+            {inversePoint(clicked, p)
+              .map((n) => f(n, 2))
+              .join(" / ")}{" "}
+            m
+          </p>
+        )}
+      </div>
+      <aside className="ground-registration-controls">
+        <div className="ground-subheading">
+          <h3>참고 형상 보정</h3>
+          <p>시추공 위치·표고·층경계는 바뀌지 않습니다.</p>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary ground-wide"
+          onClick={() => {
+            setDraft((d) => ({
+              ...d,
+              transform: fitSimilarity(FIT),
+              transformed: true,
+            }));
+            notify(
+              "3개 대응점으로 참고 형상을 맞췄습니다. 검사점 잔차도 확인하세요.",
+              "success",
+            );
+          }}
+        >
+          <Move size={16} />
+          대응점으로 맞추기
+        </button>
+        <div className="ground-transform-fields">
+          {(
+            [
+              ["east", "동쪽 이동", "m", -30, 30, 0.1],
+              ["north", "북쪽 이동", "m", -30, 30, 0.1],
+              ["rotation", "회전", "°", -30, 30, 0.1],
+              ["scale", "등방 축척", "배", 0.5, 1.5, 0.01],
+              ["height", "높이 오프셋", "m", -10, 10, 0.1],
+            ] as const
+          ).map(([key, label, unit, min, max, step]) => (
+            <label key={key} className="ground-field">
+              <span>
+                {label}
+                <small>{unit}</small>
+              </span>
+              <input
+                aria-label={`${label} ${unit}`}
+                type="number"
+                min={min}
+                max={max}
+                step={step}
+                value={Number(draft.transform[key].toFixed(5))}
+                onChange={(e) => {
+                  if (e.target.value !== "") {
+                    const val = Number(e.target.value);
+                    if (val >= min && val <= max) update(key, val);
+                  }
+                }}
+              />
+            </label>
+          ))}
+        </div>
+        <label className="ground-switch">
+          <input
+            type="checkbox"
+            checked={draft.transformed}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, transformed: e.target.checked }))
+            }
+          />
+          보정 위치 표시
+        </label>
+        <button
+          className="btn btn-ghost"
+          onClick={() =>
+            setDraft((d) => ({
+              ...d,
+              transform: { ...IDENTITY },
+              transformed: false,
+            }))
+          }
+        >
+          <RotateCcw size={15} />
+          원위치로 되돌리기
+        </button>
+        <div className="ground-residuals">
+          <div>
+            <span>적합점 RMSE</span>
+            <strong>
+              {f(fit.rmse ?? 0, 3)} <small>m</small>
+            </strong>
+          </div>
+          <div>
+            <span>별도 검사점 RMSE</span>
+            <strong>
+              {f(checks.rmse ?? 0, 3)} <small>m</small>
+            </strong>
+          </div>
+        </div>
+        <p className="ground-help">
+          검사점은 변환 계산에 사용하지 않았습니다. 합성 대응점의 개략 정합
+          결과이며 측량 정확도 인증이 아닙니다. 높이 오프셋은 별도 설정으로, 이
+          평면도에는 반영되지 않습니다.
+        </p>
+        <details className="ground-details">
+          <summary>대응점별 잔차 · 변환 기록</summary>
+          <pre className="ground-matrix">
+            {registrationMatrix(p)
+              .map((row) => row.map((n) => f(n, 5)).join("  "))
+              .join("\n")}
+          </pre>
+          <p className="ground-help">
+            참고 형상 → 기준 E/N의 3×3 행렬입니다. 원점은 두 프레임 모두 (0, 0)
+            m입니다.
+          </p>
+          <table className="ground-compact-table">
+            <thead>
+              <tr>
+                <th>점</th>
+                <th>ΔE m</th>
+                <th>ΔN m</th>
+                <th>잔차 m</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...fit.rows, ...checks.rows].map((r) => (
+                <tr key={r.id}>
+                  <td>{r.id}</td>
+                  <td>{f(r.de, 3)}</td>
+                  <td>{f(r.dn, 3)}</td>
+                  <td>{f(r.residual, 3)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      </aside>
+    </div>
+  );
+}
+
+export default function GroundPage({ onSave, notify, records }: FeatureProps) {
+  const [draft, setDraft, { ready, error: storageError, retry }] =
+    useDraft<GroundDraft>("ground-form-v1", initial);
+  const [tab, setTab] = useState("model"),
+    [resetKey, setResetKey] = useState(0),
+    [planView, setPlanView] = useState(false),
+    [csvText, setCsvText] = useState(""),
+    [importError, setImportError] = useState(""),
+    [saving, setSaving] = useState(false),
+    [restoreId, setRestoreId] = useState("");
+  const groundRecords = records.filter(
+    (r) => r.stage === "tender" && r.payload.kind === "ground-model",
+  );
+  const parameters = useMemo(
+    () => ({
+      model: draft.parameters.model,
+      range: Number(draft.parameters.range || NaN),
+      sill: Number(draft.parameters.sill || NaN),
+      nugget: Number(draft.parameters.nugget || NaN),
+    }),
+    [draft.parameters],
+  );
+  const result = useMemo(() => {
+    try {
+      const model = createKriging(draft.holes, parameters),
+        grid = buildGrid(model);
+      return {
+        model,
+        grid,
+        loo: leaveOneOut(draft.holes, parameters),
+        truth:
+          draft.datasetOrigin === "synthetic" ? syntheticError(grid) : null,
+        error: "",
+      };
+    } catch (e) {
+      return {
+        model: null,
+        grid: null,
+        loo: null,
+        truth: null,
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+  }, [draft.holes, parameters, draft.datasetOrigin]);
+  const section = useMemo(
+    () => (result.model ? sectionAt(result.model, draft.sectionNorth) : []),
+    [result.model, draft.sectionNorth],
+  );
+  const selected =
+    draft.holes.find((h) => h.id === draft.selected) ?? draft.holes[0];
+  const patch = (value: Partial<GroundDraft>) =>
+    setDraft((d) => ({ ...d, ...value }));
+  const save = async () => {
+    if (!result.grid) return;
+    setSaving(true);
+    try {
+      const saved = await onSave({
+        id: draft.recordId,
+        source_id:
+          draft.datasetOrigin === "synthetic"
+            ? "synthetic-ground-boreholes-v1"
+            : "local-ground-user-input",
+        source_revision: String(draft.sourceRevision ?? 1),
+        stage: "tender",
+        title: "지층 모델 · A-A′ 단면",
+        status: result.grid.crossed ? "pending" : "draft",
+        summary: `${draft.holes.length}개 시추공 · ${draft.parameters.model} · 단면 N=${draft.sectionNorth} m · 굴착 ${draft.depth} m`,
+        origin: "calculated",
+        method_version: GROUND_VERSION,
+        assumptions: [
+          "Ordinary kriging: 국부 평균 일정·등방 베리오그램",
+          "지층 경계는 관측공 사이의 추정값이며 설계 지반정수를 자동 생성하지 않음",
+          "표시용 높이 과장은 계산값에 적용하지 않음",
+        ],
+        payload: {
+          kind: "ground-model",
+          frame: FRAME,
+          holes: draft.holes,
+          parameters,
+          sectionNorth: draft.sectionNorth,
+          excavation: { ...EXCAVATION, depth: draft.depth },
+          quality: {
+            crossed: result.grid.crossed,
+            varianceMax: result.grid.maxVariance,
+            loo: result.loo,
+            syntheticError: result.truth,
+          },
+          registration: {
+            ...draft.transform,
+            applied: draft.transformed,
+            matrix3x3: registrationMatrix(
+              draft.transformed ? draft.transform : IDENTITY,
+            ),
+            inverseMatrix3x3: inverse(
+              registrationMatrix(
+                draft.transformed ? draft.transform : IDENTITY,
+              ),
+            ),
+            sourceOriginENH: [0, 0, 0],
+            masterOriginENH: [0, 0, 0],
+            convention:
+              "Reference EN column vector → master EN. Positive rotation is counterclockwise.",
+            fitPoints: FIT,
+            checkPoints: CHECKS,
+            residuals: registrationResiduals(
+              CHECKS,
+              draft.transformed ? draft.transform : IDENTITY,
+            ),
+          },
+          view: {
+            selected: draft.selected,
+            layers: draft.layers,
+            showHoles: draft.showHoles,
+            showVariance: draft.showVariance,
+            verticalScale: draft.verticalScale,
+          },
+          datasetOrigin: draft.datasetOrigin,
+        },
+      });
+      patch({ recordId: saved.id });
+      notify(
+        `지층 모델과 정합·검수 기록을 개정 ${saved.revision}로 저장했습니다.`,
+        "success",
+      );
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "저장하지 못했습니다.", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const applyImport = (text: string) => {
+    try {
+      let holes: Hole[];
+      if (text.trim().startsWith("{")) {
+        const parsed = JSON.parse(text);
+        if (
+          parsed.frame?.unit !== "m" ||
+          parsed.frame?.id !== FRAME.id ||
+          !Array.isArray(parsed.holes)
+        )
+          throw new Error(
+            "JSON에 local-synthetic-meters 프레임, m 단위와 holes 배열이 필요합니다.",
+          );
+        holes = parsed.holes;
+        const errs = validateBoreholes(holes);
+        if (errs.length) throw new Error(errs.join(" "));
+      } else holes = parseBoreholeCsv(text);
+      if (
+        holes.some(
+          (h) =>
+            h.easting < 0 ||
+            h.easting > 120 ||
+            h.northing < 0 ||
+            h.northing > 100,
+        )
+      )
+        throw new Error(
+          "이 시연은 E=0~120 m, N=0~100 m의 현장 로컬 좌표를 사용합니다. 좌표 프레임을 확인하세요.",
+        );
+      patch({
+        holes,
+        selected: holes[0].id,
+        datasetOrigin: "user-provided",
+        sourceRevision: (draft.sourceRevision ?? 1) + 1,
+      });
+      setImportError("");
+      notify(
+        `${holes.length}개 시추공을 검수하고 모델에 적용했습니다.`,
+        "success",
+      );
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const restore = () => {
+    const saved = groundRecords.find(
+      (r) => r.id === (restoreId || groundRecords[0]?.id),
+    );
+    if (!saved) return;
+    try {
+      const restored = restoreGroundPayload(saved.payload);
+      setDraft({
+        ...restored,
+        recordId: saved.id,
+        sourceRevision: Number(saved.source_revision) || 1,
+      });
+      setTab("model");
+      setResetKey((k) => k + 1);
+      setImportError("");
+      notify(
+        `저장된 지반 검토 개정 ${saved.revision}을 입력과 정합 설정으로 불러왔습니다.`,
+        "success",
+      );
+    } catch (e) {
+      notify(
+        e instanceof Error ? e.message : "저장된 지반 기록을 확인하세요.",
+        "error",
+      );
+    }
+  };
+  if (!ready)
+    return (
+      <div className="ground-loading">
+        저장된 지반 검토안을 불러오고 있습니다…
+      </div>
+    );
+  return (
+    <div className="ground-page">
+      <header className="ground-page-heading">
+        <div>
+          <p className="ground-kicker">GROUND INTELLIGENCE</p>
+          <h1>지반을 입체적으로 이해하다</h1>
+          <p>
+            시추공을 연결해 지층을 추정하고, 같은 기준으로 도면과 굴착영역을
+            확인합니다.
+          </p>
+        </div>
+        <button
+          className="btn btn-primary"
+          disabled={saving || !result.grid}
+          onClick={save}
+        >
+          <Save size={17} />
+          {saving ? "저장 중…" : "검토 결과 저장"}
+        </button>
+      </header>
+      {groundRecords.length > 0 && (
+        <div className="ground-restore-bar">
+          <label>
+            <span>저장한 검토 불러오기</span>
+            <select
+              aria-label="저장된 지반 검토"
+              value={restoreId || groundRecords[0].id}
+              onChange={(e) => setRestoreId(e.target.value)}
+            >
+              {groundRecords.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.title} · 개정 {r.revision} ·{" "}
+                  {new Date(r.updated_at).toLocaleString("ko-KR", {
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="btn btn-secondary" onClick={restore}>
+            <RotateCcw size={15} />
+            입력으로 불러오기
+          </button>
+        </div>
+      )}
+      {storageError && (
+        <div className="notice notice-error" role="alert">
+          임시 저장을 확인하세요. {storageError}
+          <p>다시 불러오면 현재 화면의 변경 내용이 저장된 입력으로 바뀝니다.</p>
+          <button className="btn btn-secondary" onClick={retry}>
+            저장된 입력 다시 불러오기
+          </button>
+        </div>
+      )}
+      <div className="ground-tabs" role="tablist" aria-label="지반 검토 화면">
+        {[
+          ["model", "지층 모델", Layers3],
+          ["boreholes", "시추 데이터", MapPin],
+          ["registration", "공간 맞춤", Move],
+          ["method", "추정·검수", SlidersHorizontal],
+        ].map(([key, label, Icon]) => (
+          <button
+            key={String(key)}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "active" : ""}
+            onClick={() => setTab(String(key))}
+          >
+            {typeof Icon !== "string" && <Icon size={16} />}
+            <span>{String(label)}</span>
+          </button>
+        ))}
+        <span className="ground-data-badge">
+          {draft.datasetOrigin === "synthetic" ? "합성 예제" : "사용자 입력"} ·
+          로컬 좌표 / m
+        </span>
+      </div>
+      {result.grid && result.grid.crossed > 0 && (
+        <div className="notice notice-error" role="alert">
+          {result.grid.crossed}개 격자점에서 층경계가 교차했습니다. 원자료와
+          추정 설정을 확인하세요. 경계값을 자동 보정하지 않았습니다.{" "}
+          <button className="btn btn-ghost" onClick={() => setTab("method")}>
+            검수 결과 보기
+          </button>
+        </div>
+      )}
+      {result.error && (
+        <div className="notice notice-error" role="alert">
+          {result.error}{" "}
+          <button
+            className="btn btn-ghost"
+            onClick={() => patch({ parameters: initial().parameters })}
+          >
+            추정 설정 복원
+          </button>
+        </div>
+      )}
+      {tab === "model" && result.grid && (
+        <>
+          <div className="ground-model-layout">
+            <section className="ground-viewport-panel">
+              <div className="ground-viewport-header">
+                <div>
+                  <span className="ground-kicker">A-01 · GEOLOGICAL MODEL</span>
+                  <h2>시추공 {draft.holes.length}개에서, 하나의 지반 모델로</h2>
+                </div>
+                <div className="ground-viewport-actions">
+                  <button
+                    className={planView ? "active" : ""}
+                    aria-label="평면 시점"
+                    title="평면 시점"
+                    onClick={() => setPlanView(!planView)}
+                  >
+                    <ScanLine size={18} />
+                  </button>
+                  <button
+                    aria-label="3D 초기 시점 복원"
+                    title="초기 시점"
+                    onClick={() => {
+                      setPlanView(false);
+                      setResetKey((k) => k + 1);
+                    }}
+                  >
+                    <RotateCcw size={17} />
+                  </button>
+                </div>
+              </div>
+              <GroundScene
+                grid={result.grid}
+                holes={draft.holes}
+                selected={draft.selected}
+                onSelect={(id) => patch({ selected: id })}
+                sectionNorth={draft.sectionNorth}
+                depth={draft.depth}
+                layers={draft.layers}
+                showHoles={draft.showHoles}
+                showVariance={draft.showVariance}
+                verticalScale={draft.verticalScale}
+                resetKey={resetKey}
+                planView={planView}
+              />
+              <div className="ground-scene-caption">
+                <span>
+                  <i />
+                  Ordinary kriging · {draft.holes.length}개 관측공
+                </span>
+                <span>
+                  점선: 관측공 경계 · 높이 ×{draft.verticalScale.toFixed(1)}
+                </span>
+              </div>
+              <div className="ground-layer-legend">
+                {STRATA.map((s, i) => (
+                  <label key={s.id} className={!draft.layers[i] ? "off" : ""}>
+                    <input
+                      type="checkbox"
+                      checked={draft.layers[i]}
+                      onChange={(e) =>
+                        patch({
+                          layers: draft.layers.map((v, k) =>
+                            k === i ? e.target.checked : v,
+                          ),
+                        })
+                      }
+                    />
+                    <i style={{ background: s.color }} />
+                    {s.name}
+                  </label>
+                ))}
+              </div>
+            </section>
+            <aside className="ground-model-sidebar">
+              <div className="ground-sidebar-block">
+                <p className="ground-kicker">VIEW CONTROLS</p>
+                <h3>보고 싶은 지반을 선택하세요</h3>
+                <label className="ground-range">
+                  <span>
+                    굴착 깊이<strong>{draft.depth.toFixed(1)} m</strong>
+                  </span>
+                  <input
+                    aria-label="굴착 깊이 m"
+                    type="range"
+                    min="0"
+                    max="15"
+                    step=".5"
+                    value={draft.depth}
+                    onChange={(e) => patch({ depth: Number(e.target.value) })}
+                  />
+                  <small>
+                    기준 지표 36.0 m · 저면 {f(36 - draft.depth, 1)} m
+                  </small>
+                </label>
+                <label className="ground-range">
+                  <span>
+                    A-A′ 단면 위치<strong>N {draft.sectionNorth} m</strong>
+                  </span>
+                  <input
+                    aria-label="단면 북쪽 위치 m"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={draft.sectionNorth}
+                    onChange={(e) =>
+                      patch({ sectionNorth: Number(e.target.value) })
+                    }
+                  />
+                </label>
+                <label className="ground-field">
+                  <span>높이 표시 배율</span>
+                  <select
+                    aria-label="높이 표시 배율"
+                    value={draft.verticalScale}
+                    onChange={(e) =>
+                      patch({ verticalScale: Number(e.target.value) })
+                    }
+                  >
+                    <option value="1">실제 축척 ×1.0</option>
+                    <option value="1.5">보기 편한 축척 ×1.5</option>
+                    <option value="2">확대 ×2.0</option>
+                  </select>
+                </label>
+                <label className="ground-switch">
+                  <input
+                    type="checkbox"
+                    checked={draft.showHoles}
+                    onChange={(e) => patch({ showHoles: e.target.checked })}
+                  />
+                  시추공과 공번
+                </label>
+                <label className="ground-switch">
+                  <input
+                    type="checkbox"
+                    checked={draft.showVariance}
+                    onChange={(e) => patch({ showVariance: e.target.checked })}
+                  />
+                  크리깅 분산 색상
+                </label>
+                {draft.showVariance && (
+                  <div className="ground-variance-legend">
+                    <div />
+                    <span>
+                      0 <small>모델 분산 m²</small>{" "}
+                      {f(result.grid.maxVariance, 2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="ground-sidebar-block ground-selected-hole">
+                <div>
+                  <span className="ground-kicker">SELECTED BOREHOLE</span>
+                  <select
+                    aria-label="선택 시추공"
+                    value={draft.selected}
+                    onChange={(e) => patch({ selected: e.target.value })}
+                  >
+                    {draft.holes.map((h) => (
+                      <option key={h.id}>{h.id}</option>
+                    ))}
+                  </select>
+                </div>
+                <dl>
+                  <div>
+                    <dt>공구표고</dt>
+                    <dd>{f(selected.collar)} m</dd>
+                  </div>
+                  <div>
+                    <dt>총심도</dt>
+                    <dd>{f(selected.totalDepth, 1)} m</dd>
+                  </div>
+                  <div>
+                    <dt>E / N</dt>
+                    <dd>
+                      {f(selected.easting, 1)} / {f(selected.northing, 1)} m
+                    </dd>
+                  </div>
+                </dl>
+                <div className="ground-mini-log">
+                  {selected.layers.map((l, i) => (
+                    <div key={l.id}>
+                      <i
+                        style={{
+                          background: STRATA[i].color,
+                          height: `${(l.to - l.from) * 5}px`,
+                        }}
+                      />
+                      <span>
+                        {STRATA[i].name}
+                        <small>
+                          {f(l.from, 1)}–{f(l.to, 1)} m
+                        </small>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </aside>
+          </div>
+          <section className="ground-section-panel">
+            <div className="ground-section-heading">
+              <div>
+                <span className="ground-kicker">SECTION A–A′</span>
+                <h3>지층과 굴착 깊이를 함께 확인합니다</h3>
+              </div>
+              <span>북쪽 좌표 N={draft.sectionNorth} m</span>
+            </div>
+            <Section
+              points={section}
+              north={draft.sectionNorth}
+              depth={draft.depth}
+              holes={draft.holes}
+              selected={draft.selected}
+            />
+            <p className="ground-section-note">
+              단면은 위 3D와 같은 추정값입니다. 단면에서 8 m 이내의 시추공만
+              투영해 표시합니다. 관측공 바깥 영역은 외삽이며 실제 지층을
+              확정하지 않습니다.
+            </p>
+          </section>
+        </>
+      )}
+      {tab === "boreholes" && (
+        <div className="ground-data-layout">
+          <section className="panel ground-data-panel">
+            <div className="ground-subheading">
+              <span className="ground-kicker">BOREHOLE REGISTER</span>
+              <h2>모델의 기준은 시추자료입니다.</h2>
+              <p>
+                공 위치·공구표고·층경계가 원자료입니다. 드론 정합으로 이 값을
+                변경하지 않습니다.
+              </p>
+            </div>
+            <div className="ground-data-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={() =>
+                  saveFile(
+                    "autogeo-boreholes.csv",
+                    encodeBoreholeCsv(draft.holes),
+                    "text/csv;charset=utf-8",
+                  )
+                }
+              >
+                <Download size={15} />
+                CSV 내보내기
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() =>
+                  saveFile(
+                    "autogeo-boreholes.json",
+                    JSON.stringify(
+                      {
+                        schema_version: 1,
+                        frame: FRAME,
+                        origin: draft.datasetOrigin,
+                        holes: draft.holes,
+                      },
+                      null,
+                      2,
+                    ),
+                  )
+                }
+              >
+                <Download size={15} />
+                JSON
+              </button>
+              <label className="btn btn-secondary ground-upload">
+                <Upload size={15} />
+                파일 가져오기
+                <input
+                  type="file"
+                  accept=".csv,.json"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 500000) {
+                      setImportError("500 KB 이하의 표준 시추표를 사용하세요.");
+                      return;
+                    }
+                    const text = await file.text();
+                    setCsvText(text);
+                    applyImport(text);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            <div className="table-wrap">
+              <table className="data-table ground-borehole-table">
+                <thead>
+                  <tr>
+                    <th>공번</th>
+                    <th>E (m)</th>
+                    <th>N (m)</th>
+                    <th>공구표고 (m)</th>
+                    <th>매립층 하단</th>
+                    <th>퇴적층 하단</th>
+                    <th>풍화대 하단</th>
+                    <th>총심도 (m)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {draft.holes.map((h) => (
+                    <tr
+                      key={h.id}
+                      className={h.id === draft.selected ? "selected" : ""}
+                      onClick={() => patch({ selected: h.id })}
+                    >
+                      <th>
+                        <button
+                          onClick={() => {
+                            patch({ selected: h.id });
+                            setTab("model");
+                          }}
+                        >
+                          {h.id}
+                          <ArrowUpRight size={13} />
+                        </button>
+                      </th>
+                      <td>{f(h.easting, 1)}</td>
+                      <td>{f(h.northing, 1)}</td>
+                      <td>{f(h.collar)}</td>
+                      {h.layers.slice(0, 3).map((l) => (
+                        <td key={l.id}>{f(l.to)} m</td>
+                      ))}
+                      <td>{f(h.totalDepth, 1)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="ground-help">
+              층 하단은 공구에서 아래로 측정한 심도입니다. 경계 표고 = 공구표고
+              − 심도. 합성 예제는 알려진 지층식에서 생성했습니다.
+            </p>
+          </section>
+          <section className="panel ground-import-panel">
+            <div className="ground-subheading">
+              <h3>표준 자료 검수</h3>
+              <p>CSV 또는 JSON을 붙여 넣고 좌표·심도·단위를 확인하세요.</p>
+            </div>
+            <textarea
+              aria-label="표준 시추 CSV 또는 JSON"
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              placeholder="hole_id,easting,northing,collar_elevation,…"
+              rows={9}
+            />
+            {importError && (
+              <div className="notice notice-error" role="alert">
+                {importError}
+              </div>
+            )}
+            <div className="ground-data-actions">
+              <button
+                className="btn btn-primary"
+                disabled={!csvText.trim()}
+                onClick={() => applyImport(csvText)}
+              >
+                <Check size={15} />
+                검수 후 적용
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={() =>
+                  setCsvText(encodeBoreholeCsv(syntheticBoreholes))
+                }
+              >
+                표준 예제 채우기
+              </button>
+            </div>
+            <ul className="ground-check-list">
+              <li>
+                <Check size={14} />
+                중복 공번·동일 좌표 검사
+              </li>
+              <li>
+                <Check size={14} />
+                층경계 역전·중복·공백 검사
+              </li>
+              <li>
+                <Check size={14} />
+                수평·수직 m 단위 필수
+              </li>
+              <li>
+                <Check size={14} />
+                총심도와 마지막 층 일치
+              </li>
+            </ul>
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                if (
+                  confirm(
+                    "현재 시추 입력을 합성 예제로 바꿀까요? 이미 저장한 검토 이력은 유지됩니다.",
+                  )
+                ) {
+                  patch({
+                    holes: structuredClone(syntheticBoreholes),
+                    datasetOrigin: "synthetic",
+                    selected: "BH-06",
+                    sourceRevision: (draft.sourceRevision ?? 1) + 1,
+                  });
+                  setImportError("");
+                }
+              }}
+            >
+              <RotateCcw size={14} />
+              합성 시추자료 복원
+            </button>
+          </section>
+        </div>
+      )}
+      {tab === "registration" && (
+        <section className="panel ground-registration-panel">
+          <RegistrationPanel
+            draft={draft}
+            setDraft={setDraft}
+            notify={notify}
+          />
+        </section>
+      )}
+      {tab === "method" && (
+        <div className="ground-method-layout">
+          <section className="panel ground-method-controls">
+            <div className="ground-subheading">
+              <span className="ground-kicker">ESTIMATION MODEL</span>
+              <h2>추정 방법을 투명하게</h2>
+              <p>
+                베리오그램을 바꾸면 같은 시추자료로 모델과 검수값을 다시
+                계산합니다.
+              </p>
+            </div>
+            <label className="ground-field">
+              <span>베리오그램</span>
+              <select
+                aria-label="베리오그램 모델"
+                value={draft.parameters.model}
+                onChange={(e) =>
+                  patch({
+                    parameters: { ...draft.parameters, model: e.target.value },
+                  })
+                }
+              >
+                <option value="spherical">구형 · Spherical</option>
+                <option value="exponential">지수형 · Exponential</option>
+                <option value="gaussian">가우시안 · Gaussian</option>
+              </select>
+            </label>
+            {(
+              [
+                ["range", "상관 범위", "m"],
+                ["sill", "부분 문턱값", "m²"],
+                ["nugget", "너깃", "m²"],
+              ] as const
+            ).map(([key, label, unit]) => (
+              <label key={key} className="ground-field">
+                <span>
+                  {label}
+                  <small>{unit}</small>
+                </span>
+                <input
+                  aria-label={`${label} ${unit}`}
+                  type="number"
+                  min={key === "nugget" ? 0 : 0.001}
+                  max={10000}
+                  step={key === "range" ? 5 : 0.1}
+                  value={draft.parameters[key]}
+                  onChange={(e) =>
+                    patch({
+                      parameters: {
+                        ...draft.parameters,
+                        [key]: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </label>
+            ))}
+            <p className="ground-help">
+              범위·문턱값은 사용자가 설정한 모델 가정입니다. 자동 최적화된
+              지질모델이 아닙니다. 지수형·가우시안의 범위는 문턱값의 약 95%에
+              도달하는 실용 범위입니다.
+            </p>
+            <button
+              className="btn btn-secondary"
+              onClick={() => patch({ parameters: initial().parameters })}
+            >
+              <RotateCcw size={14} />
+              기본 설정
+            </button>
+          </section>
+          <section className="panel ground-method-results">
+            <div className="ground-subheading">
+              <span className="ground-kicker">MODEL CHECK</span>
+              <h2>얼마나 잘 추정했는지 확인합니다</h2>
+            </div>
+            {result.grid && (
+              <>
+                <div className="ground-quality-grid">
+                  <div>
+                    <span>시추공 제외 검증</span>
+                    <strong>
+                      {f(result.loo?.rmse ?? NaN, 3)}
+                      <small>m RMSE</small>
+                    </strong>
+                    <p>
+                      한 공을 제외하고 나머지 공으로 예측한 내부 지층 경계의
+                      잔차
+                    </p>
+                  </div>
+                  <div>
+                    <span>층경계 교차</span>
+                    <strong>
+                      {result.grid.crossed}
+                      <small>격자점</small>
+                    </strong>
+                    <p>
+                      총 {result.grid.points.length}개 격자점. 교차는
+                      원자료·모델 검토가 필요합니다.
+                    </p>
+                  </div>
+                  {result.truth && (
+                    <div>
+                      <span>합성 참값 대조</span>
+                      <strong>
+                        {f(result.truth.rmse, 3)}
+                        <small>m RMSE</small>
+                      </strong>
+                      <p>
+                        이 예제를 생성한 식의 경계 표고와 전체 격자를
+                        비교했습니다.
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <span>외삽 영역</span>
+                    <strong>
+                      {f(
+                        (result.grid.extrapolated / result.grid.points.length) *
+                          100,
+                        1,
+                      )}
+                      <small>% 격자점</small>
+                    </strong>
+                    <p>
+                      시추공 볼록경계 밖. 관측자료로 둘러싸이지 않은 영역입니다.
+                    </p>
+                  </div>
+                </div>
+                <div className="ground-model-explanation">
+                  <Info size={19} />
+                  <p>
+                    <strong>분산은 실제 정확도와 다릅니다.</strong> 크리깅
+                    분산은 위치와 설정한 베리오그램으로 결정됩니다. 실제 지반의
+                    불확실성 전체나 안전성을 나타내는 수치가 아닙니다.
+                  </p>
+                </div>
+                <details className="ground-details" open>
+                  <summary>시추공별 제외 검증 · 내부 지층 경계</summary>
+                  <div className="table-wrap">
+                    <table className="ground-compact-table">
+                      <thead>
+                        <tr>
+                          <th>제외한 공</th>
+                          <th>매립층 Δm</th>
+                          <th>퇴적층 Δm</th>
+                          <th>풍화대 Δm</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.loo?.rows.map(
+                          (r: { id: string; residuals: number[] }) => (
+                            <tr key={r.id}>
+                              <th>{r.id}</th>
+                              {r.residuals
+                                .slice(1, -1)
+                                .map((n: number, i: number) => (
+                                  <td key={i}>{f(n, 3)}</td>
+                                ))}
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="ground-help">
+                    Δ = 예측값 − 관측값. 이 검증도 측정 공이 적거나 편향된 경우
+                    실제 오차를 보장하지 않습니다.
+                  </p>
+                </details>
+              </>
+            )}
+          </section>
+        </div>
+      )}
+      <footer className="ground-footer">
+        <span>합성 A현장 · 계산법 {GROUND_VERSION}</span>
+        <span>
+          저장된 지반 검토{" "}
+          {records.filter((r) => r.payload.kind === "ground-model").length}건
+        </span>
+      </footer>
+    </div>
+  );
+}

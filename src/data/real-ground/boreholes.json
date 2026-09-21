@@ -1,0 +1,1574 @@
+{
+  "schemaVersion": 2,
+  "siteId": "icheon-xi-deriche",
+  "frame": {
+    "id": "icheon-local-m",
+    "originENH": [
+      239800,
+      521450,
+      0
+    ],
+    "units": "m",
+    "crs": "EPSG:5186 assumed for boreholes; confirmed for drone",
+    "sourceAxisMapping": "E=sourceY,N=sourceX",
+    "verticalDatumConfirmed": false
+  },
+  "campaigns": [
+    {
+      "id": "2021-02",
+      "label": "2021.02 보고서",
+      "sourceId": "survey-2021-02",
+      "pdfUrl": "/documents/survey-2021-02.pdf",
+      "pageCount": 60,
+      "sourceSha256": "ede2555f548a79dc02f429c8aa08532e30509585fccc27df7dd7cad3b0ef387f",
+      "sourceFilename": "이천자이더리체_지반조사보고서 (21.02).pdf",
+      "holeCount": 3,
+      "surveyPeriod": "2021.01.21"
+    },
+    {
+      "id": "2022-01",
+      "label": "2022.01 보고서",
+      "sourceId": "survey-2022-01",
+      "pdfUrl": "/documents/survey-2022-01.pdf",
+      "pageCount": 55,
+      "sourceSha256": "15244bbcd05ca74f1df8ed6ced3f229d551c5e1970099550fe01c258936732d5",
+      "sourceFilename": "이천자이더리체_지반조사보고서 (22.01).pdf",
+      "holeCount": 14,
+      "surveyPeriod": "2022.01.08–01.11"
+    },
+    {
+      "id": "2022-08",
+      "label": "2022.08 보고서",
+      "sourceId": "survey-2022-08",
+      "pdfUrl": "/documents/survey-2022-08.pdf",
+      "pageCount": 71,
+      "sourceSha256": "c06a7e42c8cff6fe975e2062f01508456f1a9dab470e42a5ca234a955179b893",
+      "sourceFilename": "이천자이더리체_지반조사보고서 (22.08).pdf",
+      "holeCount": 11,
+      "surveyPeriod": "2022.07.28–07.30"
+    },
+    {
+      "id": "2023-11",
+      "label": "2023.11 보고서",
+      "sourceId": "survey-2023-11",
+      "pdfUrl": "/documents/survey-2023-11.pdf",
+      "pageCount": 48,
+      "sourceSha256": "011193ef35a6d5e504f371b6b7cfecbb7bedd489bbb7113a0181c7eefcabe0c1",
+      "sourceFilename": "이천자이더리체_지반조사보고서 (23.11).pdf",
+      "holeCount": 4,
+      "surveyPeriod": "2023.11.10–11.11"
+    }
+  ],
+  "holes": [
+    {
+      "id": "2021-02:BH-1",
+      "label": "BH-1",
+      "campaign": "2021-02",
+      "easting": 239948,
+      "northing": 521593,
+      "sourceX": 521593,
+      "sourceY": 239948,
+      "collar": 68.7,
+      "declaredTotalDepth": 20,
+      "observedBottom": 20,
+      "layers": [
+        {
+          "name": "매립층",
+          "from": 0,
+          "to": 0.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.5,
+          "to": 14,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 14,
+          "to": 20,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2021-02",
+      "coordinatePage": 8,
+      "layerPage": 24,
+      "logPages": [
+        40
+      ],
+      "coordinatePrecision": 1,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2021-02-40.webp"
+      ]
+    },
+    {
+      "id": "2021-02:BH-2",
+      "label": "BH-2",
+      "campaign": "2021-02",
+      "easting": 239932,
+      "northing": 521491,
+      "sourceX": 521491,
+      "sourceY": 239932,
+      "collar": 67.4,
+      "declaredTotalDepth": 20,
+      "observedBottom": 20,
+      "layers": [
+        {
+          "name": "매립층",
+          "from": 0,
+          "to": 0.8,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.8,
+          "to": 9,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 9,
+          "to": 20,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2021-02",
+      "coordinatePage": 8,
+      "layerPage": 24,
+      "logPages": [
+        41
+      ],
+      "coordinatePrecision": 1,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2021-02-41.webp"
+      ]
+    },
+    {
+      "id": "2021-02:BH-3",
+      "label": "BH-3",
+      "campaign": "2021-02",
+      "easting": 239822,
+      "northing": 521518,
+      "sourceX": 521518,
+      "sourceY": 239822,
+      "collar": 64.8,
+      "declaredTotalDepth": 20,
+      "observedBottom": 20,
+      "layers": [
+        {
+          "name": "매립층",
+          "from": 0,
+          "to": 0.8,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.8,
+          "to": 13,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 13,
+          "to": 20,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2021-02",
+      "coordinatePage": 8,
+      "layerPage": 24,
+      "logPages": [
+        42
+      ],
+      "coordinatePrecision": 1,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2021-02-42.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-1",
+      "label": "NH-1",
+      "campaign": "2022-01",
+      "easting": 239984.19,
+      "northing": 521661.63,
+      "sourceX": 521661.63,
+      "sourceY": 239984.19,
+      "collar": 62.96,
+      "declaredTotalDepth": 25.0,
+      "observedBottom": 25,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.3,
+          "to": 20,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 20,
+          "to": 25,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 3,
+      "logPages": [
+        15,
+        16
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-15.webp",
+        "/data/ground/logs/2022-01-16.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-2",
+      "label": "NH-2",
+      "campaign": "2022-01",
+      "easting": 239996.25,
+      "northing": 521620.88,
+      "sourceX": 521620.88,
+      "sourceY": 239996.25,
+      "collar": 60.31,
+      "declaredTotalDepth": 17.0,
+      "observedBottom": 17,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 1,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 1,
+          "to": 12,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 12,
+          "to": 17,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 3,
+      "logPages": [
+        17
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-17.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-3",
+      "label": "NH-3",
+      "campaign": "2022-01",
+      "easting": 239917.41,
+      "northing": 521655.06,
+      "sourceX": 521655.06,
+      "sourceY": 239917.41,
+      "collar": 60.82,
+      "declaredTotalDepth": 20.0,
+      "observedBottom": 20,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.6,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.6,
+          "to": 15,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 15,
+          "to": 20,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 3,
+      "logPages": [
+        18
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-18.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-4",
+      "label": "NH-4",
+      "campaign": "2022-01",
+      "easting": 239931.98,
+      "northing": 521629.4,
+      "sourceX": 521629.4,
+      "sourceY": 239931.98,
+      "collar": 66.25,
+      "declaredTotalDepth": 20.0,
+      "observedBottom": 30,
+      "layers": [
+        {
+          "name": "풍화토",
+          "from": 0,
+          "to": 14,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 14,
+          "to": 30,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 3,
+      "logPages": [
+        19,
+        20
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [
+        "총심도 표 20m / 지층표 종료 30m 불일치. 양쪽 원문 유지; 최하단을 확정 지층경계로 사용하지 않음."
+      ],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-19.webp",
+        "/data/ground/logs/2022-01-20.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-5",
+      "label": "NH-5",
+      "campaign": "2022-01",
+      "easting": 239985.66,
+      "northing": 521592.79,
+      "sourceX": 521592.79,
+      "sourceY": 239985.66,
+      "collar": 62.67,
+      "declaredTotalDepth": 20.0,
+      "observedBottom": 20,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.5,
+          "to": 15,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 15,
+          "to": 20,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 3,
+      "logPages": [
+        21
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-21.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-6",
+      "label": "NH-6",
+      "campaign": "2022-01",
+      "easting": 240026.03,
+      "northing": 521563.17,
+      "sourceX": 521563.17,
+      "sourceY": 240026.03,
+      "collar": 57.68,
+      "declaredTotalDepth": 26.0,
+      "observedBottom": 26,
+      "layers": [
+        {
+          "name": "전답층",
+          "from": 0,
+          "to": 1.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "붕적층",
+          "from": 1.5,
+          "to": 3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 3,
+          "to": 21,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 21,
+          "to": 26,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 3,
+      "logPages": [
+        22,
+        23
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-22.webp",
+        "/data/ground/logs/2022-01-23.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-7",
+      "label": "NH-7",
+      "campaign": "2022-01",
+      "easting": 239881.28,
+      "northing": 521622.63,
+      "sourceX": 521622.63,
+      "sourceY": 239881.28,
+      "collar": 62.39,
+      "declaredTotalDepth": 21.0,
+      "observedBottom": 21,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.3,
+          "to": 15.8,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 15.8,
+          "to": 21,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 3,
+      "logPages": [
+        24,
+        25
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-24.webp",
+        "/data/ground/logs/2022-01-25.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-8",
+      "label": "NH-8",
+      "campaign": "2022-01",
+      "easting": 239921.55,
+      "northing": 521593.02,
+      "sourceX": 521593.02,
+      "sourceY": 239921.55,
+      "collar": 65.47,
+      "declaredTotalDepth": 17.0,
+      "observedBottom": 17,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.6,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.6,
+          "to": 12,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 12,
+          "to": 17,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 4,
+      "logPages": [
+        26
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-26.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-9",
+      "label": "NH-9",
+      "campaign": "2022-01",
+      "easting": 239963.4,
+      "northing": 521562.4,
+      "sourceX": 521562.4,
+      "sourceY": 239963.4,
+      "collar": 67.62,
+      "declaredTotalDepth": 20.0,
+      "observedBottom": 20,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.5,
+          "to": 15,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 15,
+          "to": 20,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 4,
+      "logPages": [
+        27
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-27.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-10",
+      "label": "NH-10",
+      "campaign": "2022-01",
+      "easting": 239997.83,
+      "northing": 521524.79,
+      "sourceX": 521524.79,
+      "sourceY": 239997.83,
+      "collar": 61.33,
+      "declaredTotalDepth": 30.0,
+      "observedBottom": 30,
+      "layers": [
+        {
+          "name": "매립층",
+          "from": 0,
+          "to": 2.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 2.5,
+          "to": 16.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "연암",
+          "from": 16.5,
+          "to": 30,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 4,
+      "logPages": [
+        28,
+        29
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-28.webp",
+        "/data/ground/logs/2022-01-29.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-11",
+      "label": "NH-11",
+      "campaign": "2022-01",
+      "easting": 239857.65,
+      "northing": 521590.39,
+      "sourceX": 521590.39,
+      "sourceY": 239857.65,
+      "collar": 63.45,
+      "declaredTotalDepth": 22.0,
+      "observedBottom": 22,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.5,
+          "to": 17,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 17,
+          "to": 22,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 4,
+      "logPages": [
+        30,
+        31
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-30.webp",
+        "/data/ground/logs/2022-01-31.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-12",
+      "label": "NH-12",
+      "campaign": "2022-01",
+      "easting": 239890.61,
+      "northing": 521566.3,
+      "sourceX": 521566.3,
+      "sourceY": 239890.61,
+      "collar": 67.94,
+      "declaredTotalDepth": 11.0,
+      "observedBottom": 11,
+      "layers": [
+        {
+          "name": "풍화토",
+          "from": 0,
+          "to": 6,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 6,
+          "to": 11,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 4,
+      "logPages": [
+        32
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-32.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-13",
+      "label": "NH-13",
+      "campaign": "2022-01",
+      "easting": 239923.63,
+      "northing": 521542.05,
+      "sourceX": 521542.05,
+      "sourceY": 239923.63,
+      "collar": 68.3,
+      "declaredTotalDepth": 30.0,
+      "observedBottom": 30,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.3,
+          "to": 15,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 15,
+          "to": 30,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 4,
+      "logPages": [
+        33,
+        34
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-33.webp",
+        "/data/ground/logs/2022-01-34.webp"
+      ]
+    },
+    {
+      "id": "2022-01:NH-14",
+      "label": "NH-14",
+      "campaign": "2022-01",
+      "easting": 239974.26,
+      "northing": 521492.58,
+      "sourceX": 521492.58,
+      "sourceY": 239974.26,
+      "collar": 67.35,
+      "declaredTotalDepth": 14.0,
+      "observedBottom": 14,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.3,
+          "to": 9,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 9,
+          "to": 14,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-01",
+      "coordinatePage": 2,
+      "layerPage": 4,
+      "logPages": [
+        35
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-01-35.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-1",
+      "label": "NBH-1",
+      "campaign": "2022-08",
+      "easting": 239861.76,
+      "northing": 521603.71,
+      "sourceX": 521603.71,
+      "sourceY": 239861.76,
+      "collar": 62.92,
+      "declaredTotalDepth": 22,
+      "observedBottom": 22,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.5,
+          "to": 17,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 17,
+          "to": 22,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 41,
+      "logPages": [
+        56,
+        57
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-56.webp",
+        "/data/ground/logs/2022-08-57.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-2",
+      "label": "NBH-2",
+      "campaign": "2022-08",
+      "easting": 239916.59,
+      "northing": 521618.12,
+      "sourceX": 521618.12,
+      "sourceY": 239916.59,
+      "collar": 63.85,
+      "declaredTotalDepth": 18,
+      "observedBottom": 18,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.3,
+          "to": 13,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 13,
+          "to": 18,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 41,
+      "logPages": [
+        58
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-58.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-3",
+      "label": "NBH-3",
+      "campaign": "2022-08",
+      "easting": 239957.63,
+      "northing": 521663.28,
+      "sourceX": 521663.28,
+      "sourceY": 239957.63,
+      "collar": 61.53,
+      "declaredTotalDepth": 17,
+      "observedBottom": 17,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.5,
+          "to": 12,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 12,
+          "to": 17,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 41,
+      "logPages": [
+        59
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-59.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-4",
+      "label": "NBH-4",
+      "campaign": "2022-08",
+      "easting": 239985.2,
+      "northing": 521672.73,
+      "sourceX": 521672.73,
+      "sourceY": 239985.2,
+      "collar": 61.43,
+      "declaredTotalDepth": 24,
+      "observedBottom": 24,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.3,
+          "to": 19,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 19,
+          "to": 24,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 41,
+      "logPages": [
+        60,
+        61
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-60.webp",
+        "/data/ground/logs/2022-08-61.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-5",
+      "label": "NBH-5",
+      "campaign": "2022-08",
+      "easting": 239972.06,
+      "northing": 521652.73,
+      "sourceX": 521652.73,
+      "sourceY": 239972.06,
+      "collar": 64.42,
+      "declaredTotalDepth": 21,
+      "observedBottom": 21,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 1.2,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 1.2,
+          "to": 16,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 16,
+          "to": 21,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 42,
+      "logPages": [
+        62,
+        63
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-62.webp",
+        "/data/ground/logs/2022-08-63.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-6",
+      "label": "NBH-6",
+      "campaign": "2022-08",
+      "easting": 239963.62,
+      "northing": 521622.7,
+      "sourceX": 521622.7,
+      "sourceY": 239963.62,
+      "collar": 67.01,
+      "declaredTotalDepth": 16,
+      "observedBottom": 16,
+      "layers": [
+        {
+          "name": "풍화토",
+          "from": 0,
+          "to": 11,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 11,
+          "to": 16,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 42,
+      "logPages": [
+        64
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-64.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-7",
+      "label": "NBH-7",
+      "campaign": "2022-08",
+      "easting": 239989.87,
+      "northing": 521630.38,
+      "sourceX": 521630.38,
+      "sourceY": 239989.87,
+      "collar": 61.96,
+      "declaredTotalDepth": 17,
+      "observedBottom": 17,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.2,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.2,
+          "to": 12,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 12,
+          "to": 17,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 42,
+      "logPages": [
+        65
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-65.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-8",
+      "label": "NBH-8",
+      "campaign": "2022-08",
+      "easting": 239978.2,
+      "northing": 521611.06,
+      "sourceX": 521611.06,
+      "sourceY": 239978.2,
+      "collar": 63.98,
+      "declaredTotalDepth": 18,
+      "observedBottom": 18,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.2,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.2,
+          "to": 13,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 13,
+          "to": 18,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 42,
+      "logPages": [
+        66
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-66.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-9",
+      "label": "NBH-9",
+      "campaign": "2022-08",
+      "easting": 239987.56,
+      "northing": 521565.57,
+      "sourceX": 521565.57,
+      "sourceY": 239987.56,
+      "collar": 62.97,
+      "declaredTotalDepth": 27,
+      "observedBottom": 27,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 0.3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 0.3,
+          "to": 22,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 22,
+          "to": 27,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 42,
+      "logPages": [
+        67,
+        68
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-67.webp",
+        "/data/ground/logs/2022-08-68.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-10",
+      "label": "NBH-10",
+      "campaign": "2022-08",
+      "easting": 239971.9,
+      "northing": 521544.91,
+      "sourceX": 521544.91,
+      "sourceY": 239971.9,
+      "collar": 63.47,
+      "declaredTotalDepth": 22,
+      "observedBottom": 22,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 1.3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 1.3,
+          "to": 17,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 17,
+          "to": 22,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 42,
+      "logPages": [
+        69,
+        70
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-69.webp",
+        "/data/ground/logs/2022-08-70.webp"
+      ]
+    },
+    {
+      "id": "2022-08:NBH-11",
+      "label": "NBH-11",
+      "campaign": "2022-08",
+      "easting": 239983.25,
+      "northing": 521509.11,
+      "sourceX": 521509.11,
+      "sourceY": 239983.25,
+      "collar": 64.11,
+      "declaredTotalDepth": 17,
+      "observedBottom": 17,
+      "layers": [
+        {
+          "name": "표토층",
+          "from": 0,
+          "to": 1.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 1.5,
+          "to": 12,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 12,
+          "to": 17,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2022-08",
+      "coordinatePage": 12,
+      "layerPage": 42,
+      "logPages": [
+        71
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2022-08-71.webp"
+      ]
+    },
+    {
+      "id": "2023-11:BH-1",
+      "label": "BH-1",
+      "campaign": "2023-11",
+      "easting": 240003.57,
+      "northing": 521587.31,
+      "sourceX": 521587.31,
+      "sourceY": 240003.57,
+      "collar": 59.53,
+      "declaredTotalDepth": 21,
+      "observedBottom": 21,
+      "layers": [
+        {
+          "name": "매립층",
+          "from": 0,
+          "to": 3,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 3,
+          "to": 18,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 18,
+          "to": 21,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2023-11",
+      "coordinatePage": 6,
+      "layerPage": 23,
+      "logPages": [
+        32,
+        33
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2023-11-32.webp",
+        "/data/ground/logs/2023-11-33.webp"
+      ]
+    },
+    {
+      "id": "2023-11:BH-2",
+      "label": "BH-2",
+      "campaign": "2023-11",
+      "easting": 240025.67,
+      "northing": 521597.51,
+      "sourceX": 521597.51,
+      "sourceY": 240025.67,
+      "collar": 58.15,
+      "declaredTotalDepth": 21,
+      "observedBottom": 21,
+      "layers": [
+        {
+          "name": "매립층",
+          "from": 0,
+          "to": 0.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "퇴적층",
+          "from": 0.5,
+          "to": 4.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 4.5,
+          "to": 19,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 19,
+          "to": 21,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2023-11",
+      "coordinatePage": 6,
+      "layerPage": 23,
+      "logPages": [
+        34,
+        35
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2023-11-34.webp",
+        "/data/ground/logs/2023-11-35.webp"
+      ]
+    },
+    {
+      "id": "2023-11:BH-3",
+      "label": "BH-3",
+      "campaign": "2023-11",
+      "easting": 240003.43,
+      "northing": 521553.63,
+      "sourceX": 521553.63,
+      "sourceY": 240003.43,
+      "collar": 60.06,
+      "declaredTotalDepth": 20,
+      "observedBottom": 20,
+      "layers": [
+        {
+          "name": "매립층",
+          "from": 0,
+          "to": 2.8,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 2.8,
+          "to": 18,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 18,
+          "to": 20,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2023-11",
+      "coordinatePage": 6,
+      "layerPage": 23,
+      "logPages": [
+        36
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2023-11-36.webp"
+      ]
+    },
+    {
+      "id": "2023-11:BH-4",
+      "label": "BH-4",
+      "campaign": "2023-11",
+      "easting": 240019.03,
+      "northing": 521529.02,
+      "sourceX": 521529.02,
+      "sourceY": 240019.03,
+      "collar": 58.62,
+      "declaredTotalDepth": 20,
+      "observedBottom": 20,
+      "layers": [
+        {
+          "name": "매립층",
+          "from": 0,
+          "to": 0.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "퇴적층",
+          "from": 0.5,
+          "to": 4.5,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화토",
+          "from": 4.5,
+          "to": 19,
+          "bottomConfirmed": true
+        },
+        {
+          "name": "풍화암",
+          "from": 19,
+          "to": 20,
+          "bottomConfirmed": false
+        }
+      ],
+      "sourceId": "survey-2023-11",
+      "coordinatePage": 6,
+      "layerPage": 23,
+      "logPages": [
+        37,
+        38
+      ],
+      "coordinatePrecision": 0.01,
+      "sourceVisualCheck": true,
+      "qc": [],
+      "origin": "measured_source_transcription",
+      "frameId": "icheon-local-m",
+      "logImages": [
+        "/data/ground/logs/2023-11-37.webp",
+        "/data/ground/logs/2023-11-38.webp"
+      ]
+    }
+  ],
+  "limitations": [
+    "차수별 공구 표고는 조사 당시 기록이며 DSM과 동일 시점 지표가 아님.",
+    "마지막 지층의 종료심도는 시추 종료일 뿐 해당 지층의 바닥면이 아님.",
+    "원문 좌표계 표기를 확인하지 못해 영상과의 중첩은 개략 정합.",
+    "2022-01 NH-4의 총심도 충돌을 원문 그대로 보존."
+  ]
+}

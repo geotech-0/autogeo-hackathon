@@ -1,0 +1,602 @@
+.rf-page {
+  display: grid;
+  gap: 22px;
+  max-width: 1500px;
+  margin: auto;
+}
+.rf-page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.rf-eyebrow {
+  color: #48749d;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+}
+.rf-page-heading h1 {
+  font-size: 30px;
+  letter-spacing: -1.1px;
+  margin: 9px 0;
+}
+.rf-page-heading p,
+.rf-heading p {
+  font-size: 13px;
+  color: #67758a;
+  margin: 7px 0;
+}
+.rf-live-label {
+  font-size: 12px;
+  color: #65748a;
+  padding: 9px 12px;
+  border: 1px solid #dbe3ec;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.rf-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #dce4ed;
+}
+.rf-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: none;
+  color: #6b778a;
+  font-weight: 650;
+  padding: 14px 20px;
+  border-bottom: 3px solid transparent;
+}
+.rf-tabs button.active {
+  color: #0968ed;
+  border-color: #0968ed;
+}
+.rf-card {
+  background: #fff;
+  border: 1px solid #dfe6ef;
+  border-radius: 14px;
+  padding: 24px;
+  min-width: 0;
+  box-shadow: 0 3px 12px #183b6210;
+}
+.rf-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.rf-heading h2 {
+  font-size: 20px;
+  letter-spacing: -0.5px;
+  margin: 4px 0;
+}
+.rf-heading h2 span {
+  font-size: 16px;
+  color: #67788f;
+  font-weight: 550;
+}
+.rf-heading a {
+  font-size: 12px;
+}
+.rf-heading > span {
+  color: #6f7e92;
+  font-size: 12px;
+}
+.rf-monitor-layout {
+  display: grid;
+  grid-template-columns: 215px minmax(0, 1fr);
+  gap: 20px;
+}
+.rf-monitor-main {
+  display: grid;
+  gap: 20px;
+}
+.rf-sensor-list {
+  padding: 19px 12px;
+  align-self: start;
+  max-height: 1100px;
+  overflow: auto;
+}
+.rf-sensor-list .rf-heading {
+  padding: 0 8px;
+}
+.rf-sensor-list h2 {
+  font-size: 16px;
+}
+.rf-sensor-group h3 {
+  font-size: 11px;
+  color: #7d8c9e;
+  padding: 12px 10px 6px;
+  margin: 0;
+}
+.rf-sensor-group button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+}
+.rf-sensor-group button.active {
+  background: #edf5ff;
+  border-color: #c9dfff;
+  color: #0067e7;
+}
+.rf-sensor-group b {
+  font-size: 13px;
+}
+.rf-sensor-group small {
+  display: block;
+  font-size: 10px;
+  margin-top: 3px;
+  color: #8290a0;
+}
+.rf-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #16a085;
+  flex-shrink: 0;
+}
+.rf-dot.warn {
+  background: #df9b32;
+}
+.rf-dot.danger {
+  background: #e3544e;
+}
+.rf-controls {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.rf-label {
+  display: grid;
+  gap: 7px;
+  color: #68788b;
+  font-size: 12px;
+  font-weight: 650;
+  min-width: 0;
+}
+.rf-label input,
+.rf-label select,
+.rf-label textarea,
+.rf-page textarea {
+  width: 100%;
+  border: 1px solid #d6e0eb;
+  border-radius: 7px;
+  padding: 10px 11px;
+  color: #25364c;
+  background: #fff;
+  font-size: 13px;
+  min-width: 0;
+}
+.rf-controls .rf-label {
+  min-width: 145px;
+}
+.rf-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  background: #f6f9fc;
+  padding: 20px;
+  border-radius: 9px;
+  margin: 20px 0;
+}
+.rf-metrics > div {
+  border-right: 1px solid #e0e8f2;
+  display: grid;
+  gap: 9px;
+}
+.rf-metrics > div:last-child {
+  border: 0;
+}
+.rf-metrics span {
+  color: #7a899b;
+  font-size: 11px;
+}
+.rf-metrics strong {
+  color: #24364c;
+  font-size: 25px;
+  font-variant-numeric: tabular-nums;
+}
+.rf-metrics small {
+  font-weight: 500;
+  font-size: 12px;
+  margin-left: 5px;
+}
+.rf-plot svg {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  max-height: 460px;
+  overflow: visible;
+}
+.rf-plot svg text {
+  font-size: 11px;
+  fill: #708098;
+}
+.rf-plot svg .rf-axis-title {
+  font-weight: 700;
+  font-size: 12px;
+  fill: #52677f;
+}
+.rf-plot circle {
+  cursor: pointer;
+  outline: none;
+}
+.rf-plot circle:focus {
+  stroke: #ffae42;
+  stroke-width: 4;
+}
+.rf-point {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  min-height: 38px;
+  background: #eef5fe;
+  border: 1px solid #dceafd;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #416184;
+}
+.rf-note {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #72839a;
+  background: #f7f9fc;
+  border-radius: 7px;
+  padding: 12px 14px;
+  margin: 14px 0;
+}
+.rf-warning {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #8d631b;
+  background: #fff9ec;
+  border: 1px solid #f4ddb0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 16px 0;
+}
+.rf-warning b {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.rf-warning ul {
+  padding-left: 18px;
+  margin: 6px 0 0;
+}
+.rf-selected {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 12px;
+  padding: 13px;
+  background: #f4f8fc;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+.rf-selected a {
+  margin-left: auto;
+}
+.rf-table-wrap {
+  overflow: auto;
+  max-height: 460px;
+  border: 1px solid #e0e7ef;
+  border-radius: 8px;
+  margin-top: 12px;
+}
+.rf-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.rf-table-wrap th {
+  background: #f6f8fc;
+  position: sticky;
+  top: 0;
+  color: #728298;
+  padding: 11px 13px;
+  font-weight: 650;
+}
+.rf-table-wrap td {
+  padding: 10px 13px;
+  border-top: 1px solid #edf1f6;
+  color: #44566d;
+  font-variant-numeric: tabular-nums;
+}
+.rf-table-wrap tr:hover td {
+  background: #f6faff;
+}
+.rf-table-wrap td small {
+  display: block;
+  color: #8996a7;
+  font-size: 10px;
+  margin-top: 2px;
+}
+.rf-grid2,
+.rf-grid3 {
+  display: grid;
+  gap: 14px;
+  margin: 16px 0;
+}
+.rf-grid2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.rf-grid3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.rf-grid3 > .btn {
+  align-self: end;
+}
+.rf-details {
+  border-top: 1px solid #e4eaf1;
+  margin-top: 20px;
+  padding-top: 16px;
+}
+.rf-page summary {
+  font-size: 13px;
+  font-weight: 650;
+  color: #45627e;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.rf-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #226eaf;
+  position: relative;
+  cursor: pointer;
+  padding: 10px 16px;
+  background: #eff6fd;
+  border: 1px dashed #bdd5ed;
+  border-radius: 7px;
+  margin: 12px 0;
+}
+.rf-upload input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+.rf-empty {
+  padding: 40px 24px;
+  text-align: center;
+  background: #f7f9fc;
+  border: 1px dashed #dce4ee;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #7b8ca1;
+  line-height: 1.8;
+}
+.rf-error {
+  font-size: 12px;
+  color: #c0483b;
+}
+.rf-quality-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.rf-quality-tabs button {
+  display: grid;
+  gap: 8px;
+  padding: 18px 14px;
+  border: 1px solid #dce4ee;
+  border-radius: 10px;
+  background: white;
+  text-align: left;
+  color: #617187;
+}
+.rf-quality-tabs button.active {
+  border-color: #75a7ed;
+  background: #f1f7ff;
+  color: #126ae6;
+}
+.rf-quality-tabs b {
+  font-size: 14px;
+}
+.rf-quality-tabs span {
+  font-size: 11px;
+  line-height: 1.5;
+}
+.rf-history {
+  padding: 0;
+  margin: 20px 0;
+  list-style: none;
+  display: grid;
+  gap: 14px;
+}
+.rf-history li {
+  border-left: 3px solid #2d84ed;
+  padding: 5px 0 5px 16px;
+  font-size: 12px;
+}
+.rf-history p {
+  line-height: 1.7;
+  margin: 8px 0;
+}
+.rf-history small {
+  color: #7f8da0;
+}
+.rf-imagery {
+  display: grid;
+  gap: 20px;
+}
+.rf-image-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+.rf-image-pair figure {
+  margin: 0;
+}
+.rf-image-pair img {
+  width: 100%;
+  height: 280px;
+  object-fit: contain;
+  background: #e6ecf2;
+  border-radius: 8px;
+}
+.rf-image-pair figcaption {
+  font-size: 11px;
+  color: #697c91;
+  margin-top: 7px;
+}
+.rf-page .btn {
+  font-size: 12px;
+  padding: 10px 14px;
+  white-space: normal;
+}
+.rf-page button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (max-width: 1100px) {
+  .rf-monitor-layout {
+    grid-template-columns: 175px minmax(0, 1fr);
+  }
+  .rf-card {
+    padding: 18px;
+  }
+  .rf-quality-tabs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .rf-metrics {
+    gap: 10px;
+    padding: 16px;
+  }
+  .rf-metrics strong {
+    font-size: 22px;
+  }
+}
+@media (max-width: 700px) {
+  .rf-page-heading {
+    display: block;
+  }
+  .rf-page-heading h1 {
+    font-size: 24px;
+  }
+  .rf-live-label {
+    display: inline-block;
+    margin-top: 8px;
+  }
+  .rf-tabs {
+    gap: 0;
+    overflow: auto;
+  }
+  .rf-tabs button {
+    padding: 12px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+    gap: 5px;
+  }
+  .rf-tabs svg {
+    width: 15px;
+  }
+  .rf-monitor-layout {
+    display: block;
+  }
+  .rf-sensor-list {
+    max-height: 240px;
+    margin-bottom: 16px;
+  }
+  .rf-sensor-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .rf-sensor-group h3 {
+    width: 100%;
+    padding: 8px;
+  }
+  .rf-sensor-group button {
+    width: calc(25% - 3px);
+    padding: 7px;
+  }
+  .rf-sensor-group small {
+    display: none;
+  }
+  .rf-sensor-group b {
+    font-size: 11px;
+  }
+  .rf-card {
+    padding: 15px;
+  }
+  .rf-heading {
+    flex-wrap: wrap;
+  }
+  .rf-heading h2 {
+    font-size: 18px;
+  }
+  .rf-metrics {
+    gap: 8px;
+    padding: 12px;
+  }
+  .rf-metrics span {
+    font-size: 10px;
+    line-height: 1.5;
+    min-height: 30px;
+  }
+  .rf-metrics strong {
+    font-size: 18px;
+  }
+  .rf-metrics small {
+    font-size: 9px;
+    display: block;
+    margin: 3px 0 0;
+  }
+  .rf-grid2,
+  .rf-grid3 {
+    grid-template-columns: 1fr;
+  }
+  .rf-plot {
+    overflow-x: auto;
+  }
+  .rf-plot svg {
+    min-width: 0;
+    min-height: 255px;
+  }
+  .rf-point {
+    gap: 7px;
+    font-size: 11px;
+  }
+  .rf-selected {
+    gap: 8px;
+  }
+  .rf-quality-tabs button {
+    padding: 12px;
+  }
+  .rf-image-pair {
+    grid-template-columns: 1fr;
+  }
+  .rf-warning {
+    padding: 12px;
+    font-size: 11px;
+  }
+  .rf-controls .rf-label {
+    flex: 1;
+  }
+  .rf-controls .btn {
+    flex: 1;
+  }
+}

@@ -1,7 +1,14 @@
 import type { ProjectRecord, ProjectRecordDraft } from "../contracts";
 import { SITE } from "../contracts";
 import { validateArchive, makeRecord, sameRevision } from "./validation.mjs";
-const DB_NAME = "autogeo-project-v1";
+import {
+  archiveAttachments,
+  attachmentIds,
+  decodeArchiveAttachments,
+  readAttachment,
+} from "./attachments";
+// The previous synthetic demonstration database is retained, never relabelled or cleared.
+const DB_NAME = "autogeo-icheon-v2";
 let connection: Promise<IDBDatabase> | undefined;
 export function getDatabase(): Promise<IDBDatabase> {
   if (!connection)
@@ -28,7 +35,7 @@ export function getDatabase(): Promise<IDBDatabase> {
           ),
         12000,
       );
-      const request = indexedDB.open(DB_NAME, 2);
+      const request = indexedDB.open(DB_NAME, 3);
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains("records"))
@@ -36,6 +43,8 @@ export function getDatabase(): Promise<IDBDatabase> {
         if (!db.objectStoreNames.contains("drafts"))
           db.createObjectStore("drafts");
         if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta");
+        if (!db.objectStoreNames.contains("attachments"))
+          db.createObjectStore("attachments", { keyPath: "id" });
         if (!db.objectStoreNames.contains("revisions")) {
           db.createObjectStore("revisions", { keyPath: ["id", "revision"] });
           const tx = request.transaction!;
@@ -96,6 +105,10 @@ export async function listRevisions(id: string): Promise<ProjectRecord[]> {
 export async function saveRecord(
   draft: ProjectRecordDraft,
 ): Promise<ProjectRecord> {
+  for (const id of attachmentIds(draft.payload)) {
+    if (!(await readAttachment(id)))
+      throw new Error("연결할 첨부파일이 없습니다. 원본을 다시 첨부해주세요.");
+  }
   const db = await getDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["records", "revisions"], "readwrite");
@@ -154,12 +167,13 @@ export async function resetProject(seeds: ProjectRecordDraft[]): Promise<void> {
   const db = await getDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(
-      ["records", "revisions", "drafts", "meta"],
+      ["records", "revisions", "drafts", "meta", "attachments"],
       "readwrite",
     );
     tx.objectStore("records").clear();
     tx.objectStore("revisions").clear();
     tx.objectStore("drafts").clear();
+    tx.objectStore("attachments").clear();
     seeds.forEach((d) => {
       const record = makeRecord(d);
       tx.objectStore("records").put(record);
@@ -171,27 +185,71 @@ export async function resetProject(seeds: ProjectRecordDraft[]): Promise<void> {
   });
 }
 export async function exportProject() {
+  const records = await listRecords();
+  const revisions = (await allRecords("revisions")).filter(
+    (r) => r.site_id === SITE.id,
+  );
   return {
     schema_version: 1,
     site_id: SITE.id,
     exported_at: new Date().toISOString(),
-    records: await listRecords(),
-    revisions: (await allRecords("revisions")).filter(
-      (r) => r.site_id === SITE.id,
+    records,
+    revisions,
+    attachments: await archiveAttachments(
+      attachmentIds([...records, ...revisions]),
+    ),
+  };
+}
+export async function exportRecord(record: ProjectRecord) {
+  const revisions = (await listRevisions(record.id)).filter(
+    (r) => r.revision <= record.revision,
+  );
+  return {
+    schema_version: 1,
+    site_id: SITE.id,
+    exported_at: new Date().toISOString(),
+    records: [record],
+    revisions,
+    attachments: await archiveAttachments(
+      attachmentIds([record, ...revisions]),
     ),
   };
 }
 export async function importProject(archive: unknown): Promise<number> {
   const clean = validateArchive(archive);
+  const attachments = await decodeArchiveAttachments(clean.attachments);
+  const incomingIds = new Set(attachments.map((a) => a.id));
+  for (const id of attachmentIds([clean.records, clean.revisions])) {
+    if (!incomingIds.has(id) && !(await readAttachment(id)))
+      throw new Error("기록에 연결된 첨부파일이 내보내기 자료에 없습니다.");
+  }
   const db = await getDatabase();
   let imported = 0;
   await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(["records", "revisions"], "readwrite");
+    const tx = db.transaction(
+      ["records", "revisions", "attachments"],
+      "readwrite",
+    );
     let reason: Error | undefined;
     const fail = (message: string) => {
       reason = new Error(message);
       tx.abort();
     };
+    for (const attachment of attachments) {
+      const q = tx.objectStore("attachments").get(attachment.id);
+      q.onsuccess = () => {
+        if (
+          q.result &&
+          (q.result.sha256 !== attachment.sha256 ||
+            q.result.name !== attachment.name ||
+            q.result.source_id !== attachment.source_id)
+        ) {
+          fail("동일 첨부 ID의 원본 또는 출처가 다릅니다.");
+          return;
+        }
+        tx.objectStore("attachments").put(attachment);
+      };
+    }
     const versions = clean.revisions || [];
     const merged = new Map<string, ProjectRecord>();
     [...versions, ...clean.records].forEach((r: ProjectRecord) =>

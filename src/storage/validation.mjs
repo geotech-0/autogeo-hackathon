@@ -1,4 +1,4 @@
-const SITE = "synthetic-a";
+import { SITE } from "../data/site.mjs";
 const stages = ["tender", "design", "construction", "maintenance"];
 const statuses = [
   "draft",
@@ -16,6 +16,7 @@ const origins = [
   "imported_analysis",
   "calculated",
   "official_reference",
+  "manual_record",
 ];
 function finiteTree(value) {
   if (typeof value === "number" && !Number.isFinite(value)) return false;
@@ -42,8 +43,8 @@ function verify(record) {
   ])
     if (typeof record[key] !== "string" || !record[key].trim())
       throw new Error(`${key}: 필수 정보가 없습니다.`);
-  if (record.site_id !== SITE)
-    throw new Error("다른 현장의 기록은 A현장에 가져올 수 없습니다.");
+  if (record.site_id !== SITE.id)
+    throw new Error("다른 현장의 기록은 이천자이더리체에 가져올 수 없습니다.");
   if (
     !stages.includes(record.stage) ||
     !statuses.includes(record.status) ||
@@ -87,13 +88,13 @@ export function makeRecord(draft, existing) {
   const now = new Date().toISOString();
   const id = existing?.id || draft.id || crypto.randomUUID();
   const record = {
-    site_id: SITE,
-    zone_id: "A-01",
-    source_id: "synthetic-a-v1",
+    site_id: SITE.id,
+    zone_id: SITE.zone_id,
+    source_id: "icheon-user-record",
     source_revision: "1",
     method_version: "autogeo-1",
-    origin: "synthetic",
-    assumptions: ["합성 A현장 시연 예제"],
+    origin: "manual_record",
+    assumptions: [],
     ...draft,
     id,
     analysis_id: existing?.analysis_id || draft.analysis_id || id,
@@ -108,10 +109,10 @@ export function validateArchive(value) {
     !value ||
     typeof value !== "object" ||
     value.schema_version !== 1 ||
-    value.site_id !== SITE ||
+    value.site_id !== SITE.id ||
     !Array.isArray(value.records)
   )
-    throw new Error("AutoGeo A현장의 지원되는 내보내기 파일이 아닙니다.");
+    throw new Error("이천자이더리체 현장의 지원되는 내보내기 파일이 아닙니다.");
   if (value.records.length > 2000)
     throw new Error("한 번에 2,000개까지 가져올 수 있습니다.");
   const seen = new Set();

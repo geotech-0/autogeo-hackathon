@@ -788,3 +788,160 @@
     min-width: 0;
   }
 }
+.rm-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 20px;
+}
+.rm-layout > aside {
+  align-self: start;
+}
+.rm-main {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.rm-record {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  padding: 14px;
+  border: 1px solid #e0e6ef;
+  border-radius: 9px;
+  margin-top: 10px;
+  color: #405976;
+}
+.rm-record.active {
+  background: #eff6ff;
+  border-color: #81ace7;
+}
+.rm-record strong {
+  font-size: 13px;
+}
+.rm-record small {
+  font-size: 11px;
+}
+.rm-fieldset {
+  padding: 0;
+  border: 0;
+  margin: 0;
+  min-width: 0;
+}
+.rm-fieldset:disabled {
+  opacity: 0.8;
+}
+.rm-fieldset > .rf-label {
+  margin-top: 16px;
+}
+.rm-steps {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rm-steps span {
+  font-size: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f1f4f8;
+  color: #96a3b2;
+}
+.rm-steps span.active {
+  background: #eaf4ff;
+  color: #1176dd;
+  font-weight: 700;
+}
+.rm-attachments {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+.rm-attachments > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rm-attachments small {
+  font-size: 10px;
+  color: #8391a5;
+}
+.rm-viewer {
+  position: fixed;
+  inset: 0;
+  background: #132a43aa;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.rm-viewer > div {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  width: min(1100px, 95vw);
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+}
+.rm-viewer header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.rm-viewer iframe {
+  border: 0;
+  width: 100%;
+  flex: 1;
+  min-height: 70vh;
+}
+.rm-viewer img {
+  width: 100%;
+  object-fit: contain;
+  min-height: 0;
+}
+.rm-viewer a {
+  font-size: 12px;
+}
+@media (max-width: 1000px) {
+  .rm-layout {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+}
+@media (max-width: 700px) {
+  .rm-layout {
+    display: block;
+  }
+  .rm-layout > aside {
+    margin-bottom: 16px;
+  }
+  .rm-steps span {
+    font-size: 11px;
+    padding: 8px;
+  }
+  .rm-viewer {
+    padding: 8px;
+  }
+  .rm-viewer > div {
+    padding: 12px;
+  }
+  .rm-viewer header strong {
+    font-size: 12px;
+    word-break: break-all;
+  }
+}
+.rm-text-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.8;
+  overflow: auto;
+  flex: 1;
+  background: #f5f8fb;
+  padding: 16px;
+  border-radius: 8px;
+}
