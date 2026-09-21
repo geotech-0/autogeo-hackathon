@@ -5,7 +5,7 @@ import {
   convexHull,
   pointInHull,
 } from "./engine.mjs";
-export const REAL_GROUND_VERSION = "source-linked-variable-strata-2.1";
+export const REAL_GROUND_VERSION = "source-linked-variable-strata-2.2";
 export const LITHOLOGY_COLORS = {
   표토층: "#cab18b",
   매립층: "#bb925f",
@@ -304,6 +304,14 @@ export function restoreRealGround(payload, knownIds, expectedHoles) {
         );
     }
   }
+  const eastings = (expectedHoles ?? [])
+    .filter(
+      (h) =>
+        knownIds.includes(h.id) &&
+        (v.modelCampaign === "all" || h.campaign === v.modelCampaign),
+    )
+    .map((h) => h.easting)
+    .filter(Number.isFinite);
   const defaults = {
     tab: "map",
     shownCampaigns: campaigns,
@@ -312,6 +320,22 @@ export function restoreRealGround(payload, knownIds, expectedHoles) {
     meshOpacity: 1,
     cutaway: false,
     solidVisible: [true, true, true],
+    baseElevation: null,
+    cameraView: "perspective",
+    slice: {
+      enabled: v.cutaway ?? false,
+      axis: "y",
+      positions: {
+        x: eastings.length
+          ? (Math.min(...eastings) + Math.max(...eastings)) / 2
+          : 239925,
+        y: v.sectionNorth,
+        z: 50,
+      },
+      keep: "above",
+      mode: "cut",
+      showPlane: true,
+    },
     showHoles: true,
     showCAD: true,
     showCADLinework: false,
@@ -348,6 +372,35 @@ export function restoreRealGround(payload, knownIds, expectedHoles) {
     ![1, 1.5, 2].includes(out.verticalScale)
   )
     throw Error("저장된 레이어·보기 설정을 확인하세요.");
+  const slice = out.slice;
+  if (
+    !slice ||
+    typeof slice !== "object" ||
+    Array.isArray(slice) ||
+    typeof slice.enabled !== "boolean" ||
+    !["x", "y", "z"].includes(slice.axis) ||
+    !["below", "above"].includes(slice.keep) ||
+    !["cut", "plane"].includes(slice.mode) ||
+    typeof slice.showPlane !== "boolean" ||
+    !slice.positions ||
+    typeof slice.positions !== "object" ||
+    Array.isArray(slice.positions) ||
+    !["x", "y", "z"].every((axis) => Number.isFinite(slice.positions[axis])) ||
+    slice.positions.x < 238000 ||
+    slice.positions.x > 242000 ||
+    slice.positions.y < 520000 ||
+    slice.positions.y > 523000 ||
+    slice.positions.z < -500 ||
+    slice.positions.z > 500 ||
+    !(
+      out.baseElevation === null ||
+      (Number.isFinite(out.baseElevation) &&
+        out.baseElevation >= -500 &&
+        out.baseElevation <= 200)
+    ) ||
+    !["perspective", "top", "section"].includes(out.cameraView)
+  )
+    throw Error("저장된 절개·표시하한·카메라 설정을 확인하세요.");
   const r = out.registration;
   if (
     !r ||

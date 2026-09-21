@@ -4,7 +4,8 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { RealSiteAssets } from "./RealSiteMap";
 import type { RealHole, RealGrid, RealHorizon, Terrain } from "./real-types";
 import { LITHOLOGY_COLORS } from "./real-engine.mjs";
-import { buildLayerVolumes } from "./volume-geometry.mjs";
+import type { CameraView, GroundVolume, SliceState } from "./model-view";
+import { SLICE_AXES } from "./model-view";
 type Props = {
   assets: RealSiteAssets;
   grid: RealGrid;
@@ -16,7 +17,11 @@ type Props = {
   representation: "solid" | "surfaces";
   solidVisible: boolean[];
   meshOpacity: number;
-  cutaway: boolean;
+  volumes: GroundVolume[];
+  slicedVolumes: GroundVolume[];
+  slice: SliceState;
+  cameraView: CameraView;
+  baseElevation: number;
   showHoles: boolean;
   extrapolate: boolean;
   showVariance: boolean;
@@ -153,7 +158,8 @@ export default function RealGroundScene(props: Props) {
     const sun = new THREE.DirectionalLight("#ffffff", 2.4);
     sun.position.set(-150, 300, 180);
     scene.add(sun);
-    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.maxPolarAngle = Math.PI - 0.001;
+    controls.minPolarAngle = 0.001;
     controls.minDistance = 40;
     controls.maxDistance = 2200;
     const render = () => {
@@ -184,6 +190,7 @@ export default function RealGroundScene(props: Props) {
     controls.addEventListener("change", render);
     const resize = () => {
       const r = el.getBoundingClientRect();
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
       renderer.setSize(r.width, r.height);
       camera.aspect = r.width / Math.max(1, r.height);
       camera.zoom = Math.min(1, camera.aspect / 1.2);
@@ -274,34 +281,93 @@ export default function RealGroundScene(props: Props) {
       props.mode === "pointcloud" ? "#30475c" : "#b6c5d3",
       props.mode === "pointcloud" ? "#20374b" : "#dce3e9",
     );
-    base.position.y = -35 * s;
+    base.position.y =
+      props.mode === "ground" ? (props.baseElevation - 50 - 1) * s : -35 * s;
     v.data.add(base);
     if (props.mode === "ground" && props.representation === "solid") {
-      const volumes = buildLayerVolumes(props.grid, {
-        extrapolate: props.extrapolate,
-        clipNorth: props.cutaway ? props.sectionNorth : undefined,
-      });
-      volumes.layers.forEach((layer, i) => {
-        if (!props.solidVisible[i] || !layer.positions.length) return;
+      const layers = props.slice.enabled ? props.slicedVolumes : props.volumes;
+      layers.forEach((layer, i) => {
+        if (!props.solidVisible[i]) return;
+        const sourcePositions =
+          props.slice.enabled && props.slice.mode === "plane"
+            ? (layer.capPositions ?? [])
+            : layer.positions;
+        if (!sourcePositions.length) return;
         const positions: number[] = [];
-        for (let k = 0; k < layer.positions.length; k += 3)
+        for (let k = 0; k < sourcePositions.length; k += 3)
           positions.push(
             ...at(
-              layer.positions[k],
-              layer.positions[k + 1],
-              layer.positions[k + 2],
+              sourcePositions[k],
+              sourcePositions[k + 1],
+              sourcePositions[k + 2],
             ).toArray(),
           );
         const mesh = meshOf(positions, layer.color, props.meshOpacity);
-        mesh.material.side = THREE.FrontSide;
+        mesh.material.side =
+          props.slice.enabled && props.slice.mode === "plane"
+            ? THREE.DoubleSide
+            : THREE.FrontSide;
         v.data.add(mesh);
       });
+      if (props.slice.enabled && props.slice.showPlane) {
+        const axis = props.slice.axis,
+          value = props.slice.positions[axis];
+        const high =
+          Math.max(
+            ...props.grid.points.flatMap((q) =>
+              q.values[0] ? [q.values[0].value] : [],
+            ),
+          ) + 2;
+        const low = props.baseElevation;
+        const corners =
+          axis === "z"
+            ? [
+                at(b[0], b[1], value),
+                at(b[2], b[1], value),
+                at(b[2], b[3], value),
+                at(b[0], b[3], value),
+              ]
+            : axis === "x"
+              ? [
+                  at(value, b[1], low),
+                  at(value, b[3], low),
+                  at(value, b[3], high),
+                  at(value, b[1], high),
+                ]
+              : [
+                  at(b[0], value, low),
+                  at(b[2], value, low),
+                  at(b[2], value, high),
+                  at(b[0], value, high),
+                ];
+        const planePositions: number[] = [];
+        pushTri(planePositions, corners[0], corners[1], corners[2]);
+        pushTri(planePositions, corners[0], corners[2], corners[3]);
+        const plane = meshOf(planePositions, "#3289bf", 0.045);
+        plane.material.depthWrite = false;
+        v.data.add(plane);
+        v.data.add(
+          new THREE.LineLoop(
+            new THREE.BufferGeometry().setFromPoints(corners),
+            new THREE.LineBasicMaterial({
+              color: "#2584bc",
+              transparent: true,
+              opacity: 0.65,
+            }),
+          ),
+        );
+        const tag = textLabel(
+          `${axis.toUpperCase()} = ${value.toFixed(1)} m`,
+          "#216f9f",
+        );
+        tag.position.copy(corners[3]);
+        tag.userData.pixels = 125;
+        v.data.add(tag);
+      }
     }
-    if (props.mode === "ground")
+    if (props.mode === "ground" && props.representation === "surfaces")
       props.horizons.forEach((h, k) => {
-        const solid = props.representation === "solid";
-        if (solid ? k !== 2 || !props.solidVisible[2] : !props.visible[k])
-          return;
+        if (!props.visible[k]) return;
         const positions: number[] = [],
           vertexColors: number[] = [],
           g = props.grid;
@@ -326,61 +392,30 @@ export default function RealGroundScene(props: Props) {
             )
               continue;
             const q = ps.map((p) => at(p.e, p.n, p.values[k]!.value));
-            // Clip the open rock horizon to the same section as the volumes.
-            for (const indices of [
-              [0, 3, 2],
-              [0, 2, 1],
-            ]) {
-              let poly = indices.map((idx) => q[idx]);
-              if (solid && props.cutaway) {
-                const z = centerN - props.sectionNorth;
-                const clipped: THREE.Vector3[] = [];
-                for (let t = 0; t < poly.length; t++) {
-                  const a = poly[t],
-                    b = poly[(t + 1) % poly.length];
-                  const insideA = a.z <= z,
-                    insideB = b.z <= z;
-                  if (insideA !== insideB)
-                    clipped.push(a.clone().lerp(b, (z - a.z) / (b.z - a.z)));
-                  if (insideB) clipped.push(b);
-                }
-                poly = clipped;
-              }
-              for (let t = 1; t < poly.length - 1; t++)
-                pushTri(positions, poly[0], poly[t], poly[t + 1]);
-            }
-            if (props.showVariance && !solid) {
+            pushTri(positions, q[0], q[3], q[2]);
+            pushTri(positions, q[0], q[2], q[1]);
+            if (props.showVariance) {
               const vv =
-                  ps.reduce((sum, p) => sum + p.values[k]!.variance, 0) / 4,
-                col = new THREE.Color().setHSL(
-                  0.57 - (0.5 * vv) / maxVar,
-                  0.62,
-                  0.62,
-                );
+                ps.reduce((sum, p) => sum + p.values[k]!.variance, 0) / 4;
+              const col = new THREE.Color().setHSL(
+                0.57 - (0.5 * vv) / maxVar,
+                0.62,
+                0.62,
+              );
               for (let t = 0; t < 6; t++)
                 vertexColors.push(col.r, col.g, col.b);
             }
           }
-        const m = meshOf(
-          positions,
-          h.color,
-          solid ? props.meshOpacity : k === 0 ? 0.25 : 0.68,
-        );
-        if (solid) {
-          // This is an observed upper boundary, never a fabricated rock volume.
-          m.material.polygonOffset = true;
-          m.material.polygonOffsetFactor = 1;
-          m.material.polygonOffsetUnits = 1;
-        }
-        if (props.showVariance && !solid) {
-          m.geometry.setAttribute(
+        const mesh = meshOf(positions, h.color, k === 0 ? 0.25 : 0.68);
+        if (props.showVariance) {
+          mesh.geometry.setAttribute(
             "color",
             new THREE.Float32BufferAttribute(vertexColors, 3),
           );
-          (m.material as THREE.MeshStandardMaterial).vertexColors = true;
-          (m.material as THREE.MeshStandardMaterial).color.set("white");
+          mesh.material.vertexColors = true;
+          mesh.material.color.set("white");
         }
-        v.data.add(m);
+        v.data.add(mesh);
       });
     if (props.mode === "dsm" && terrain) {
       const positions: number[] = [],
@@ -471,36 +506,55 @@ export default function RealGroundScene(props: Props) {
     if (props.showHoles)
       props.holes.forEach((h) => {
         const selected = h.id === props.selected;
-        h.layers.forEach((l) => {
-          const g = new THREE.CylinderGeometry(
-              selected ? 1.5 : 1.0,
-              selected ? 1.5 : 1.0,
-              (l.to - l.from) * s,
-              10,
-            ),
-            m = new THREE.Mesh(
-              g,
-              new THREE.MeshStandardMaterial({
-                color: colors[l.name] ?? "#a9a8a4",
-                roughness: 0.55,
-                emissive: selected ? "#203f60" : "#000",
-                emissiveIntensity: 0.25,
-              }),
+        const onlyPlane =
+          props.mode === "ground" &&
+          props.representation === "solid" &&
+          props.slice.enabled &&
+          props.slice.mode === "plane";
+        const level = props.slice.positions[props.slice.axis];
+        if (
+          onlyPlane &&
+          (props.slice.axis === "z"
+            ? level > h.collar || level < h.collar - h.observedBottom
+            : Math.abs(
+                (props.slice.axis === "x" ? h.easting : h.northing) - level,
+              ) > 3)
+        )
+          return;
+        const horizontalSection = onlyPlane && props.slice.axis === "z";
+        if (!horizontalSection)
+          h.layers.forEach((l) => {
+            const g = new THREE.CylinderGeometry(
+                selected ? 1.5 : 1.0,
+                selected ? 1.5 : 1.0,
+                (l.to - l.from) * s,
+                10,
+              ),
+              m = new THREE.Mesh(
+                g,
+                new THREE.MeshStandardMaterial({
+                  color: colors[l.name] ?? "#a9a8a4",
+                  roughness: 0.55,
+                  emissive: selected ? "#203f60" : "#000",
+                  emissiveIntensity: 0.25,
+                }),
+              );
+            m.position.copy(
+              at(h.easting, h.northing, h.collar - (l.from + l.to) / 2),
             );
-          m.position.copy(
-            at(h.easting, h.northing, h.collar - (l.from + l.to) / 2),
-          );
-          m.userData.id = h.id;
-          v.pickables.push(m);
-          v.data.add(m);
-        });
+            m.userData.id = h.id;
+            v.pickables.push(m);
+            v.data.add(m);
+          });
         const head = new THREE.Mesh(
           new THREE.SphereGeometry(selected ? 2 : 1.25, 12, 8),
           new THREE.MeshStandardMaterial({
             color: selected ? "#0f6fff" : "white",
           }),
         );
-        head.position.copy(at(h.easting, h.northing, h.collar + 1));
+        head.position.copy(
+          at(h.easting, h.northing, horizontalSection ? level : h.collar + 1),
+        );
         head.userData.id = h.id;
         v.data.add(head);
         v.pickables.push(head);
@@ -509,12 +563,22 @@ export default function RealGroundScene(props: Props) {
             selected ? `${h.campaign} ${h.label}` : h.label,
             selected ? "#0f56cd" : "#304860",
           );
-          tag.position.copy(at(h.easting, h.northing, h.collar + 4));
+          tag.position.copy(
+            at(
+              h.easting,
+              h.northing,
+              horizontalSection ? level + 2 : h.collar + 4,
+            ),
+          );
           tag.userData.pixels = selected ? 130 : 65;
           v.data.add(tag);
         }
       });
-    const boundary = props.assets.cad.boundaryEN.map((p) => at(p[0], p[1], 15));
+    const guideHeight =
+      props.mode === "ground" ? props.baseElevation - 0.5 : 15;
+    const boundary = props.assets.cad.boundaryEN.map((p) =>
+      at(p[0], p[1], guideHeight),
+    );
     const line = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(boundary),
       new THREE.LineBasicMaterial({
@@ -524,36 +588,12 @@ export default function RealGroundScene(props: Props) {
       }),
     );
     v.data.add(line);
-    if (props.mode === "ground") {
-      const pts = props.grid.points.filter(
-        (p) =>
-          Math.abs(p.n - props.sectionNorth) < (b[3] - b[1]) / props.grid.ny,
-      );
-      if (pts.length) {
-        const e0 = b[0],
-          e1 = b[2],
-          g = new THREE.BufferGeometry().setFromPoints([
-            at(e0, props.sectionNorth, 28),
-            at(e1, props.sectionNorth, 28),
-          ]);
-        v.data.add(
-          new THREE.Line(
-            g,
-            new THREE.LineDashedMaterial({
-              color: "#db5373",
-              dashSize: 3,
-              gapSize: 2,
-            }),
-          ).computeLineDistances(),
-        );
-      }
-    }
     for (const [txt, e, n] of [
-      ["E →", b[2], b[1]],
-      ["N ↑", b[0], b[3]],
+      ["X · E →", b[2], b[1]],
+      ["Y · N ↑", b[0], b[3]],
     ] as [string, number, number][]) {
       const tag = textLabel(txt, "#425b70");
-      tag.position.copy(at(e, n, 15));
+      tag.position.copy(at(e, n, guideHeight));
       tag.userData.pixels = 55;
       v.data.add(tag);
     }
@@ -576,7 +616,7 @@ export default function RealGroundScene(props: Props) {
     );
     const minHeight =
       props.mode === "ground" && groundHeights.length
-        ? Math.min(...groundHeights) - 3
+        ? Math.min(props.baseElevation, ...groundHeights) - 2
         : 0;
     const maxHeight =
       props.mode === "ground" && groundHeights.length
@@ -616,9 +656,25 @@ export default function RealGroundScene(props: Props) {
       v.camera.getEffectiveFOV() / 2,
     );
     const halfHorizontal = Math.atan(Math.tan(halfVertical) * v.camera.aspect);
-    const direction = new THREE.Vector3(0.85, 0.8, 0.9).normalize();
+    const view =
+      props.mode === "ground" && props.representation === "solid"
+        ? props.cameraView
+        : "perspective";
+    const side = props.slice.keep === "above" ? -1 : 1;
+    const direction =
+      view === "top"
+        ? new THREE.Vector3(0, 1, 0.0001).normalize()
+        : view === "section"
+          ? props.slice.axis === "z"
+            ? new THREE.Vector3(0, side, 0.0001).normalize()
+            : props.slice.axis === "x"
+              ? new THREE.Vector3(side, 0.0001, 0).normalize()
+              : new THREE.Vector3(0, 0.0001, -side).normalize()
+          : new THREE.Vector3(0.85, 0.8, 0.9).normalize();
+    const upHint = new THREE.Vector3(0, 1, 0);
+    v.camera.up.copy(upHint);
     const right = new THREE.Vector3()
-      .crossVectors(new THREE.Vector3(0, 1, 0), direction)
+      .crossVectors(upHint, direction)
       .normalize();
     const up = new THREE.Vector3().crossVectors(direction, right).normalize();
     let distance = 40;
@@ -643,11 +699,30 @@ export default function RealGroundScene(props: Props) {
   }, [
     props.mode,
     props.resetKey,
+    props.cameraView,
+    props.slice.axis,
+    props.slice.keep,
+    props.representation,
+    props.baseElevation,
+    props.verticalScale,
     props.grid.bounds[0],
     props.grid.bounds[1],
     props.grid.bounds[2],
     props.grid.bounds[3],
   ]);
+  const displayedLayers = props.slice.enabled
+    ? props.slicedVolumes
+    : props.volumes;
+  const emptySection =
+    props.mode === "ground" &&
+    props.representation === "solid" &&
+    !displayedLayers.some(
+      (layer, i) =>
+        props.solidVisible[i] &&
+        (props.slice.enabled && props.slice.mode === "plane"
+          ? layer.capPositions?.length
+          : layer.positions.length),
+    );
   return (
     <div className="real-ground-scene">
       <div ref={host} />
@@ -663,15 +738,23 @@ export default function RealGroundScene(props: Props) {
             {assetError || "실제 공간 자료를 불러오는 중…"}
           </div>
         )}
+      {!error && emptySection && (
+        <div className="real-scene-empty" role="status">
+          선택한 레이어·절단 위치에 표시할 지층 메쉬가 없습니다.
+        </div>
+      )}
       <div className="real-scene-label">
         {props.mode === "ground"
           ? props.representation === "solid"
-            ? `채운 지층 메쉬${props.cutaway ? " · 단면 열림" : ""} · 관측 경계 사이 보간`
+            ? `채운 지층${props.slice.enabled ? ` · ${SLICE_AXES[props.slice.axis].title} ${props.slice.positions[props.slice.axis].toFixed(1)} m` : " · 전체 모델"}`
             : "관측 주상도 + 크리깅 경계면"
           : props.mode === "dsm"
             ? "촬영 시점 DSM + 실제 정사영상"
             : "원본 LAS에서 추출한 공간 대표점"}{" "}
-        · 높이 {props.verticalScale}× · CAD 경계는 기준면 투영
+        · 높이 {props.verticalScale}×
+        {props.mode === "ground"
+          ? ` · 암반 표시 하한 EL. ${props.baseElevation.toFixed(1)} m`
+          : " · CAD 경계는 기준면 투영"}
       </div>
     </div>
   );

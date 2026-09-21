@@ -394,6 +394,225 @@
 .real-cutaway-control input {
   accent-color: #176ce0;
 }
+.real-slicer {
+  background: #fff;
+  border: 1px solid #dce5eb;
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+.real-viewer-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 276px;
+  gap: 14px;
+  align-items: start;
+}
+.real-model-visual {
+  min-width: 0;
+}
+.real-viewer-workspace .real-slicer {
+  padding: 16px;
+  margin: 0;
+}
+.real-viewer-workspace .real-axis-buttons {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.real-viewer-workspace .real-slice-position {
+  flex-wrap: wrap;
+}
+.real-viewer-workspace .real-slice-position > label {
+  flex-basis: 100%;
+}
+.real-viewer-workspace .real-slice-position > input {
+  flex-basis: 100%;
+}
+.real-viewer-workspace .real-slice-options {
+  align-items: flex-start;
+  gap: 12px;
+}
+.real-viewer-workspace .real-slice-options > span {
+  margin-left: 0;
+}
+@media (max-width: 1050px) {
+  .real-viewer-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .real-viewer-workspace > .real-slicer {
+    order: -1;
+  }
+}
+.real-slicer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.real-slicer h3 {
+  margin: 5px 0 0;
+  color: #29435a;
+  font-size: 15px;
+}
+.real-slicer .real-eyebrow {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #7992a5;
+}
+.real-camera-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.real-camera-buttons button,
+.real-base-settings button {
+  border: 1px solid #dce5eb;
+  background: white;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #536a7e;
+}
+.real-camera-buttons button.active {
+  color: #166aca;
+  border-color: #bed7f2;
+  background: #eef6ff;
+}
+.real-camera-buttons button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.real-axis-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 17px;
+}
+.real-axis-buttons button {
+  border: 1px solid #dce5eb;
+  background: #f7f9fb;
+  padding: 10px 6px;
+  border-radius: 7px;
+  color: #657c90;
+  font-size: 12px;
+}
+.real-axis-buttons button.active {
+  background: #235579;
+  color: white;
+  border-color: #235579;
+}
+.real-slice-position {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0 12px;
+  color: #536b7f;
+  font-size: 12px;
+}
+.real-slice-position > label {
+  min-width: 100px;
+}
+.real-slice-position > input {
+  flex: 1;
+  min-width: 70px;
+  accent-color: #2774a4;
+}
+.real-coordinate-input {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.real-coordinate-input > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.real-coordinate-input input {
+  width: 135px;
+  font-variant-numeric: tabular-nums;
+}
+.real-coordinate-input b {
+  font-weight: 400;
+  color: #8293a2;
+}
+.real-coordinate-input small {
+  max-width: 220px;
+  color: #b84935;
+  font-size: 11px;
+}
+.real-slice-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  font-size: 12px;
+  color: #607689;
+}
+.real-slice-options > label {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+.real-slice-options > span {
+  font-size: 11px;
+  margin-left: auto;
+  color: #8394a2;
+}
+.real-base-settings {
+  border-top: 1px solid #e7edf2;
+  padding-top: 11px;
+  margin-top: 15px;
+  color: #6e8497;
+  font-size: 11px;
+}
+.real-base-settings summary {
+  cursor: pointer;
+}
+.real-base-settings > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+}
+.real-base-settings p {
+  line-height: 1.7;
+  margin: 8px 0 0;
+}
+.real-slice-badge {
+  background: #eef4f8;
+  color: #5d7b91;
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.real-slice-panel {
+  margin-bottom: 20px;
+}
+@media (max-width: 600px) {
+  .real-slicer {
+    padding: 15px;
+  }
+  .real-axis-buttons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .real-slice-position {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .real-slice-position > label {
+    flex-basis: 100%;
+  }
+  .real-slice-position > input {
+    width: 100%;
+  }
+  .real-coordinate-input input {
+    width: 121px;
+  }
+  .real-slice-options > span {
+    margin-left: 0;
+  }
+}
 .real-ground-scene > div:first-child {
   position: absolute;
   inset: 0;
@@ -424,6 +643,19 @@
   font-size: 11px;
   pointer-events: none;
   max-width: calc(100% - 36px);
+  line-height: 1.6;
+}
+.real-scene-empty {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  padding: 10px 14px;
+  color: #637b8d;
+  background: #ffffffed;
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
   line-height: 1.6;
 }
 .real-model-controls {

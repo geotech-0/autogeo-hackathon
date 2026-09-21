@@ -21,8 +21,26 @@ import {
 } from "../../data/source-access";
 import RealSiteMap, { CAMPAIGN_COLORS, useSiteAssets } from "./RealSiteMap";
 import RealGroundScene from "./RealGroundScene";
-import { VOLUME_LAYERS } from "./volume-geometry.mjs";
-import type { RealHole, RealPoint, RealHorizon } from "./real-types";
+import {
+  VOLUME_LAYERS,
+  ROCK_VOLUME_LAYER,
+  buildLayerVolumes,
+} from "./volume-geometry.mjs";
+import { sliceClosedMesh } from "./mesh-slicer.mjs";
+import SliceControls from "./SliceControls";
+import ModelSliceSection from "./ModelSliceSection";
+import type {
+  CameraView,
+  GroundVolume,
+  SliceState,
+  SliceAxis,
+} from "./model-view";
+import type {
+  RealHole,
+  RealPoint,
+  RealHorizon,
+  Prediction,
+} from "./real-types";
 import {
   createRealModel,
   realGrid,
@@ -68,6 +86,9 @@ type GroundView = {
   solidVisible: boolean[];
   meshOpacity: number;
   cutaway: boolean;
+  slice: SliceState;
+  baseElevation: number | null;
+  cameraView: CameraView;
   showHoles: boolean;
   showCAD: boolean;
   showCADLinework: boolean;
@@ -84,6 +105,28 @@ type GroundView = {
     height: number;
   };
 };
+const defaultSlice = (hs: RealHole[], north?: number): SliceState => ({
+  enabled: false,
+  axis: "y",
+  keep: "above",
+  mode: "cut",
+  showPlane: true,
+  positions: {
+    x:
+      (Math.min(...hs.map((h) => h.easting)) +
+        Math.max(...hs.map((h) => h.easting))) /
+      2,
+    y:
+      north ??
+      (Math.min(...hs.map((h) => h.northing)) +
+        Math.max(...hs.map((h) => h.northing))) /
+        2,
+    z:
+      (Math.min(...hs.map((h) => h.collar - h.observedBottom)) +
+        Math.max(...hs.map((h) => h.collar))) /
+      2,
+  },
+});
 const initial = (): GroundView => ({
   tab: "map",
   selected: "2022-08:NBH-6",
@@ -96,6 +139,12 @@ const initial = (): GroundView => ({
   solidVisible: [true, true, true],
   meshOpacity: 1,
   cutaway: false,
+  slice: defaultSlice(
+    holes.filter((h) => h.campaign === "2022-08"),
+    521622.7,
+  ),
+  baseElevation: null,
+  cameraView: "perspective",
   showHoles: true,
   showCAD: true,
   showCADLinework: false,
@@ -319,6 +368,7 @@ export default function RealGroundPage({
     [search, setSearch] = useState(""),
     [selectedRecord, setSelectedRecord] = useState(""),
     [busy, setBusy] = useState(false),
+    [slicerInputsValid, setSlicerInputsValid] = useState(true),
     [logIndex, setLogIndex] = useState(0);
   const set = <K extends keyof GroundView>(key: K, value: GroundView[K]) =>
     setV({ ...v, [key]: value });
@@ -326,7 +376,7 @@ export default function RealGroundPage({
   const representation = v.representation ?? "solid",
     solidVisible = v.solidVisible ?? [true, true, true],
     meshOpacity = v.meshOpacity ?? 1,
-    cutaway = v.cutaway ?? false;
+    cameraView = v.cameraView ?? "perspective";
   const selected = holes.find((h) => h.id === v.selected) ?? holes[0];
   const shown = holes.filter((h) => v.shownCampaigns.includes(h.campaign)),
     modelHoles = holes.filter(
@@ -344,9 +394,8 @@ export default function RealGroundPage({
         throw Error("크리깅 입력값을 채워 주세요.");
       const model = createRealModel(modelHoles, parameters),
         grid = realGrid(model, 65, 65),
-        section = realSection(model, v.sectionNorth),
         loo = realLOO(model);
-      return { model, grid, section, loo, error: "" };
+      return { model, grid, loo, error: "" };
     } catch (e) {
       return {
         model: null,
@@ -362,15 +411,119 @@ export default function RealGroundPage({
     v.parameters.range,
     v.parameters.sill,
     v.parameters.nugget,
-    v.sectionNorth,
   ]);
+  const sectionPoints = useMemo(
+    () => (analysis.model ? realSection(analysis.model, v.sectionNorth) : []),
+    [analysis.model, v.sectionNorth],
+  );
+  const heights =
+    analysis.grid?.points.flatMap((p) =>
+      p.values.filter(Boolean).map((q: Prediction | null) => q!.value),
+    ) ?? modelHoles.map((h) => h.collar);
+  const rockHeights =
+    analysis.grid?.points.flatMap((p) =>
+      p.values[2] ? [p.values[2].value] : [],
+    ) ?? [];
+  const maxBase =
+    Math.floor(
+      (Math.min(
+        ...rockHeights,
+        ...modelHoles.map((h) => h.collar - h.observedBottom),
+      ) -
+        1) *
+        10,
+    ) / 10;
+  const automaticBase = Math.min(
+    maxBase - 1,
+    Math.floor(
+      Math.min(...modelHoles.map((h) => h.collar - h.observedBottom)) / 5,
+    ) *
+      5 -
+      5,
+  );
+  const baseElevation = v.baseElevation ?? automaticBase;
+  const topElevation = Math.ceil(Math.max(...heights) + 2);
+  const bounds = analysis.grid?.bounds ?? [239800, 521500, 240050, 521700];
+  const limits: Record<SliceAxis, [number, number]> = {
+    x: [bounds[0], bounds[2]],
+    y: [bounds[1], bounds[3]],
+    z: [baseElevation, topElevation],
+  };
+  const rawSlice = v.slice ?? {
+    ...defaultSlice(modelHoles, v.sectionNorth),
+    enabled: v.cutaway ?? false,
+  };
+  const slice: SliceState = rawSlice;
+  const sliceValue = slice.positions[slice.axis];
+  const coordinateError =
+    sliceValue < limits[slice.axis][0] || sliceValue > limits[slice.axis][1]
+      ? `${slice.axis.toUpperCase()} 절단 좌표 ${sliceValue} m가 현재 모델 범위 밖입니다. 좌표를 그대로 보존했으므로 값을 입력하거나 ‘중앙으로’를 선택하세요.`
+      : "";
+  const setSlice = (next: SliceState) =>
+    setV({
+      ...v,
+      slice: next,
+      cutaway: false,
+      sectionNorth: next.axis === "y" ? next.positions.y : v.sectionNorth,
+      representation: "solid",
+      cameraView:
+        !next.enabled && cameraView === "section" ? "perspective" : cameraView,
+    });
+  const volumes = useMemo(() => {
+    if (!analysis.grid || !analysis.model)
+      return { layers: [] as GroundVolume[], error: "" };
+    try {
+      if (baseElevation > maxBase || baseElevation < -500)
+        throw Error(
+          `암반 표시 하한을 ${maxBase.toFixed(1)} m 이하로 설정하세요.`,
+        );
+      const result = buildLayerVolumes(analysis.grid, {
+        extrapolate: v.extrapolate,
+        hulls: analysis.model.horizons.map((h) => h.model?.hull ?? null),
+        baseElevation,
+      });
+      return { layers: result.layers as GroundVolume[], error: "" };
+    } catch (e) {
+      return { layers: [] as GroundVolume[], error: (e as Error).message };
+    }
+  }, [analysis.grid, analysis.model, v.extrapolate, baseElevation, maxBase]);
+  const slices = useMemo(() => {
+    try {
+      return {
+        layers: volumes.layers.map((layer) => ({
+          ...layer,
+          ...sliceClosedMesh(layer, {
+            axis: slice.axis,
+            value: slice.positions[slice.axis],
+            keep: slice.keep,
+          }),
+        })) as GroundVolume[],
+        error: "",
+      };
+    } catch (e) {
+      return {
+        layers: [] as GroundVolume[],
+        error: `절단면을 생성하지 못했습니다: ${(e as Error).message}`,
+      };
+    }
+  }, [volumes.layers, slice.axis, slice.positions[slice.axis], slice.keep]);
+  const geometryError = volumes.error || slices.error || coordinateError;
   const saved = records
     .filter((r) => r.payload.kind === "real-ground-model")
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   useEffect(() => setLogIndex(0), [selected.id]);
   const pick = (id: string) => {
     const h = holes.find((h) => h.id === id);
-    if (h) setV({ ...v, selected: id, sectionNorth: h.northing });
+    if (h)
+      setV({
+        ...v,
+        selected: id,
+        sectionNorth: h.northing,
+        slice: {
+          ...slice,
+          positions: { ...slice.positions, x: h.easting, y: h.northing },
+        },
+      });
   };
   const getPayload = () => ({
     kind: "real-ground-model",
@@ -390,7 +543,10 @@ export default function RealGroundPage({
       representation,
       solidVisible,
       meshOpacity,
-      cutaway,
+      cutaway: false,
+      slice,
+      baseElevation: v.baseElevation ?? null,
+      cameraView,
       recordId: undefined,
     },
     registration: {
@@ -415,10 +571,19 @@ export default function RealGroundPage({
       loo: analysis.loo,
       limitations: source.limitations,
     },
+    visualization: {
+      baseElevation,
+      rockBottomObserved: false,
+      boundary: v.extrapolate
+        ? "grid-domain-extrapolation"
+        : "observed-hull-clipped",
+      sliceCoordinateFrame: "X=E,Y=N,Z=EL(m)",
+    },
     methodVersion: REAL_GROUND_VERSION,
   });
   async function save() {
-    if (!analysis.model || !assets) return;
+    if (!analysis.model || !assets || geometryError || !slicerInputsValid)
+      return;
     setBusy(true);
     try {
       const r = await onSave({
@@ -435,7 +600,10 @@ export default function RealGroundPage({
         title: `실제 지반 · ${v.modelCampaign === "all" ? "전체 차수" : v.modelCampaign} · ${modelHoles.length}공 모델`,
         status: "pending",
         summary: `전체 32공·96구간 연결 / ${modelHoles.length}공 보간 / 실제 정사영상·DSM·점군 / NH-4 총심도 원문 충돌 1건`,
-        assumptions: source.limitations,
+        assumptions: [
+          ...source.limitations,
+          `암반 하부는 모델 표시 하한 EL. ${baseElevation} m까지 연장한 가정이며 관측된 암반 바닥이 아닙니다.`,
+        ],
         payload: getPayload(),
       });
       setV({ ...v, recordId: r.id });
@@ -581,7 +749,13 @@ export default function RealGroundPage({
         </div>
         <button
           className="btn btn-primary"
-          disabled={busy || !!analysis.error || !assets}
+          disabled={
+            busy ||
+            !!analysis.error ||
+            !!geometryError ||
+            !assets ||
+            !slicerInputsValid
+          }
           onClick={save}
         >
           <Save size={16} />
@@ -726,6 +900,14 @@ export default function RealGroundPage({
                     ...v,
                     modelCampaign: e.target.value,
                     sectionNorth: north,
+                    slice: {
+                      ...defaultSlice(next, north),
+                      enabled: slice.enabled,
+                      axis: slice.axis,
+                      mode: slice.mode,
+                      keep: slice.keep,
+                    },
+                    baseElevation: null,
                     selected: next.some((h) => h.id === v.selected)
                       ? v.selected
                       : next[0].id,
@@ -799,19 +981,6 @@ export default function RealGroundPage({
                       }
                     />
                   </label>
-                  <label className="real-cutaway-control">
-                    <input
-                      type="checkbox"
-                      checked={cutaway}
-                      onChange={(e) => set("cutaway", e.target.checked)}
-                    />{" "}
-                    단면 열기
-                  </label>
-                  {cutaway && (
-                    <span className="real-muted">
-                      아래 단면 위치의 남쪽을 걷어냅니다.
-                    </span>
-                  )}
                 </>
               )}
             </div>
@@ -823,36 +992,69 @@ export default function RealGroundPage({
               지표면이나 시공 변화량으로 해석하지 마세요.
             </div>
           )}
-          {analysis.error ? (
-            <div className="real-warning" role="alert">
-              {analysis.error}
+          <div
+            className={
+              v.mode === "ground" && representation === "solid"
+                ? "real-viewer-workspace"
+                : ""
+            }
+          >
+            <div className="real-model-visual">
+              {analysis.error ||
+              (v.mode === "ground" &&
+                representation === "solid" &&
+                geometryError) ? (
+                <div className="real-warning" role="alert">
+                  {analysis.error || geometryError}
+                </div>
+              ) : (
+                analysis.grid &&
+                assets && (
+                  <RealGroundScene
+                    assets={assets}
+                    grid={analysis.grid}
+                    holes={v.mode === "ground" ? modelHoles : shown}
+                    horizons={analysis.model!.horizons}
+                    selected={selected.id}
+                    onSelect={pick}
+                    visible={v.visible}
+                    representation={representation}
+                    solidVisible={solidVisible}
+                    meshOpacity={meshOpacity}
+                    volumes={volumes.layers}
+                    slicedVolumes={slices.layers}
+                    slice={slice}
+                    cameraView={cameraView}
+                    baseElevation={baseElevation}
+                    showHoles={v.showHoles}
+                    extrapolate={v.extrapolate}
+                    showVariance={v.showVariance}
+                    verticalScale={v.verticalScale}
+                    sectionNorth={v.sectionNorth}
+                    mode={v.mode}
+                    registration={v.registration}
+                    resetKey={reset}
+                  />
+                )
+              )}
             </div>
-          ) : (
-            analysis.grid &&
-            assets && (
-              <RealGroundScene
-                assets={assets}
-                grid={analysis.grid}
-                holes={v.mode === "ground" ? modelHoles : shown}
-                horizons={analysis.model!.horizons}
-                selected={selected.id}
-                onSelect={pick}
-                visible={v.visible}
-                representation={representation}
-                solidVisible={solidVisible}
-                meshOpacity={meshOpacity}
-                cutaway={cutaway}
-                showHoles={v.showHoles}
-                extrapolate={v.extrapolate}
-                showVariance={v.showVariance}
-                verticalScale={v.verticalScale}
-                sectionNorth={v.sectionNorth}
-                mode={v.mode}
-                registration={v.registration}
-                resetKey={reset}
+            {v.mode === "ground" && representation === "solid" && (
+              <SliceControls
+                slice={slice}
+                limits={limits}
+                onChange={setSlice}
+                cameraView={cameraView}
+                onCamera={(view) => {
+                  set("cameraView", view);
+                  setReset(reset + 1);
+                }}
+                baseElevation={baseElevation}
+                maxBase={maxBase}
+                onBase={(value) => set("baseElevation", value)}
+                onValidityChange={setSlicerInputsValid}
               />
-            )
-          )}
+            )}
+          </div>
           <p className="real-help">
             드래그: 회전 · 휠/두 손가락: 확대 · 페이지는 3D 밖에서 스크롤 · 모델
             전체 보기로 시점을 복원합니다.
@@ -860,10 +1062,7 @@ export default function RealGroundPage({
           <div className="real-model-controls">
             <div className="real-campaign-pills">
               {(representation === "solid"
-                ? [
-                    ...VOLUME_LAYERS,
-                    { id: "rock-top", name: "암반 출현면", color: "#667f9c" },
-                  ]
+                ? [...VOLUME_LAYERS, ROCK_VOLUME_LAYER]
                 : (analysis.model?.horizons ?? [])
               ).map((h, i) => (
                 <label key={h.id}>
@@ -930,54 +1129,73 @@ export default function RealGroundPage({
           <p className="real-muted real-under-view">
             채운 지층은 관측 경계 사이의 보간 영역입니다. 표층 복합층은 공구
             표고부터 풍화토 상단까지, 풍화토는 암반 출현면까지 표시합니다.
-            암반은 하단이 확인되지 않아 출현면만 표시합니다. DSM·점군 높이와
-            과거 공구 표고의 차이는 침하량이 아닙니다.
+            암반은 모델 표시 하한 EL. {f(baseElevation, 1)} m까지 연장한
+            가정입니다. 외곽은 시추공 분포에 따른 모델 범위이며 실제 수직 지층
+            경계를 뜻하지 않습니다. DSM·점군 높이와 과거 공구 표고의 차이는
+            침하량이 아닙니다.
           </p>
-          <section className="real-panel">
-            <div className="real-panel-heading">
-              <div>
-                <h2>동서 지층 단면</h2>
-                <p>
-                  {representation === "solid"
-                    ? "색 영역: 경계 사이 지층 · "
-                    : ""}
-                  실선: 내부 보간 · 점선: 외삽 · 막대: 단면 ±12m 내 관측공
-                </p>
-              </div>
-              <label>
-                N {f(v.sectionNorth, 1)} m
-                <input
-                  aria-label="실제 지층 단면 북쪽 좌표"
-                  type="range"
-                  min={Math.min(...modelHoles.map((h) => h.northing))}
-                  max={Math.max(...modelHoles.map((h) => h.northing))}
-                  step={0.5}
-                  value={v.sectionNorth}
-                  onChange={(e) => set("sectionNorth", Number(e.target.value))}
-                />
-              </label>
-            </div>
-            <Section
-              points={analysis.section}
-              horizons={analysis.model?.horizons ?? []}
-              north={v.sectionNorth}
+          {representation === "solid" && !geometryError ? (
+            <ModelSliceSection
+              layers={slices.layers}
+              slice={slice}
+              visible={solidVisible}
+              bounds={bounds}
+              baseElevation={baseElevation}
+              topElevation={topElevation}
               holes={modelHoles}
-              selected={selected.id}
-              onSelect={pick}
-              extrapolate={v.extrapolate}
-              filled={representation === "solid"}
-              solidVisible={solidVisible}
-              boundaryVisible={
-                representation === "solid"
-                  ? [
-                      solidVisible[0],
-                      solidVisible[0] || solidVisible[1],
-                      solidVisible[2],
-                    ]
-                  : v.visible
-              }
+              linked={v.mode === "ground" && slice.enabled}
             />
-          </section>
+          ) : (
+            <>
+              <section className="real-panel">
+                <div className="real-panel-heading">
+                  <div>
+                    <h2>동서 지층 단면</h2>
+                    <p>
+                      {representation === "solid"
+                        ? "색 영역: 경계 사이 지층 · "
+                        : ""}
+                      실선: 내부 보간 · 점선: 외삽 · 막대: 단면 ±12m 내 관측공
+                    </p>
+                  </div>
+                  <label>
+                    N {f(v.sectionNorth, 1)} m
+                    <input
+                      aria-label="실제 지층 단면 북쪽 좌표"
+                      type="range"
+                      min={Math.min(...modelHoles.map((h) => h.northing))}
+                      max={Math.max(...modelHoles.map((h) => h.northing))}
+                      step={0.5}
+                      value={v.sectionNorth}
+                      onChange={(e) =>
+                        set("sectionNorth", Number(e.target.value))
+                      }
+                    />
+                  </label>
+                </div>
+                <Section
+                  points={sectionPoints}
+                  horizons={analysis.model?.horizons ?? []}
+                  north={v.sectionNorth}
+                  holes={modelHoles}
+                  selected={selected.id}
+                  onSelect={pick}
+                  extrapolate={v.extrapolate}
+                  filled={representation === "solid"}
+                  solidVisible={solidVisible}
+                  boundaryVisible={
+                    representation === "solid"
+                      ? [
+                          solidVisible[0],
+                          solidVisible[0] || solidVisible[1],
+                          solidVisible[2],
+                        ]
+                      : v.visible
+                  }
+                />
+              </section>
+            </>
+          )}
           <div className="real-model-bottom">
             <section className="real-panel">
               <h3>베리오그램 설정</h3>
@@ -1362,7 +1580,7 @@ export default function RealGroundPage({
           </button>
           <button
             className="btn btn-secondary"
-            disabled={!!analysis.error}
+            disabled={!!analysis.error || !!geometryError || !slicerInputsValid}
             onClick={() =>
               download("이천자이더리체_실제지반검토.json", getPayload())
             }

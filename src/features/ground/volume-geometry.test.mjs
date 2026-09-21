@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { buildLayerVolumes, VOLUME_LAYERS } from "./volume-geometry.mjs";
+import {
+  buildLayerVolumes,
+  VOLUME_LAYERS,
+  ROCK_VOLUME_LAYER,
+} from "./volume-geometry.mjs";
 import { createRealModel, realGrid } from "./real-engine.mjs";
 
 const prediction = (value) => ({
@@ -246,4 +250,227 @@ test("invalid dimensions and clip options fail explicitly rather than create mis
     () => buildLayerVolumes(grid(), { extrapolate: "yes" }),
     /boolean extrapolate/,
   );
+});
+
+const rectangle = [
+  [0, 0],
+  [10, 0],
+  [10, 20],
+  [0, 20],
+];
+function polygonArea(polygon) {
+  const [x, y] = polygon[0];
+  return (
+    Math.abs(
+      polygon.reduce((sum, a, i) => {
+        const b = polygon[(i + 1) % polygon.length];
+        return sum + (a[0] - x) * (b[1] - y) - (a[1] - y) * (b[0] - x);
+      }, 0),
+    ) / 2
+  );
+}
+function onPolygonBoundary(point, polygon, tolerance = 1e-7) {
+  return polygon.some((a, i) => {
+    const b = polygon[(i + 1) % polygon.length];
+    const dx = b[0] - a[0],
+      dy = b[1] - a[1],
+      length = Math.hypot(dx, dy);
+    const along = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / length;
+    const distance =
+      Math.abs(dx * (point[1] - a[1]) - dy * (point[0] - a[0])) / length;
+    return (
+      distance <= tolerance &&
+      along >= -tolerance &&
+      along <= length + tolerance
+    );
+  });
+}
+
+test("exact hull clipping preserves an off-grid diamond instead of discarding edge cells", () => {
+  const diamond = [
+    [5, 1.25],
+    [9.25, 10],
+    [5, 18.75],
+    [0.75, 10],
+  ];
+  const g = grid(4, 5),
+    original = JSON.stringify(g);
+  // All sampled corner flags outside: the supplied hull, not corner masks, is authoritative.
+  g.points.forEach((q) => q.values.forEach((v) => (v.extrapolated = true)));
+  for (const hull of [diamond, [...diamond].reverse()]) {
+    const result = buildLayerVolumes(g, { hulls: [hull, hull, hull] });
+    assert.equal(result.stats.exactHullClipping, true);
+    for (const [i, layer] of result.layers.entries()) {
+      assertClosed(layer);
+      near(layer.stats.footprintAreaM2, polygonArea(diamond));
+      near(layer.stats.volumeM3, polygonArea(diamond) * (i === 0 ? 4 : 8));
+      for (const [j, triangle] of triangles(layer).entries()) {
+        if (layer.surfaceKinds[j] === "side")
+          assert.ok(
+            triangle.every((p) => onPolygonBoundary(p, diamond)),
+            "side walls follow the actual hull lines",
+          );
+      }
+    }
+  }
+  g.points.forEach((q) => q.values.forEach((v) => (v.extrapolated = false)));
+  assert.equal(JSON.stringify(g), original);
+});
+
+test("bounding hull intersection and north cap remain exact after large EN coordinate translation", () => {
+  const offset = [239800, 521450];
+  const translate = (h) => h.map(([e, n]) => [e + offset[0], n + offset[1]]);
+  const top = translate([
+    [1, 1],
+    [9, 1],
+    [9, 19],
+    [1, 19],
+  ]);
+  const lower = translate([
+    [0, 3],
+    [7, 3],
+    [7, 17],
+    [0, 17],
+  ]);
+  const g = grid(5, 6, (e, n) => [20 + 0.2 * (e - offset[0]), 8, 0], [
+    offset[0],
+    offset[1],
+    offset[0] + 10,
+    offset[1] + 20,
+  ]);
+  const hulls = [top, lower, lower],
+    snapshot = JSON.stringify(hulls);
+  const result = buildLayerVolumes(g, { hulls, clipNorth: offset[1] + 7.123 });
+  for (const layer of result.layers) assertClosed(layer);
+  near(result.layers[0].stats.footprintAreaM2, 6 * (17 - 7.123));
+  near(result.layers[0].stats.volumeM3, 6 * (17 - 7.123) * (12 + 0.2 * 4));
+  near(result.layers[1].stats.footprintAreaM2, 7 * (17 - 7.123));
+  assert.equal(JSON.stringify(hulls), snapshot);
+});
+
+test("a linear horizon crossing is clipped at zero thickness without losing the positive wedge", () => {
+  for (const resolution of [2, 3, 6]) {
+    const g = grid(resolution, resolution, (e) => [e, 5, -5]);
+    const result = buildLayerVolumes(g, {
+      hulls: [rectangle, rectangle, rectangle],
+    });
+    const layer = result.layers[0];
+    assertClosed(layer);
+    near(layer.stats.footprintAreaM2, 100);
+    near(layer.stats.volumeM3, 250);
+    near(layer.stats.minimumThicknessM, 0);
+    for (const triangle of triangles(layer)) {
+      for (const p of triangle) assert.ok(p[0] >= 5);
+      const [a, b, c] = triangle,
+        u = b.map((v, i) => v - a[i]),
+        v = c.map((v, i) => v - a[i]);
+      assert.ok(
+        Math.hypot(
+          u[1] * v[2] - u[2] * v[1],
+          u[2] * v[0] - u[0] * v[2],
+          u[0] * v[1] - u[1] * v[0],
+        ) > 1e-12,
+      );
+    }
+  }
+});
+
+test("rock base is explicit display metadata, closed and flat; invalid or missing domains never fabricate geology", () => {
+  const g = grid();
+  const result = buildLayerVolumes(g, {
+    hulls: [rectangle, rectangle, rectangle],
+    baseElevation: -10,
+  });
+  assert.equal(result.layers.length, 3);
+  const rock = result.layers[2];
+  assert.equal(rock.id, ROCK_VOLUME_LAYER.id);
+  assert.equal(rock.interpretation, "display-base");
+  assert.equal(rock.bottomIndex, null);
+  assert.equal(result.stats.rockBottomObserved, false);
+  assert.equal(result.stats.displayBaseElevation, -10);
+  assert.equal(result.stats.unknownRockBottomExcluded, true);
+  assertClosed(rock);
+  near(rock.stats.volumeM3, 2000);
+  for (const [i, triangle] of triangles(rock).entries())
+    if (rock.surfaceKinds[i] === "bottom")
+      assert.ok(triangle.every((p) => p[2] === -10));
+  for (const base of [0, 1, -1e-9, NaN, Infinity])
+    assert.throws(
+      () => buildLayerVolumes(g, { baseElevation: base }),
+      /baseElevation/,
+    );
+  const missing = buildLayerVolumes(g, {
+    hulls: [rectangle, rectangle, null],
+    baseElevation: -10,
+  });
+  assert.ok(missing.layers[0].positions.length > 0);
+  assert.equal(missing.layers[1].positions.length, 0);
+  assert.equal(missing.layers[2].positions.length, 0);
+  assert.ok(missing.layers[2].stats.excluded.missingHull > 0);
+  const expanded = buildLayerVolumes(g, {
+    hulls: [null, null, null],
+    baseElevation: -10,
+    extrapolate: true,
+  });
+  for (const layer of expanded.layers) assertClosed(layer);
+  assert.equal(expanded.stats.nonEmptyLayerCount, 3);
+});
+
+test("actual four campaigns and combined data produce manifold hull-clipped volumes including explicit rock display base", () => {
+  const data = JSON.parse(
+    fs.readFileSync(
+      new URL("../../data/real-ground/boreholes.json", import.meta.url),
+    ),
+  );
+  for (const campaign of [...data.campaigns.map((c) => c.id), "all"]) {
+    const model = createRealModel(
+      data.holes.filter((h) => campaign === "all" || h.campaign === campaign),
+      { model: "spherical", range: 150, sill: 50, nugget: 0 },
+    );
+    const hulls = model.horizons.map((h) => h.model?.hull ?? null);
+    for (const resolution of [35, 65]) {
+      const g = realGrid(model, resolution, resolution);
+      const baseElevation =
+        Math.floor(
+          Math.min(
+            ...g.points.map((p) => p.values[2]?.value).filter(Number.isFinite),
+          ),
+        ) - 5;
+      for (const clipNorth of [
+        undefined,
+        (g.bounds[1] + g.bounds[3]) / 2 + 0.123,
+      ]) {
+        const result = buildLayerVolumes(g, {
+          hulls,
+          baseElevation,
+          clipNorth,
+        });
+        assert.equal(result.layers.length, 3);
+        for (const layer of result.layers) {
+          assert.ok(
+            layer.stats.volumeM3 > 0,
+            `${campaign}/${resolution}/${layer.id}`,
+          );
+          assertClosed(layer);
+          for (const [i, triangle] of triangles(layer).entries()) {
+            if (layer.surfaceKinds[i] !== "side") continue;
+            for (const point of triangle) {
+              const onNorth =
+                clipNorth !== undefined &&
+                Math.abs(point[1] - clipNorth) < 1e-7;
+              assert.ok(
+                onNorth ||
+                  onPolygonBoundary(point, hulls[layer.topIndex]) ||
+                  (layer.bottomIndex !== null &&
+                    onPolygonBoundary(point, hulls[layer.bottomIndex])),
+                `${campaign}/${resolution}/${layer.id} outer wall must lie on the actual hull or cut`,
+              );
+            }
+          }
+        }
+        if (clipNorth === undefined)
+          near(result.layers[2].stats.footprintAreaM2, polygonArea(hulls[2]));
+      }
+    }
+  }
 });

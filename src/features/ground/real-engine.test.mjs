@@ -147,7 +147,7 @@ test("Legacy ground records restore solid display defaults without mutating sour
   const payload = savedGround();
   const before = JSON.stringify(payload);
   const restored = restoreRealGround(payload, payload.holeIds, data.holes);
-  assert.equal(REAL_GROUND_VERSION, "source-linked-variable-strata-2.1");
+  assert.equal(REAL_GROUND_VERSION, "source-linked-variable-strata-2.2");
   assert.equal(restored.representation, "solid");
   assert.equal(restored.meshOpacity, 1);
   assert.equal(restored.cutaway, false);
@@ -216,6 +216,142 @@ test("Ground display restoration rejects malformed representations, opacity, cut
     assert.throws(
       () => restoreRealGround(payload, payload.holeIds, data.holes),
       /레이어·보기 설정/,
+    );
+  }
+});
+
+test("Old cutaway migrates only an absent slice using known campaign bounds and keeps layer choices", () => {
+  const old = savedGround({
+    cutaway: true,
+    solidVisible: [true, false, false],
+  });
+  const before = JSON.stringify(old);
+  const restored = restoreRealGround(old, old.holeIds, data.holes);
+  assert.deepEqual(restored.slice, {
+    enabled: true,
+    axis: "y",
+    positions: { x: 239925.815, y: 521600, z: 50 },
+    keep: "above",
+    mode: "cut",
+    showPlane: true,
+  });
+  assert.equal(restored.baseElevation, null);
+  assert.equal(restored.cameraView, "perspective");
+  assert.equal(restored.cutaway, true);
+  assert.deepEqual(restored.solidVisible, [true, false, false]);
+  assert.equal(JSON.stringify(old), before);
+  const all = savedGround({ modelCampaign: "all" });
+  assert.equal(
+    restoreRealGround(all, all.holeIds, data.holes).slice.positions.x,
+    239924.015,
+  );
+  assert.equal(restoreRealGround(old, old.holeIds).slice.positions.x, 239925);
+  const noCutaway = savedGround();
+  assert.equal(
+    restoreRealGround(noCutaway, noCutaway.holeIds).slice.enabled,
+    false,
+  );
+});
+
+test("Slice positions, display bottom, and camera choices survive JSON round trips without old cutaway overriding them", () => {
+  const configurations = [
+    {
+      slice: {
+        enabled: false,
+        axis: "x",
+        positions: { x: 238000, y: 520000, z: -500 },
+        keep: "below",
+        mode: "plane",
+        showPlane: false,
+      },
+      baseElevation: -500,
+      cameraView: "top",
+    },
+    {
+      slice: {
+        enabled: true,
+        axis: "z",
+        positions: { x: 242000, y: 523000, z: 500 },
+        keep: "above",
+        mode: "cut",
+        showPlane: true,
+      },
+      baseElevation: 200,
+      cameraView: "section",
+    },
+    {
+      slice: {
+        enabled: true,
+        axis: "y",
+        positions: { x: 239925.5, y: 521610.25, z: 45.7 },
+        keep: "below",
+        mode: "cut",
+        showPlane: false,
+      },
+      baseElevation: null,
+      cameraView: "perspective",
+    },
+  ];
+  for (const settings of configurations) {
+    const payload = JSON.parse(
+      JSON.stringify(
+        savedGround({ ...settings, cutaway: !settings.slice.enabled }),
+      ),
+    );
+    const restored = restoreRealGround(payload, payload.holeIds, data.holes);
+    for (const key of Object.keys(settings))
+      assert.deepEqual(restored[key], settings[key]);
+    assert.equal(restored.cutaway, !settings.slice.enabled);
+    assert.deepEqual(payload.holes, data.holes);
+    assert.deepEqual(payload.parameters, p);
+  }
+});
+
+test("Supplied partial slices and invalid slice, bottom, or camera values are rejected instead of silently defaulted", () => {
+  const slice = {
+    enabled: true,
+    axis: "y",
+    positions: { x: 239925, y: 521600, z: 50 },
+    keep: "above",
+    mode: "cut",
+    showPlane: true,
+  };
+  const invalidSlices = [
+    undefined,
+    null,
+    {},
+    [],
+    { enabled: true },
+    { ...slice, enabled: "true" },
+    { ...slice, axis: "north" },
+    { ...slice, keep: "both" },
+    { ...slice, mode: "solid" },
+    { ...slice, showPlane: 1 },
+    { ...slice, positions: { x: 239925, y: 521600 } },
+    { ...slice, positions: [239925, 521600, 50] },
+  ];
+  for (const [axis, values] of Object.entries({
+    x: [237999.9, 242000.1, NaN, "239925"],
+    y: [519999.9, 523000.1, Infinity, null],
+    z: [-500.1, 500.1, -Infinity, undefined],
+  }))
+    for (const value of values)
+      invalidSlices.push({
+        ...slice,
+        positions: { ...slice.positions, [axis]: value },
+      });
+  const invalidViews = [
+    ...invalidSlices.map((value) => ({ slice: value })),
+    ...[-500.1, 200.1, Infinity, NaN, "50", undefined].map((baseElevation) => ({
+      baseElevation,
+    })),
+    ...["front", "", null, undefined].map((cameraView) => ({ cameraView })),
+  ];
+  for (const view of invalidViews) {
+    const payload = savedGround(view);
+    assert.throws(
+      () => restoreRealGround(payload, payload.holeIds, data.holes),
+      /절개·표시하한·카메라/,
     );
   }
 });
