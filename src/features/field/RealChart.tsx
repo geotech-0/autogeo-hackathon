@@ -13,6 +13,7 @@ export default function RealChart({
   thresholdLabels = [],
   onPoint,
   invertY = false,
+  axisPosition = "bottom",
 }: {
   points: PlotPoint[];
   xLabel: string;
@@ -21,6 +22,7 @@ export default function RealChart({
   thresholdLabels?: string[];
   onPoint?: (index: number) => void;
   invertY?: boolean;
+  axisPosition?: "top" | "bottom";
 }) {
   const [selected, setSelected] = useState<number | null>(null);
   const host = useRef<HTMLDivElement>(null);
@@ -35,7 +37,9 @@ export default function RealChart({
     return () => observer.disconnect();
   }, [points.length]);
   const right = width - 20,
-    plotWidth = right - 66;
+    plotWidth = right - 66,
+    plotTop = axisPosition === "top" ? 80 : 40,
+    plotBottom = plotTop + 235;
   const valid = points.filter(
     (p) => Number.isFinite(p.x) && Number.isFinite(p.y),
   );
@@ -52,8 +56,8 @@ export default function RealChart({
   const sx = (x: number) => 66 + ((x - minX) / (maxX - minX || 1)) * plotWidth;
   const sy = (y: number) =>
     invertY
-      ? 40 + ((y - low) / (high - low)) * 235
-      : 275 - ((y - low) / (high - low)) * 235;
+      ? plotTop + ((y - low) / (high - low)) * 235
+      : plotBottom - ((y - low) / (high - low)) * 235;
   const current =
     selected === null ? valid.at(-1) : valid[selected] || valid.at(-1);
   return (
@@ -123,23 +127,34 @@ export default function RealChart({
             </title>
           </circle>
         ))}
-        {(width < 500 ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1]).map((f, i) => {
-          return (
-            <text key={i} x={66 + plotWidth * f} y="298" textAnchor="middle">
+        <g className="rf-x-axis">
+          {(width < 500 ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1]).map((f, i) => (
+            <text
+              key={i}
+              x={66 + plotWidth * f}
+              y={axisPosition === "top" ? 62 : 298}
+              textAnchor={
+                axisPosition === "top" && f === 0
+                  ? "start"
+                  : axisPosition === "top" && f === 1
+                    ? "end"
+                    : "middle"
+              }
+            >
               {xLabel.includes("날짜")
                 ? new Date(minX + (maxX - minX) * f).toISOString().slice(5, 10)
                 : (minX + (maxX - minX) * f).toFixed(1)}
             </text>
-          );
-        })}
-        <text
-          x={(66 + right) / 2}
-          y="326"
-          textAnchor="middle"
-          className="rf-axis-title"
-        >
-          {xLabel}
-        </text>
+          ))}
+          <text
+            x={(66 + right) / 2}
+            y={axisPosition === "top" ? 40 : 326}
+            textAnchor="middle"
+            className="rf-axis-title"
+          >
+            {xLabel}
+          </text>
+        </g>
       </svg>
       <div className="rf-point">
         <strong>{current?.label}</strong>

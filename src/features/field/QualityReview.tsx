@@ -413,6 +413,7 @@ export default function QualityReview(props: FeatureProps) {
                 </div>
               </div>
               <RealChart
+                axisPosition="top"
                 points={points}
                 xLabel={
                   isDcpt
@@ -951,6 +952,7 @@ function UserPlateReview(props: FeatureProps) {
             </div>
             {view === "pressure" ? (
               <PlateChart
+                axisPosition="top"
                 rows={result.rows}
                 limit={result.limit}
                 selected={selected}
@@ -958,6 +960,7 @@ function UserPlateReview(props: FeatureProps) {
               />
             ) : (
               <RealChart
+                axisPosition="top"
                 points={result.rows
                   .filter((r) => !r.problems.length)
                   .map((r) => ({

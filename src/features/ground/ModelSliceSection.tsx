@@ -3,6 +3,18 @@ import type { GroundVolume, SliceState } from "./model-view";
 import { SLICE_AXES } from "./model-view";
 import type { RealHole } from "./real-types";
 import { LITHOLOGY_COLORS } from "./real-engine.mjs";
+import type { RealSiteAssets } from "./RealSiteMap";
+import {
+  preparePlanLinework,
+  planOverlayBounds,
+  planProjection,
+} from "./plan-cad.mjs";
+
+type PlanLinework = {
+  layers: { name: string; path: string }[];
+  bounds: number[] | null;
+  originENH: number[];
+};
 
 export default function ModelSliceSection({
   layers,
@@ -13,6 +25,11 @@ export default function ModelSliceSection({
   topElevation,
   holes,
   linked,
+  assets,
+  showPlanBoundary,
+  showPlanLinework,
+  onPlanOverlayChange,
+  disabled = false,
 }: {
   layers: GroundVolume[];
   slice: SliceState;
@@ -22,9 +39,48 @@ export default function ModelSliceSection({
   topElevation: number;
   holes: RealHole[];
   linked: boolean;
+  assets: RealSiteAssets | null;
+  showPlanBoundary: boolean;
+  showPlanLinework: boolean;
+  onPlanOverlayChange: (key: "boundary" | "linework", checked: boolean) => void;
+  disabled?: boolean;
 }) {
   const ref = useRef<SVGSVGElement>(null),
     [width, setWidth] = useState(800);
+  const [linework, setLinework] = useState<{
+    url: string;
+    data: PlanLinework;
+  } | null>(null);
+  const [lineworkError, setLineworkError] = useState("");
+  const lineworkUrl = assets?.cad.lineworkUrl;
+  const planLinework = linework?.url === lineworkUrl ? linework?.data : null;
+  useEffect(() => {
+    if (
+      slice.axis !== "z" ||
+      !showPlanLinework ||
+      !lineworkUrl ||
+      !assets ||
+      planLinework
+    )
+      return;
+    let current = true;
+    setLineworkError("");
+    fetch(lineworkUrl)
+      .then((response) => {
+        if (!response.ok) throw Error("흙막이 도면선을 불러오지 못했습니다.");
+        return response.json();
+      })
+      .then((data) => preparePlanLinework(data, assets.frame))
+      .then((data) => {
+        if (current) setLinework({ url: lineworkUrl, data });
+      })
+      .catch((error) => {
+        if (current) setLineworkError(error.message);
+      });
+    return () => {
+      current = false;
+    };
+  }, [slice.axis, showPlanLinework, lineworkUrl, assets, planLinework]);
   useEffect(() => {
     if (!ref.current) return;
     const o = new ResizeObserver(() =>
@@ -34,14 +90,21 @@ export default function ModelSliceSection({
     return () => o.disconnect();
   }, []);
   const axis = slice.axis,
+    planBounds =
+      axis === "z"
+        ? planOverlayBounds(bounds, assets?.cad.boundaryEN, planLinework, {
+            boundary: showPlanBoundary,
+            linework: showPlanLinework,
+          })
+        : bounds,
     level = slice.positions[axis],
     horizontal = axis === "x" ? 1 : 0,
     vertical = axis === "z" ? 1 : 2,
     height = axis === "z" ? 380 : 300,
-    x0 = bounds[horizontal],
-    x1 = bounds[horizontal + 2],
-    y0 = axis === "z" ? bounds[1] : baseElevation,
-    y1 = axis === "z" ? bounds[3] : topElevation,
+    x0 = planBounds[horizontal],
+    x1 = planBounds[horizontal + 2],
+    y0 = axis === "z" ? planBounds[1] : baseElevation,
+    y1 = axis === "z" ? planBounds[3] : topElevation,
     left = width < 500 ? 56 : 70,
     right = 26,
     top = 26,
@@ -49,14 +112,17 @@ export default function ModelSliceSection({
     plotW = width - left - right,
     plotH = height - top - bottom,
     // Plan sections retain equal E/N scale; vertical sections use clearly labelled axes.
-    planScale = Math.min(plotW / (x1 - x0), plotH / (y1 - y0)),
+    plan = planProjection([x0, y0, x1, y1], {
+      left,
+      top,
+      width: plotW,
+      height: plotH,
+    }),
     x = (n: number) =>
-      axis === "z"
-        ? left + (plotW - (x1 - x0) * planScale) / 2 + (n - x0) * planScale
-        : left + ((n - x0) / (x1 - x0)) * plotW,
+      axis === "z" ? plan.x(n) : left + ((n - x0) / (x1 - x0)) * plotW,
     y = (n: number) =>
       axis === "z"
-        ? top + (plotH + (y1 - y0) * planScale) / 2 - (n - y0) * planScale
+        ? plan.y(n)
         : height - bottom - ((n - y0) / (y1 - y0)) * plotH,
     path = (ps: number[]) => {
       let d = "";
@@ -84,6 +150,55 @@ export default function ModelSliceSection({
           {axis === "z" ? "평면 · 동일 축척" : "단면 · 표고 기준"}
         </span>
       </div>
+      {axis === "z" && (
+        <div
+          className="real-slice-options real-plan-overlays"
+          role="group"
+          aria-label="평면도 도면 중첩"
+        >
+          <label>
+            <input
+              type="checkbox"
+              checked={showPlanBoundary}
+              disabled={disabled || !assets}
+              onChange={(event) =>
+                onPlanOverlayChange("boundary", event.target.checked)
+              }
+            />
+            <span
+              className="real-plan-key real-plan-key-boundary"
+              aria-hidden="true"
+            />
+            도면경계
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={showPlanLinework}
+              disabled={disabled || !lineworkUrl}
+              onChange={(event) =>
+                onPlanOverlayChange("linework", event.target.checked)
+              }
+            />
+            <span
+              className="real-plan-key real-plan-key-linework"
+              aria-hidden="true"
+            />
+            흙막이 도면선
+          </label>
+        </div>
+      )}
+      {axis === "z" && showPlanLinework && (lineworkError || !planLinework) && (
+        <p
+          className={lineworkError ? "real-warning" : "real-muted"}
+          role="status"
+        >
+          {lineworkError ||
+            (lineworkUrl
+              ? "흙막이 도면선을 불러오는 중…"
+              : "흙막이 도면선 자료가 없습니다.")}
+        </p>
+      )}
       <svg
         ref={ref}
         className="real-section"
@@ -118,6 +233,38 @@ export default function ModelSliceSection({
                 aria-label={`${l.name} 절단 영역`}
               />
             ),
+        )}
+        {axis === "z" && showPlanLinework && planLinework && (
+          <g
+            aria-label="흙막이 도면선 중첩"
+            fill="none"
+            stroke="#334f6d"
+            opacity={0.82}
+            transform={`translate(${x(planLinework.originENH[0])} ${y(planLinework.originENH[1])}) scale(${plan.scale})`}
+          >
+            {planLinework.layers.map((layer) => (
+              <path
+                key={layer.name}
+                d={layer.path}
+                strokeWidth={layer.name === "CE-SLOP-FILL" ? 0.45 : 0.75}
+                vectorEffect="non-scaling-stroke"
+              >
+                <title>{layer.name}</title>
+              </path>
+            ))}
+          </g>
+        )}
+        {axis === "z" && showPlanBoundary && assets && (
+          <polyline
+            aria-label="도면경계 중첩"
+            points={assets.cad.boundaryEN
+              .map((p) => `${x(p[0])},${y(p[1])}`)
+              .join(" ")}
+            fill="none"
+            stroke="#a45b05"
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+          />
         )}
         {holes
           .filter(
@@ -190,6 +337,9 @@ export default function ModelSliceSection({
         {axis === "z"
           ? "원은 이 높이에서 관측된 시추공 위치입니다."
           : "막대는 단면에서 3m 이내의 관측 주상도입니다."}{" "}
+        {axis === "z" &&
+          (showPlanBoundary || showPlanLinework) &&
+          "도면은 높이와 무관한 평면 위치입니다. "}
         암반 하부는 모델 표시 하한까지의 가정입니다.
       </p>
     </section>

@@ -151,6 +151,8 @@ test("Legacy ground records restore solid display defaults without mutating sour
   assert.equal(restored.representation, "solid");
   assert.equal(restored.meshOpacity, 1);
   assert.equal(restored.cutaway, false);
+  assert.equal(restored.showPlanBoundary, true);
+  assert.equal(restored.showPlanLinework, true);
   assert.deepEqual(restored.solidVisible, [true, true, true]);
   assert.equal(JSON.stringify(payload), before);
   restored.solidVisible[0] = false;
@@ -168,18 +170,24 @@ test("Solid and surface display settings survive JSON round trips including opac
       meshOpacity: 0.4,
       cutaway: true,
       solidVisible: [true, false, true],
+      showPlanBoundary: false,
+      showPlanLinework: true,
     },
     {
       representation: "surfaces",
       meshOpacity: 0.73,
       cutaway: false,
       solidVisible: [false, true, false],
+      showPlanBoundary: true,
+      showPlanLinework: false,
     },
     {
       representation: "solid",
       meshOpacity: 1,
       cutaway: true,
       solidVisible: [false, false, false],
+      showPlanBoundary: false,
+      showPlanLinework: false,
     },
   ]) {
     const payload = JSON.parse(JSON.stringify(savedGround(settings)));
@@ -210,6 +218,8 @@ test("Ground display restoration rejects malformed representations, opacity, cut
     { solidVisible: [true, null, false] },
     { solidVisible: "true,true,true" },
     { solidVisible: new Array(3) },
+    { showPlanBoundary: "false" },
+    { showPlanLinework: null },
   ];
   for (const settings of invalid) {
     const payload = savedGround(settings);

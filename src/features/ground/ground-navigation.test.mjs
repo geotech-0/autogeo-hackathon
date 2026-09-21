@@ -81,6 +81,92 @@ const initial = {
   registration: { east: 0, north: 0, rotation: 0, scale: 1, height: 0 },
 };
 
+test("Z drawing options keep independent map settings and survive both draft and saved-view restoration", async () => {
+  const originalFetch = globalThis.fetch;
+  const cad = JSON.parse(
+    await readFile(
+      new URL("../../../public/data/ground/cad-linework.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  globalThis.fetch = async (url) => ({
+    ok: true,
+    json: async () => (String(url).endsWith("site-assets.json") ? assets : cad),
+  });
+  await writeDraft("real-ground-view-v2", {
+    ...initial,
+    tab: "model",
+    slice: { ...initial.slice, axis: "z" },
+  });
+  const records = [];
+  const props = {
+    records,
+    notify() {},
+    onSave: async (value) => {
+      const saved = await saveRecord(value);
+      records.splice(0, records.length, saved);
+      return saved;
+    },
+  };
+  const checkbox = (r, label) =>
+    r.root
+      .findAllByType("label")
+      .find((n) => textOf(n) === label)
+      .findByType("input");
+  let r;
+  const render = async () => {
+    await act(async () => {
+      r = create(React.createElement(RealGroundPage, props));
+    });
+    await act(settle);
+  };
+  try {
+    await render();
+    assert.equal(
+      checkbox(r, "도면경계").props.checked,
+      true,
+      "old drafts gain a compatible default",
+    );
+    assert.equal(checkbox(r, "흙막이 도면선").props.checked, true);
+    await act(async () =>
+      checkbox(r, "도면경계").props.onChange({ target: { checked: false } }),
+    );
+    await act(async () =>
+      checkbox(r, "흙막이 도면선").props.onChange({
+        target: { checked: false },
+      }),
+    );
+    await act(async () => r.unmount());
+    await act(settle);
+    await render();
+    assert.equal(checkbox(r, "도면경계").props.checked, false);
+    assert.equal(checkbox(r, "흙막이 도면선").props.checked, false);
+    await click(r, "검토 저장");
+    assert.equal(records[0].payload.view.showPlanBoundary, false);
+    assert.equal(records[0].payload.view.showPlanLinework, false);
+    assert.equal(
+      records[0].payload.view.showCAD,
+      true,
+      "plan options must not alter map overlays",
+    );
+    assert.equal(records[0].payload.view.showCADLinework, false);
+    await act(async () =>
+      checkbox(r, "도면경계").props.onChange({ target: { checked: true } }),
+    );
+    await act(async () =>
+      checkbox(r, "흙막이 도면선").props.onChange({
+        target: { checked: true },
+      }),
+    );
+    await click(r, "불러오기");
+    assert.equal(checkbox(r, "도면경계").props.checked, false);
+    assert.equal(checkbox(r, "흙막이 도면선").props.checked, false);
+  } finally {
+    if (r) await act(async () => r.unmount());
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("Cross-campaign map selection preserves the active model, explicit model navigation follows the selected hole, and saved views recover pending input", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url) => ({

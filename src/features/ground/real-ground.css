@@ -589,6 +589,18 @@
 .real-slice-panel {
   margin-bottom: 20px;
 }
+.real-plan-overlays {
+  margin: 12px 0 6px;
+  color: #334f6d;
+}
+.real-plan-key {
+  display: inline-block;
+  width: 18px;
+  border-top: 2px solid #334f6d;
+}
+.real-plan-key-boundary {
+  border-color: #a45b05;
+}
 @media (max-width: 600px) {
   .real-slicer {
     padding: 15px;

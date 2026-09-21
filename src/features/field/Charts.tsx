@@ -28,18 +28,20 @@ export function PlateChart({
   limit,
   selected,
   onSelect,
+  axisPosition = "bottom",
 }: {
   rows: PlatePoint[];
   limit: number | null;
   selected: number;
   onSelect: (row: number) => void;
+  axisPosition?: "top" | "bottom";
 }) {
   const { ref, width } = useWidth();
-  const height = 340;
+  const height = axisPosition === "top" ? 356 : 340;
   const left = 56,
     right = width - 22,
-    top = 32,
-    bottom = height - 50;
+    top = axisPosition === "top" ? 80 : 32,
+    bottom = axisPosition === "top" ? height - 18 : height - 50;
   const points = rows.filter(
     (r) => !r.problems.length && r.pressure !== null && r.settlement !== null,
   );
@@ -85,36 +87,44 @@ export function PlateChart({
             </g>
           );
         })}
-        {Array.from({ length: 5 }, (_, i) => {
-          const v = (maxX * i) / 4;
-          return (
-            <g key={`x${i}`}>
-              <line
-                x1={x(v)}
-                x2={x(v)}
-                y1={top}
-                y2={bottom}
-                className="field-gridline field-gridline-vertical"
-              />
-              <text
-                x={x(v)}
-                y={bottom + 22}
-                textAnchor="middle"
-                className="field-axis-label"
-              >
-                {Math.round(v)}
-              </text>
-            </g>
-          );
-        })}
-        <text
-          x={(left + right) / 2}
-          y={height - 6}
-          textAnchor="middle"
-          className="field-axis-title"
-        >
-          재하 압력 (kPa)
-        </text>
+        <g className="field-x-axis">
+          {Array.from({ length: 5 }, (_, i) => {
+            const v = (maxX * i) / 4;
+            return (
+              <g key={`x${i}`}>
+                <line
+                  x1={x(v)}
+                  x2={x(v)}
+                  y1={top}
+                  y2={bottom}
+                  className="field-gridline field-gridline-vertical"
+                />
+                <text
+                  x={x(v)}
+                  y={axisPosition === "top" ? 62 : bottom + 22}
+                  textAnchor={
+                    axisPosition === "top" && i === 0
+                      ? "start"
+                      : axisPosition === "top" && i === 4
+                        ? "end"
+                        : "middle"
+                  }
+                  className="field-axis-label"
+                >
+                  {Math.round(v)}
+                </text>
+              </g>
+            );
+          })}
+          <text
+            x={(left + right) / 2}
+            y={axisPosition === "top" ? 40 : height - 6}
+            textAnchor="middle"
+            className="field-axis-title"
+          >
+            재하 압력 (kPa)
+          </text>
+        </g>
         {limit !== null && limit > 0 && (
           <g>
             <line

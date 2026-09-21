@@ -93,6 +93,8 @@ type GroundView = {
   showHoles: boolean;
   showCAD: boolean;
   showCADLinework: boolean;
+  showPlanBoundary: boolean;
+  showPlanLinework: boolean;
   showGCP: boolean;
   extrapolate: boolean;
   showVariance: boolean;
@@ -149,6 +151,8 @@ const initial = (): GroundView => ({
   showHoles: true,
   showCAD: true,
   showCADLinework: false,
+  showPlanBoundary: true,
+  showPlanLinework: true,
   showGCP: false,
   extrapolate: false,
   showVariance: false,
@@ -613,6 +617,8 @@ export default function RealGroundPage({
       slice,
       baseElevation: v.baseElevation ?? null,
       cameraView,
+      showPlanBoundary: v.showPlanBoundary ?? true,
+      showPlanLinework: v.showPlanLinework ?? true,
       recordId: undefined,
     },
     registration: {
@@ -1369,6 +1375,18 @@ export default function RealGroundPage({
                 topElevation={topElevation}
                 holes={modelHoles}
                 linked={v.mode === "ground" && slice.enabled}
+                assets={assets}
+                showPlanBoundary={v.showPlanBoundary ?? true}
+                showPlanLinework={v.showPlanLinework ?? true}
+                onPlanOverlayChange={(key, checked) =>
+                  set(
+                    key === "boundary"
+                      ? "showPlanBoundary"
+                      : "showPlanLinework",
+                    checked,
+                  )
+                }
+                disabled={!ready || busy}
               />
             ) : (
               <>

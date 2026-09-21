@@ -14,6 +14,7 @@ import {
 } from "./real-engine.mjs";
 import { useDraft } from "../../storage/useDraft";
 import RealChart from "./RealChart";
+import MonitoringPlan from "./MonitoringPlan";
 import { useRequestedRecord } from "./useRequestedRecord";
 import { siteDate } from "../../utils/site-date.mjs";
 import {
@@ -500,6 +501,7 @@ export default function RealMonitoring(props: FeatureProps) {
           className="rf-monitor-main"
           aria-label={`${sensor.id} ${sensor.label} 검토`}
         >
+          <MonitoringPlan sensorId={sensor.id} sensorLabel={sensor.label} />
           <section className="rf-card">
             <div className="rf-heading">
               <div>
@@ -508,7 +510,7 @@ export default function RealMonitoring(props: FeatureProps) {
                   {sensor.id} <span>{sensor.label}</span>
                 </h2>
                 <p>
-                  {sensor.location || "설치 단면 원문 확인 필요"} · 좌표 미등록
+                  {sensor.location || "설치 단면 원문 확인 필요"} · 측량 좌표 미등록
                 </p>
               </div>
               <span
