@@ -1,3 +1,4 @@
+import { siteDate } from "../../utils/site-date.mjs";
 import { useEffect, useState } from "react";
 import { useRequestedRecord } from "./useRequestedRecord";
 import type { FeatureProps, ProjectRecord } from "../../contracts";
@@ -19,7 +20,7 @@ export default function IssueTracker({
     setSelected(r.id),
   );
   const [event, setEvent] = useState({
-    date: new Date().toISOString().slice(0, 10),
+    date: siteDate(),
     author: "",
     note: "",
     resolved: false,

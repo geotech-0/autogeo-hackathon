@@ -1,3 +1,4 @@
+import { siteDate } from "../../utils/site-date.mjs";
 import { useEffect, useState } from "react";
 import { MapPin, Save, Upload } from "lucide-react";
 import type { FeatureProps } from "../../contracts";
@@ -120,7 +121,7 @@ export default function ImageComparison(props: FeatureProps) {
                 history: [
                   {
                     stage: "identified",
-                    date: new Date().toISOString().slice(0, 10),
+                    date: siteDate(),
                     author: draft.author,
                     note: draft.note,
                   },

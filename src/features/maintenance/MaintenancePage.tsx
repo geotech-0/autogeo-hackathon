@@ -1,3 +1,4 @@
+import { siteDate } from "../../utils/site-date.mjs";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Radar,
@@ -43,7 +44,7 @@ const PdfDocument = lazy(() => import("../../components/PdfDocument"));
 const initial: Draft = {
   recordId: null,
   model: structuredClone(EMPTY_GPR),
-  event: { date: new Date().toISOString().slice(0, 10), author: "", note: "" },
+  event: { date: siteDate(), author: "", note: "" },
   editing: false,
 };
 export default function MaintenancePage(props: FeatureProps) {

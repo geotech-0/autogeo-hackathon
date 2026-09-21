@@ -1,17 +1,30 @@
 import { useMemo, useState } from "react";
 import { ExternalLink, Save, AlertTriangle, Upload } from "lucide-react";
-import type { FeatureProps, RecordStatus } from "../../contracts";
-import { STATUS_LABELS } from "../../contracts";
+import type {
+  FeatureProps,
+  RecordStatus,
+  ProjectRecord,
+} from "../../contracts";
+import { STATUS_LABELS, SITE } from "../../contracts";
 import data from "../../data/real-field/monitoring.json";
 import {
   evaluateSensor,
   monitoringMetric,
-  parseAdditionalReadings,
   monitoringProvenance,
 } from "./real-engine.mjs";
 import { useDraft } from "../../storage/useDraft";
 import RealChart from "./RealChart";
 import { useRequestedRecord } from "./useRequestedRecord";
+import { siteDate } from "../../utils/site-date.mjs";
+import {
+  ADDITIONAL_DIRECTIONS,
+  ADDITIONAL_MONITORING_METHOD,
+  emptyAdditionalCriterion,
+  evaluateAdditionalMonitoring,
+  restoreAdditionalImport,
+  additionalReviewPayload,
+  additionalIssuePayload,
+} from "./additional-monitoring.mjs";
 type Reading = {
   date: string;
   value: number;
@@ -43,16 +56,32 @@ type Sensor = {
 const sensors = data.sensors as unknown as Sensor[];
 const f = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("ko-KR", { maximumFractionDigits: 3 });
+const emptyAdditionalDraft = () => ({
+  importRecordId: "",
+  importIssueId: "",
+  importCsv: "date,value\n",
+  importSource: "",
+  importLocation: "",
+  importCriterion: emptyAdditionalCriterion(),
+  manualDate: "",
+  manualValue: "",
+});
+type AdditionalDraft = ReturnType<typeof emptyAdditionalDraft>;
+const additionalSnapshot = (draft: Partial<AdditionalDraft>): AdditionalDraft =>
+  Object.fromEntries(
+    Object.entries(emptyAdditionalDraft()).map(([key, fallback]) => [
+      key,
+      draft[key as keyof AdditionalDraft] ?? fallback,
+    ]),
+  ) as AdditionalDraft;
 export default function RealMonitoring(props: FeatureProps) {
   const [draft, setDraft, state] = useDraft("real-monitoring-v1", {
     recordId: "",
     sensor: "F-2",
     month: "all",
     metric: "delta",
-    importCsv: "date,value\n",
-    importSource: "",
-    manualDate: "",
-    manualValue: "",
+    ...emptyAdditionalDraft(),
+    additionalBySensor: {} as Record<string, AdditionalDraft>,
     note: "",
     author: "",
   });
@@ -66,24 +95,42 @@ export default function RealMonitoring(props: FeatureProps) {
         r.payload.kind !== "monitoring_import"
       )
         return;
+      const sensorId = String(r.payload.sensorId || r.asset_id || "F-2");
+      if (!sensors.some((s) => s.id === sensorId)) {
+        props.notify("이 기록의 계측기를 찾을 수 없습니다.", "error");
+        return;
+      }
       setDraft((d) => ({
         ...d,
+        additionalBySensor: {
+          ...d.additionalBySensor,
+          [d.sensor]: additionalSnapshot(d),
+        },
+        ...emptyAdditionalDraft(),
         recordId: r.payload.kind === "real_monitoring_review" ? r.id : "",
-        sensor: String(r.payload.sensorId || r.asset_id || "F-2"),
+        sensor: sensorId,
         month: String(r.payload.period || "all"),
         metric: "delta",
         ...(r.payload.kind === "monitoring_import"
           ? {
-              importCsv: String(r.payload.rawCsv || "date,value\n"),
-              importSource: String(r.payload.source || ""),
+              ...restoreAdditionalImport(r.payload),
+              importRecordId: r.id,
+              importIssueId:
+                props.records.find(
+                  (item) =>
+                    item.payload.kind === "real_field_issue" &&
+                    item.payload.monitoringReviewId === r.id,
+                )?.id || "",
             }
           : {}),
       }));
+      if (r.payload.kind === "monitoring_import") setAdditionalOpen(true);
     },
   );
   const [selectedRow, setSelectedRow] = useState<number | null>(null),
     [saving, setSaving] = useState(false),
-    [showAll, setShowAll] = useState(false);
+    [showAll, setShowAll] = useState(false),
+    [additionalOpen, setAdditionalOpen] = useState(false);
   const sensor = sensors.find((s) => s.id === draft.sensor) || sensors[0];
   const rows = useMemo(
     () =>
@@ -106,20 +153,76 @@ export default function RealMonitoring(props: FeatureProps) {
             : sensor.unit
         : sensor.unit;
   const selected = selectedRow === null ? last : rows[selectedRow] || last;
-  const csv = parseAdditionalReadings(draft.importCsv);
+  const importCriterion = draft.importCriterion ?? emptyAdditionalCriterion();
+  const csv = evaluateAdditionalMonitoring(draft.importCsv, importCriterion);
+  const linkedIssue = props.records.find(
+    (r) =>
+      r.payload.kind === "real_field_issue" &&
+      (r.id === draft.importIssueId ||
+        (draft.importRecordId &&
+          r.payload.monitoringReviewId === draft.importRecordId)),
+  );
   const recent = props.records.filter(
     (r) => r.payload.kind === "monitoring_import" && r.asset_id === sensor.id,
   );
   const change = (key: string, value: string) => {
-    setDraft((d) => ({
-      ...d,
-      [key]: value,
-      ...(key === "sensor" ? { recordId: "", metric: "delta" } : {}),
-    }));
+    setDraft((d) => {
+      if (key === "sensor" && value !== d.sensor) {
+        const additionalBySensor = {
+          ...d.additionalBySensor,
+          [d.sensor]: additionalSnapshot(d),
+        };
+        return {
+          ...d,
+          ...additionalSnapshot(additionalBySensor[value] || {}),
+          sensor: value,
+          recordId: "",
+          metric: "delta",
+          additionalBySensor,
+        };
+      }
+      return {
+        ...d,
+        [key]: value,
+        ...(["importCsv", "importSource"].includes(key)
+          ? {
+              importCriterion: {
+                ...emptyAdditionalCriterion(),
+                ...d.importCriterion,
+                confirmed: false,
+              },
+            }
+          : {}),
+      };
+    });
     if (["sensor", "month"].includes(key)) {
       setSelectedRow(null);
       setShowAll(false);
     }
+  };
+  const changeCriterion = (key: string, value: string | boolean) =>
+    setDraft((d) => ({
+      ...d,
+      importCriterion: {
+        ...emptyAdditionalCriterion(),
+        ...d.importCriterion,
+        [key]: value,
+        confirmed: key === "confirmed" ? value === true : false,
+      },
+    }));
+  const loadImport = (r: ProjectRecord) => {
+    setDraft((d) => ({
+      ...d,
+      ...restoreAdditionalImport(r.payload),
+      importRecordId: r.id,
+      importIssueId:
+        props.records.find(
+          (item) =>
+            item.payload.kind === "real_field_issue" &&
+            item.payload.monitoringReviewId === r.id,
+        )?.id || "",
+    }));
+    setAdditionalOpen(true);
   };
   async function save(issue = false) {
     setSaving(true);
@@ -167,7 +270,7 @@ export default function RealMonitoring(props: FeatureProps) {
                 history: [
                   {
                     stage: "identified",
-                    date: new Date().toISOString().slice(0, 10),
+                    date: siteDate(),
                     author: draft.author,
                     note: draft.note,
                   },
@@ -188,40 +291,87 @@ export default function RealMonitoring(props: FeatureProps) {
       setSaving(false);
     }
   }
-  async function saveImport() {
+  async function saveImport(asIssue = false) {
     setSaving(true);
+    let reviewSaved = false;
     try {
-      if (csv.errors.length || !draft.importSource.trim())
-        throw new Error("원본 이름과 유효한 CSV를 확인해 주세요.");
-      await props.onSave({
+      const payload = additionalReviewPayload({
+        sensorId: sensor.id,
+        source: draft.importSource,
+        rawCsv: draft.importCsv,
+        criterion: importCriterion,
+        location: draft.importLocation || "",
+      });
+      if (asIssue && payload.evaluation.status !== "exceeded")
+        throw new Error(
+          "확인된 사용자 기준을 초과한 기록만 이슈로 등록할 수 있습니다.",
+        );
+      if (asIssue && draft.importIssueId && !linkedIssue)
+        throw new Error("연결된 이슈를 불러온 뒤 다시 저장해 주세요.");
+      const review = await props.onSave({
+        id: draft.importRecordId || undefined,
         stage: "construction",
+        zone_id: SITE.zone_id,
         asset_id: sensor.id,
         source_id: `manual-${sensor.id}`,
+        method_version: ADDITIONAL_MONITORING_METHOD,
         origin: "measured",
-        status: "pending",
+        status: payload.evaluation.status as RecordStatus,
         title: `${sensor.id} 추가 계측 ${csv.rows.length}행`,
-        summary: "추가 원본·측정 단위·기준 적용 검토 대기",
-        payload: {
-          kind: "monitoring_import",
-          sensorId: sensor.id,
-          unit:
-            sensor.kind === "SE"
-              ? "m"
-              : sensor.kind === "F"
-                ? "m³"
-                : sensor.unit,
-          source: draft.importSource,
-          rows: csv.rows,
-          rawCsv: draft.importCsv,
-          criteriaConfirmed: false,
-        },
+        summary: payload.criteriaConfirmed
+          ? `${payload.evaluation.exceededCount}행 기준 초과 · ${ADDITIONAL_DIRECTIONS[importCriterion.direction as keyof typeof ADDITIONAL_DIRECTIONS]} ${importCriterion.limit} ${importCriterion.unit}`
+          : "추가 측정 기록 · 사용자 기준 확인 전",
+        payload,
         assumptions: [
-          "월간보고서 원시값에 합치지 않은 추가 측정 기록입니다. 원본·단위 확인 후 별도 검토가 필요합니다.",
+          "월간보고서와 분리해 보관한 사용자 추가 계측입니다.",
+          payload.criteriaConfirmed
+            ? "사용자가 확인한 단위·방향·기준으로 입력값을 직접 비교했습니다."
+            : "단위·기준 적용을 확인하기 전에는 판정을 보류합니다.",
         ],
       });
-      props.notify("추가 기록을 판정 보류로 저장했습니다.", "success");
+      reviewSaved = true;
+      setDraft((d) => ({ ...d, importRecordId: review.id }));
+      if (asIssue) {
+        const issuePayload = additionalIssuePayload(
+          review,
+          linkedIssue?.payload,
+          siteDate(),
+        );
+        const issue = await props.onSave({
+          ...(linkedIssue || {}),
+          id: linkedIssue?.id,
+          stage: "construction",
+          zone_id: SITE.zone_id,
+          asset_id: sensor.id,
+          source_id: `manual-${sensor.id}`,
+          source_revision: String(review.revision),
+          method_version: ADDITIONAL_MONITORING_METHOD,
+          origin: "measured",
+          status:
+            issuePayload.lifecycle === "identified" ? "exceeded" : "action",
+          title: `${sensor.id} 추가계측 기준 초과`,
+          summary: `${csv.exceededCount}행 초과 · ${draft.importLocation || SITE.zone_name} · ${draft.importSource}`,
+          assumptions: review.assumptions,
+          dependencies: review.analysis_id
+            ? [{ analysis_id: review.analysis_id, revision: review.revision }]
+            : [],
+          payload: issuePayload,
+        });
+        setDraft((d) => ({ ...d, importIssueId: issue.id }));
+        props.notify(
+          "추가 계측과 초과 이슈를 저장했습니다. 조치·재점검에서 이어 기록하세요.",
+          "success",
+        );
+      } else
+        props.notify(
+          `추가 계측을 ${payload.evaluation.status === "pending" ? "보류 상태로 " : ""}${draft.importRecordId ? "개정 " : ""}저장했습니다.`,
+          "success",
+        );
     } catch (e) {
-      props.notify(e instanceof Error ? e.message : "저장 실패", "error");
+      props.notify(
+        `${asIssue && reviewSaved ? "추가 계측은 저장했습니다. 이슈 연결을 다시 시도해 주세요. " : ""}${e instanceof Error ? e.message : "저장 실패"}`,
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -239,7 +389,7 @@ export default function RealMonitoring(props: FeatureProps) {
         계측기 선택
         <select
           value={sensor.id}
-          disabled={!state.ready}
+          disabled={!state.ready || saving}
           onChange={(e) => change("sensor", e.target.value)}
         >
           {sensors.map((s) => (
@@ -264,7 +414,7 @@ export default function RealMonitoring(props: FeatureProps) {
                   const r = evaluateSensor(s);
                   return (
                     <button
-                      disabled={!state.ready}
+                      disabled={!state.ready || saving}
                       className={s.id === sensor.id ? "active" : ""}
                       onClick={() => change("sensor", s.id)}
                       key={s.id}
@@ -563,16 +713,14 @@ export default function RealMonitoring(props: FeatureProps) {
             )}
           </section>
           <section className="rf-card">
-            <details>
+            <details
+              open={additionalOpen}
+              onToggle={(e) => setAdditionalOpen(e.currentTarget.open)}
+            >
               <summary>수동 입력·CSV 추가 계측 등록</summary>
               <p className="rf-note">
-                {sensor.id} 원시 측정 단위:{" "}
-                {sensor.kind === "SE"
-                  ? "m (표고)"
-                  : sensor.kind === "F"
-                    ? "m³ (누적 계기값)"
-                    : sensor.unit}
-                . 보고서의 과거 기록과 분리하여 보존합니다.
+                {sensor.id}의 추가 측정값을 보고서 기록과 분리해 보관합니다.
+                기준을 직접 확인하면 초과 여부를 검토할 수 있습니다.
               </p>
               <div className="rf-grid3">
                 <label className="rf-label">
@@ -636,39 +784,209 @@ export default function RealMonitoring(props: FeatureProps) {
                 onChange={(e) => change("importCsv", e.target.value)}
                 rows={5}
               />
+              <details className="rf-details">
+                <summary>사용자 기준으로 비교하기</summary>
+                <p className="rf-note">
+                  입력값에 직접 적용할 단위와 기준을 지정하세요. 원문 센서
+                  기준은 자동으로 채우지 않습니다.
+                </p>
+                <div className="rf-grid3">
+                  <label className="rf-label">
+                    측정 단위
+                    <input
+                      aria-label="추가 계측 단위"
+                      value={importCriterion.unit}
+                      onChange={(e) => changeCriterion("unit", e.target.value)}
+                      placeholder="예: mm, m³/day"
+                      maxLength={40}
+                    />
+                  </label>
+                  <label className="rf-label">
+                    평가 방향
+                    <select
+                      aria-label="추가 계측 평가 방향"
+                      value={importCriterion.direction}
+                      onChange={(e) =>
+                        changeCriterion("direction", e.target.value)
+                      }
+                    >
+                      <option value="">방향 선택</option>
+                      {Object.entries(ADDITIONAL_DIRECTIONS).map(
+                        ([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+                  <label className="rf-label">
+                    기준값
+                    <input
+                      aria-label="추가 계측 기준값"
+                      type="number"
+                      step="any"
+                      value={importCriterion.limit}
+                      onChange={(e) => changeCriterion("limit", e.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="rf-grid2">
+                  <label className="rf-label">
+                    기준 이름·근거
+                    <input
+                      aria-label="추가 계측 기준 근거"
+                      value={importCriterion.evidence}
+                      onChange={(e) =>
+                        changeCriterion("evidence", e.target.value)
+                      }
+                      placeholder="적용 기준·문서·페이지"
+                    />
+                  </label>
+                  <label className="rf-label">
+                    기준 확인 담당자
+                    <input
+                      aria-label="추가 계측 기준 확인자"
+                      value={importCriterion.confirmedBy}
+                      onChange={(e) =>
+                        changeCriterion("confirmedBy", e.target.value)
+                      }
+                    />
+                  </label>
+                </div>
+                <label className="rf-label">
+                  측정 위치 (선택)
+                  <input
+                    aria-label="추가 계측 위치"
+                    value={draft.importLocation || ""}
+                    onChange={(e) => change("importLocation", e.target.value)}
+                    placeholder="구역 내 측정 위치"
+                  />
+                </label>
+                <label className="rf-label rf-resolution-confirmation">
+                  <span>
+                    <input
+                      type="checkbox"
+                      aria-label="추가 계측 기준 확인"
+                      checked={importCriterion.confirmed}
+                      onChange={(e) =>
+                        changeCriterion("confirmed", e.target.checked)
+                      }
+                    />
+                    이 측정값의 단위·평가 방향·적용 기준을 확인했습니다
+                  </span>
+                </label>
+                <p className="rf-note">
+                  기준과 같은 값은 기준 이내로 처리합니다. 입력값·출처·기준을
+                  바꾸면 다시 확인해야 합니다.
+                </p>
+              </details>
               {csv.errors.map((e) => (
                 <p className="rf-error" key={e}>
                   {e}
                 </p>
               ))}
               {csv.rows.length > 0 && (
-                <RealChart
-                  points={csv.rows.map((r) => ({
-                    x: Date.parse(r.date),
-                    y: r.value,
-                    label: r.date,
-                    detail: "추가 입력 · 단위 확인 대기",
-                  }))}
-                  xLabel="측정 날짜"
-                  yLabel={
-                    sensor.kind === "SE"
-                      ? "m"
-                      : sensor.kind === "F"
-                        ? "m³"
-                        : sensor.unit
-                  }
-                />
+                <>
+                  <div className="rf-heading">
+                    <h3>
+                      추가 {csv.rows.length}행 ·{" "}
+                      {csv.status === "pending"
+                        ? "기준 확인 전"
+                        : csv.status === "error"
+                          ? "입력 확인 필요"
+                          : `${csv.exceededCount}행 기준 초과`}
+                    </h3>
+                    <span
+                      className={`badge badge-${csv.status === "pass" ? "success" : csv.status === "exceeded" ? "danger" : "warning"}`}
+                    >
+                      {STATUS_LABELS[csv.status as RecordStatus]}
+                    </span>
+                  </div>
+                  <RealChart
+                    points={csv.rows.map((r) => ({
+                      x: Date.parse(r.date),
+                      y: r.comparedValue ?? r.value,
+                      label: r.date,
+                      detail:
+                        csv.status === "pending"
+                          ? "추가 입력 · 기준 확인 전"
+                          : csv.status === "error"
+                            ? "추가 입력 · 오류 확인 필요"
+                            : `원시값 ${f(r.value)} · ${r.exceeded ? "기준 초과" : "기준 이내"}`,
+                    }))}
+                    xLabel="측정 날짜"
+                    yLabel={`${importCriterion.direction === "absolute" && csv.limit !== null ? "절댓값 · " : ""}${importCriterion.unit || "단위 확인 전"}`}
+                    thresholds={csv.limit === null ? [] : [csv.limit]}
+                    thresholdLabels={["입력 기준"]}
+                  />
+                  {csv.exceededCount > 0 && (
+                    <p className="rf-note">
+                      초과일:{" "}
+                      {csv.rows
+                        .filter((r) => r.exceeded)
+                        .map((r) => r.date)
+                        .join(", ")}
+                    </p>
+                  )}
+                </>
               )}
-              <button
-                className="btn btn-primary"
-                disabled={saving || csv.errors.length > 0 || !state.ready}
-                onClick={saveImport}
-              >
-                추가 {csv.rows.length}행 보류 저장
-              </button>
+              <div className="rf-controls">
+                <button
+                  className="btn btn-primary"
+                  disabled={
+                    saving ||
+                    csv.errors.length > 0 ||
+                    !draft.importSource.trim() ||
+                    !state.ready
+                  }
+                  onClick={() => saveImport()}
+                >
+                  {draft.importRecordId
+                    ? "추가 계측 개정 저장"
+                    : csv.status === "pending"
+                      ? `추가 ${csv.rows.length}행 보류 저장`
+                      : "추가 계측 검토 저장"}
+                </button>
+                {csv.status === "exceeded" && (
+                  <button
+                    className="btn btn-secondary"
+                    disabled={
+                      saving || !draft.importSource.trim() || !state.ready
+                    }
+                    onClick={() => saveImport(true)}
+                  >
+                    {linkedIssue
+                      ? "초과 이슈에 개정 연결"
+                      : "초과 → 구역 이슈 등록"}
+                  </button>
+                )}
+                {draft.importRecordId && (
+                  <button
+                    className="btn btn-ghost"
+                    disabled={saving}
+                    onClick={() =>
+                      setDraft((d) => ({ ...d, ...emptyAdditionalDraft() }))
+                    }
+                  >
+                    새 추가 계측
+                  </button>
+                )}
+              </div>
+              {(linkedIssue || draft.importIssueId) && (
+                <p className="rf-note">
+                  연결된 초과 이슈는 상단 ‘조치·재점검’에서 이어 확인하세요.
+                </p>
+              )}
               {recent.map((r) => (
                 <div className="rf-note" key={r.id}>
-                  {r.title} · {String(r.payload.source)} · r{r.revision}
+                  <button
+                    className="btn btn-ghost"
+                    disabled={saving}
+                    onClick={() => loadImport(r)}
+                  >
+                    {r.title} · r{r.revision} 불러오기
+                  </button>
                 </div>
               ))}
             </details>

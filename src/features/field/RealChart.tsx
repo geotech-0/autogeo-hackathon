@@ -10,6 +10,7 @@ export default function RealChart({
   xLabel,
   yLabel,
   thresholds = [],
+  thresholdLabels = [],
   onPoint,
   invertY = false,
 }: {
@@ -17,6 +18,7 @@ export default function RealChart({
   xLabel: string;
   yLabel: string;
   thresholds?: number[];
+  thresholdLabels?: string[];
   onPoint?: (index: number) => void;
   invertY?: boolean;
 }) {
@@ -86,7 +88,7 @@ export default function RealChart({
               strokeDasharray="6 4"
             />
             <text x={right - 2} y={sy(t) - 5} textAnchor="end" fill="#a36518">
-              {i + 1}차 {t.toFixed(2)}
+              {thresholdLabels[i] || `${i + 1}차`} {t.toFixed(2)}
             </text>
           </g>
         ))}
