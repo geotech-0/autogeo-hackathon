@@ -7,6 +7,7 @@ import {
   dcptEstimate,
   stageEndpoints,
   nextIssue,
+  monitoringProvenance,
 } from "./real-engine.mjs";
 const monitoring = JSON.parse(
   fs.readFileSync(
@@ -134,4 +135,90 @@ test("issue actions require chronological evidence and persist prior observation
   });
   assert.equal(next.lifecycle, "action");
   assert.equal(next.history[0].note, "원문 차이");
+});
+test("unresolved reinspections remain actionable and only explicit resolution can close, with prior history preserved", () => {
+  const initial = {
+    lifecycle: "action",
+    history: [
+      {
+        stage: "action",
+        date: "2024-03-20",
+        author: "담당",
+        note: "원인 점검",
+      },
+    ],
+  };
+  const event = {
+    date: "2024-03-21",
+    author: "담당",
+    note: "이상 지속, 미해결",
+  };
+  const checked = nextIssue(initial, event, "reinspection");
+  assert.equal(checked.lifecycle, "reinspection");
+  assert.throws(() => nextIssue(checked, event, "closed"), /해결/);
+  const followed = nextIssue(
+    checked,
+    { ...event, note: "후속 조치" },
+    "action",
+  );
+  const checkedAgain = nextIssue(
+    followed,
+    { ...event, note: "재점검 완료" },
+    "reinspection",
+  );
+  assert.throws(
+    () =>
+      nextIssue(
+        checkedAgain,
+        { ...event, date: "2024-02-30", resolved: true },
+        "closed",
+      ),
+    /날짜/,
+  );
+  const closed = nextIssue(
+    checkedAgain,
+    { ...event, note: "해결 근거 확인", resolved: true },
+    "closed",
+  );
+  assert.equal(closed.lifecycle, "closed");
+  assert.equal(closed.history.at(-1).resolved, true);
+  const reopened = nextIssue(
+    closed,
+    { ...event, note: "추가 확인 필요" },
+    "action",
+  );
+  assert.equal(reopened.lifecycle, "action");
+  assert.deepEqual(reopened.history.slice(0, -1), closed.history);
+  assert.deepEqual(initial.history, [
+    { stage: "action", date: "2024-03-20", author: "담당", note: "원인 점검" },
+  ]);
+  assert.throws(
+    () => nextIssue(initial, { ...event, resolved: true }, "closed"),
+    /단계/,
+  );
+});
+test("monitoring provenance uses actual row reports, not selected month as a guessed PDF", () => {
+  const s = monitoring.sensors.find((s) => s.id === "W-2");
+  const january = monitoringProvenance(
+    s.rows.filter((r) => r.date.startsWith("2024-01")),
+    "2024-01",
+    monitoring.reports,
+  );
+  assert.equal(january.source_revision, "2024-01, 2024-02");
+  assert.equal(january.measurementPeriod.selected, "2024-01");
+  assert.deepEqual(
+    january.sourceReports.map((r) => r.id),
+    ["monitoring-01", "monitoring-02"],
+  );
+  assert.deepEqual(
+    january.sourceReports.map((r) => r.referencedPages),
+    [[64], [64]],
+  );
+  const all = monitoringProvenance(s.rows, "all", monitoring.reports);
+  assert.deepEqual(
+    all.sourceReports.map((r) => r.id),
+    ["monitoring-01", "monitoring-02", "monitoring-03"],
+  );
+  assert.equal(all.measurementPeriod.from, "2023-12-19");
+  assert.equal(all.measurementPeriod.to, "2024-03-29");
 });

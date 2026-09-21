@@ -2,7 +2,11 @@ import { useState } from "react";
 import { ExternalLink, Save, AlertTriangle } from "lucide-react";
 import type { FeatureProps } from "../../contracts";
 import data from "../../data/real-field/quality.json";
-import { dcptEstimate, stageEndpoints } from "./real-engine.mjs";
+import {
+  dcptEstimate,
+  dcptReviewCalculation,
+  stageEndpoints,
+} from "./real-engine.mjs";
 import RealChart from "./RealChart";
 import { useRequestedRecord } from "./useRequestedRecord";
 import { useDraft } from "../../storage/useDraft";
@@ -45,6 +49,9 @@ export default function QualityReview(props: FeatureProps) {
         description?: string;
         limitMm?: number;
       } | null;
+      const calculation = r.payload.dcptCalculation as
+        | { penetrationCmPerBlow?: number }
+        | undefined;
       setDraft((d) => ({
         ...d,
         recordId: r.id,
@@ -52,6 +59,10 @@ export default function QualityReview(props: FeatureProps) {
         view: "ps",
         criterion: c?.description || "",
         limit: c?.limitMm === undefined ? "" : String(c.limitMm),
+        penetration:
+          calculation?.penetrationCmPerBlow === undefined
+            ? ""
+            : String(calculation.penetrationCmPerBlow),
       }));
     },
   );
@@ -128,6 +139,9 @@ export default function QualityReview(props: FeatureProps) {
     try {
       if (issue && (!draft.note.trim() || !draft.author.trim()))
         throw new Error("담당자와 이슈 내용을 입력해 주세요.");
+      const calculation = isDcpt
+        ? dcptReviewCalculation(draft.penetration)
+        : null;
       await props.onSave({
         id: !issue && draft.recordId ? draft.recordId : undefined,
         stage: "construction",
@@ -159,6 +173,7 @@ export default function QualityReview(props: FeatureProps) {
             data.sources.find((s) => s.id === id),
           ),
           rows,
+          ...(calculation ? { dcptCalculation: calculation } : {}),
           criterion: criterionValid
             ? { description: draft.criterion, limitMm: Number(draft.limit) }
             : null,

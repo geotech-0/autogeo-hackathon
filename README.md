@@ -4,7 +4,7 @@
 
 ## 현재 릴리스 상태
 
-실자료 통합 및 검증 중입니다. 기존 [Vercel 공개 주소](https://autogeo-hackathon.vercel.app/)와 [GitHub 저장소](https://github.com/geotech-0/autogeo-hackathon)는 이전 합성판이며, 현재 로컬 작업본과 구분해야 합니다. 실제 원문·좌표·영상의 외부 공개 범위를 확정한 뒤 검증한 소스와 배포물을 함께 갱신합니다.
+실자료 통합과 최종 검수에서 확인한 저장·출처·이슈 마감 흐름 보완을 완료했습니다. 기존 [Vercel 공개 주소](https://autogeo-hackathon.vercel.app/)와 [GitHub 저장소](https://github.com/geotech-0/autogeo-hackathon)는 이전 합성판이며, 현재 로컬 작업본과 구분해야 합니다. 실제 수치·좌표·영상의 공개 범위에 맞춰 검증한 소스와 배포물을 함께 갱신합니다.
 
 ## 대표 흐름
 
@@ -29,7 +29,13 @@ npm run build
 npm run preview
 ```
 
-Vite/React/TypeScript 정적 앱이며 API 키·상용 해석기·서버 설치가 필요하지 않습니다. Vercel build command는 `npm run build`, output은 `dist`입니다. SPA 새로고침은 `vercel.json`으로 처리합니다. 배포 소스는 `/version.json`과 HTML `autogeo-build` 메타데이터로 확인합니다.
+Vite/React/TypeScript 정적 앱이며 API 키·상용 해석기·서버 설치가 필요하지 않습니다. 위 `npm run build`는 로컬 원문을 포함할 수 있는 작업본 빌드입니다. 공개용 빌드는 다음 명령으로 만듭니다.
+
+```sh
+node scripts/build-derived.mjs
+```
+
+Vercel build command도 `node scripts/build-derived.mjs`이며 output은 `dist`입니다. 이 명령은 실제 전사 수치·정사영상·공간자료를 유지하고 생성된 출력에서 제공 원문 PDF·주상도 이미지·품질 원본을 제외합니다. 로컬 원본은 보존합니다. SPA 새로고침은 `vercel.json`으로 처리합니다. 배포 소스는 `/version.json`과 HTML `autogeo-build` 메타데이터로 확인합니다.
 
 ## 제공 자료와 구현
 

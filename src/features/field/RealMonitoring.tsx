@@ -7,6 +7,7 @@ import {
   evaluateSensor,
   monitoringMetric,
   parseAdditionalReadings,
+  monitoringProvenance,
 } from "./real-engine.mjs";
 import { useDraft } from "../../storage/useDraft";
 import RealChart from "./RealChart";
@@ -92,6 +93,7 @@ export default function RealMonitoring(props: FeatureProps) {
     [sensor, draft.month],
   );
   const result = evaluateSensor(sensor, rows);
+  const provenance = monitoringProvenance(rows, draft.month, data.reports);
   const last = rows.at(-1);
   const metricUnit =
     draft.metric === "rate"
@@ -122,14 +124,18 @@ export default function RealMonitoring(props: FeatureProps) {
   async function save(issue = false) {
     setSaving(true);
     try {
+      if (!rows.length)
+        throw new Error(
+          "선택한 기간에 측정 기록이 없습니다. 측정 기간을 변경해 주세요.",
+        );
       if (issue && (!draft.note.trim() || !draft.author.trim()))
         throw new Error("이슈 내용과 담당자를 입력해 주세요.");
       await props.onSave({
         id: !issue && draft.recordId ? draft.recordId : undefined,
         stage: "construction",
         asset_id: sensor.id,
-        source_id: "monitoring-03",
-        source_revision: "2024-03",
+        source_id: provenance.source_id,
+        source_revision: provenance.source_revision,
         origin: "measured",
         status: issue ? "pending" : (result.status as RecordStatus),
         title: `${sensor.id} ${issue ? "계측 검토 이슈" : sensor.label + " 검토"}`,
@@ -147,6 +153,8 @@ export default function RealMonitoring(props: FeatureProps) {
           kind: issue ? "real_field_issue" : "real_monitoring_review",
           sensorId: sensor.id,
           period: draft.month,
+          sourceReports: provenance.sourceReports,
+          measurementPeriod: provenance.measurementPeriod,
           sourceRows: rows,
           criteria: sensor.criteria,
           result,
@@ -316,14 +324,16 @@ export default function RealMonitoring(props: FeatureProps) {
                   )}
                 </select>
               </label>
-              <a
-                className="btn btn-secondary"
-                href={sensor.sources.at(-1)?.url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <ExternalLink size={15} /> 원문 표
-              </a>
+              {selected && (
+                <a
+                  className="btn btn-secondary"
+                  href={selected.source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink size={15} /> 원문 표
+                </a>
+              )}
               <button
                 className="btn btn-primary"
                 disabled={saving || !state.ready}

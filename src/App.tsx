@@ -588,7 +588,7 @@ export default function App() {
                   <div className="panel-header">
                     <div>
                       <div className="eyebrow">REVIEW FOCUS</div>
-                      <h2>지금 확인할 항목</h2>
+                      <h2>저장한 검토의 후속 확인</h2>
                     </div>
                     <span className="count-pill">
                       {
@@ -601,7 +601,9 @@ export default function App() {
                     </span>
                   </div>
                   <p className="muted focus-description">
-                    자료의 근거를 확인하고 검토 결과를 남겨주세요.
+                    건수는 저장한 검토 중 후속 확인이 필요한 기록을 뜻합니다.
+                    아직 저장하지 않은 원자료의 확인 사항은 각 업무에서
+                    살펴보세요.
                   </p>
                   <div className="focus-list">
                     {!records.some((r) =>
@@ -722,7 +724,7 @@ export default function App() {
                       n: "04",
                       title: "유지관리",
                       sub: "조치와 재점검을 이어가다",
-                      body: "GPR 해석 · 조치 기록 · 재점검",
+                      body: "GPR 조사 기록 · 조치 · 재점검",
                       icon: ShieldCheck,
                     },
                   ].map((x) => (

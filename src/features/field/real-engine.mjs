@@ -91,16 +91,66 @@ export function dcptEstimate(cmPerBlow) {
   if (!Number.isFinite(x) || x <= 0)
     throw new Error("관입량은 0보다 커야 합니다.");
   const n = 30 / x;
-  return { ndcpt: n, nspt: 1.26 * n, qa: 12.5 * 1.26 * n };
+  const result = { ndcpt: n, nspt: 1.26 * n, qa: 12.5 * 1.26 * n };
+  if (!Object.values(result).every(Number.isFinite))
+    throw new Error("관입량으로 계산할 수 있는 유한한 범위를 확인해 주세요.");
+  return result;
 }
-export function nextIssue(issue, event) {
-  const stages = ["identified", "action", "reinspection"];
-  const at = stages.indexOf(issue.lifecycle);
-  if (at < 0 || at === 2) throw new Error("추가 전이가 없습니다.");
+export function dcptReviewCalculation(cmPerBlow) {
+  return {
+    penetrationCmPerBlow: Number(cmPerBlow),
+    results: dcptEstimate(cmPerBlow),
+    method: "N_DCPT=30/x; N_SPT=1.26*N_DCPT; qa=12.5*N_SPT",
+    resultUnits: { ndcpt: "회/30cm", nspt: "회/30cm", qa: "kPa" },
+    applicability: "reference_only",
+  };
+}
+export function monitoringProvenance(rows, period, reports) {
+  const ids = [...new Set(rows.map((r) => r.source.report))].sort();
+  const sources = ids.map((id) => ({
+    ...reports.find((report) => report.id === id),
+    id,
+    referencedPages: [
+      ...new Set(
+        rows.filter((r) => r.source.report === id).map((r) => r.source.page),
+      ),
+    ].sort((a, b) => a - b),
+  }));
+  return {
+    source_id: ids.join(" + ") || "monitoring-no-readings",
+    source_revision:
+      sources
+        .map((source) => source.month)
+        .filter(Boolean)
+        .join(", ") || "no-readings",
+    sourceReports: sources,
+    measurementPeriod: {
+      selected: period,
+      from: rows[0]?.date || null,
+      to: rows.at(-1)?.date || null,
+    },
+  };
+}
+export function nextIssue(
+  issue,
+  event,
+  target = issue.lifecycle === "identified" ? "action" : "reinspection",
+) {
+  const allowed = {
+    identified: ["action"],
+    action: ["reinspection"],
+    reinspection: ["action", "reinspection", "closed"],
+    closed: ["action"],
+  };
+  if (!allowed[issue.lifecycle]?.includes(target))
+    throw new Error("허용되지 않은 이력 단계입니다.");
+  if (target === "closed" && event.resolved !== true)
+    throw new Error("재점검 후 문제 해결을 확인해야 마감할 수 있습니다.");
   if (!event.note.trim() || !event.author.trim())
     throw new Error("담당자와 수행 내용을 입력해 주세요.");
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(event.date) ||
+    !Number.isFinite(Date.parse(`${event.date}T00:00:00Z`)) ||
     new Date(`${event.date}T00:00:00Z`).toISOString().slice(0, 10) !==
       event.date
   )
@@ -109,7 +159,16 @@ export function nextIssue(issue, event) {
     throw new Error("최근 기록보다 빠른 날짜입니다.");
   return {
     ...issue,
-    lifecycle: stages[at + 1],
-    history: [...issue.history, { ...event, stage: stages[at + 1] }],
+    lifecycle: target,
+    history: [
+      ...issue.history,
+      {
+        date: event.date,
+        author: event.author,
+        note: event.note,
+        stage: target,
+        ...(target === "closed" ? { resolved: true } : {}),
+      },
+    ],
   };
 }
