@@ -362,11 +362,9 @@ export default function MaintenancePage(props: FeatureProps) {
     <div className="rf-page">
       <header className="rf-page-heading">
         <div>
-          <span className="rf-eyebrow">MAINTENANCE / 이천자이더리체</span>
-          <h1>조사에서 재점검까지, 하나의 이력.</h1>
-          <p>
-            GPR 원본과 해석 결과를 직접 등록하고, 확인·조치 근거를 보존합니다.
-          </p>
+          <span className="rf-eyebrow">이천자이더리체</span>
+          <h1>유지관리 · 조사</h1>
+          <p>조사 원본을 등록하고 확인·조치·재점검을 이어갑니다.</p>
         </div>
         <button
           className="btn btn-primary"
@@ -392,6 +390,11 @@ export default function MaintenancePage(props: FeatureProps) {
           입력은 저장된 값으로 바뀝니다.
         </div>
       )}
+      {errors.map((e) => (
+        <p className="rf-error" key={e}>
+          {e}
+        </p>
+      ))}
       <div className="rm-layout">
         <aside className="rf-card">
           <div className="rf-heading">
@@ -430,37 +433,6 @@ export default function MaintenancePage(props: FeatureProps) {
           )}
         </aside>
         <main className="rm-main">
-          <section className="rf-card">
-            <div className="rf-heading">
-              <div>
-                <span className="rf-eyebrow">SURVEY LOCATION</span>
-                <h2>유지관리 대상 위치</h2>
-              </div>
-              <span className="badge badge-neutral">원본 정사영상</span>
-            </div>
-            <RealSiteMap
-              transform={groundTransform}
-              annotations={annotations}
-              onMapClick={
-                draft.editing
-                  ? (p) =>
-                      setDraft((d) => ({
-                        ...d,
-                        model: {
-                          ...d.model,
-                          easting: p.easting.toFixed(3),
-                          northing: p.northing.toFixed(3),
-                        },
-                      }))
-                  : undefined
-              }
-            />
-            <p className="rf-note">
-              흙막이와 구분되는 유지관리 자산을 지정하세요. GPR 조사 시점과 영상
-              촬영시점은 다를 수 있습니다. 지도 위치는 등록 시 선택할 수 있으며
-              미등록 좌표는 지도에 표시하지 않습니다.
-            </p>
-          </section>
           {(draft.editing || draft.recordId) && (
             <section className="rf-card">
               <div className="rf-heading">
@@ -483,58 +455,80 @@ export default function MaintenancePage(props: FeatureProps) {
                   </span>
                 ))}
               </div>
-              <fieldset
-                disabled={!draft.editing || saving || !state.ready}
-                className="rm-fieldset"
-              >
-                <div className="rf-grid2">
-                  {[
-                    ["title", "조사 제목"],
-                    ["asset", "유지관리 대상 자산"],
-                    ["line", "측선 번호"],
-                    ["surveyDate", "조사일"],
-                    ["interpreter", "해석 담당자"],
-                    ["location", "위치 설명"],
-                    ["equipment", "장비·주파수 (선택)"],
-                    ["depth", "해석 심도·단위 (선택)"],
-                    ["easting", "측선 대표 E (m, 선택)"],
-                    ["northing", "측선 대표 N (m, 선택)"],
-                  ].map(([key, label]) => (
-                    <label className="rf-label" key={key}>
-                      {label}
-                      <input
-                        type={key === "surveyDate" ? "date" : "text"}
-                        value={String(model[key as keyof Model])}
-                        onChange={(e) => update(key, e.target.value)}
-                      />
-                    </label>
-                  ))}
+              {!draft.editing && (
+                <div className="rm-findings">
+                  <p>
+                    <strong>
+                      {model.asset} · {model.line}
+                    </strong>
+                    <span>{model.location}</span>
+                  </p>
+                  <p>{model.findings}</p>
+                  <p>
+                    <b>후속 계획</b> {model.followUp}
+                  </p>
                 </div>
-                <label className="rf-label">
-                  해석 결과 · 추정과 확인 사실을 구분
-                  <textarea
-                    rows={4}
-                    value={model.findings}
-                    onChange={(e) => update("findings", e.target.value)}
-                  />
-                </label>
-                <label className="rf-label">
-                  후속 확인·보강 검토 계획
-                  <textarea
-                    rows={3}
-                    value={model.followUp}
-                    onChange={(e) => update("followUp", e.target.value)}
-                  />
-                </label>
-                <label className="rf-upload">
-                  <Upload size={16} /> 원본·해석결과 첨부
-                  <input
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt,.json"
-                    onChange={(e) => attach(e.target.files?.[0])}
-                  />
-                </label>
-              </fieldset>
+              )}
+              <details
+                className="rf-details rm-registration-details"
+                open={draft.editing}
+              >
+                <summary>
+                  {draft.editing ? "조사 정보 입력" : "등록 정보 확인"}
+                </summary>
+                <fieldset
+                  disabled={!draft.editing || saving || !state.ready}
+                  className="rm-fieldset"
+                >
+                  <div className="rf-grid2">
+                    {[
+                      ["title", "조사 제목"],
+                      ["asset", "유지관리 대상 자산"],
+                      ["line", "측선 번호"],
+                      ["surveyDate", "조사일"],
+                      ["interpreter", "해석 담당자"],
+                      ["location", "위치 설명"],
+                      ["equipment", "장비·주파수 (선택)"],
+                      ["depth", "해석 심도·단위 (선택)"],
+                      ["easting", "측선 대표 E (m, 선택)"],
+                      ["northing", "측선 대표 N (m, 선택)"],
+                    ].map(([key, label]) => (
+                      <label className="rf-label" key={key}>
+                        {label}
+                        <input
+                          type={key === "surveyDate" ? "date" : "text"}
+                          value={String(model[key as keyof Model])}
+                          onChange={(e) => update(key, e.target.value)}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <label className="rf-label">
+                    해석 결과 · 추정과 확인 사실을 구분
+                    <textarea
+                      rows={4}
+                      value={model.findings}
+                      onChange={(e) => update("findings", e.target.value)}
+                    />
+                  </label>
+                  <label className="rf-label">
+                    후속 확인·보강 검토 계획
+                    <textarea
+                      rows={3}
+                      value={model.followUp}
+                      onChange={(e) => update("followUp", e.target.value)}
+                    />
+                  </label>
+                  <label className="rf-upload">
+                    <Upload size={16} /> 원본·해석결과 첨부
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt,.json"
+                      onChange={(e) => attach(e.target.files?.[0])}
+                    />
+                  </label>
+                </fieldset>
+              </details>
               <div className="rm-attachments">
                 {attachments.map((a) => (
                   <div key={a.id}>
@@ -545,10 +539,11 @@ export default function MaintenancePage(props: FeatureProps) {
                       <ExternalLink size={14} />
                       {a.name}
                     </button>
-                    <small>
-                      {(a.size / 1024).toFixed(1)} KB · SHA-256{" "}
-                      {a.sha256.slice(0, 12)}…
-                    </small>
+                    <small>{(a.size / 1024).toFixed(1)} KB</small>
+                    <details className="rm-attachment-integrity">
+                      <summary>원본 검증 정보</summary>
+                      <code>SHA-256 {a.sha256}</code>
+                    </details>
                     {draft.editing && (
                       <button
                         className="btn btn-ghost"
@@ -570,11 +565,7 @@ export default function MaintenancePage(props: FeatureProps) {
                   </div>
                 ))}
               </div>
-              {errors.map((e) => (
-                <p className="rf-error" key={e}>
-                  {e}
-                </p>
-              ))}
+
               <div className="rf-controls">
                 {draft.editing ? (
                   <button
@@ -619,24 +610,14 @@ export default function MaintenancePage(props: FeatureProps) {
                   {model.closed ? "마감" : "진행 중"}
                 </span>
               </div>
-              <ol className="rf-history">
-                {model.history.map((h, i) => (
-                  <li key={i}>
-                    <b>
-                      {stageLabels[h.stage] ||
-                        (
-                          { closed: "마감", reopened: "다시 열기" } as Record<
-                            string,
-                            string
-                          >
-                        )[h.stage]}{" "}
-                      · {h.date}
-                    </b>
-                    <p>{h.note}</p>
-                    <small>{h.author}</small>
-                  </li>
-                ))}
-              </ol>
+              {model.history.length > 0 && (
+                <div className="rf-note rm-latest-event">
+                  <strong>최근 기록 · {model.history.at(-1)?.date}</strong>
+                  <p>{model.history.at(-1)?.note}</p>
+                  <small>{model.history.at(-1)?.author}</small>
+                </div>
+              )}
+
               <div className="rf-grid2">
                 <label className="rf-label">
                   수행일
@@ -703,12 +684,61 @@ export default function MaintenancePage(props: FeatureProps) {
                   </button>
                 )}
               </div>
+              <details className="rf-details">
+                <summary>전체 조치 이력 · {model.history.length}건</summary>
+                <ol className="rf-history">
+                  {model.history.map((h, i) => (
+                    <li key={i}>
+                      <b>
+                        {stageLabels[h.stage] ||
+                          (
+                            { closed: "마감", reopened: "다시 열기" } as Record<
+                              string,
+                              string
+                            >
+                          )[h.stage]}{" "}
+                        · {h.date}
+                      </b>
+                      <p>{h.note}</p>
+                      <small>{h.author}</small>
+                    </li>
+                  ))}
+                </ol>
+              </details>
               <p className="rf-note">
-                각 단계는 담당자·날짜·수행 내용을 남깁니다. 재점검 기록 이후에만
-                마감할 수 있으며, 기존 기록은 개정 이력에 보존됩니다.
+                담당자·날짜·수행 근거를 남기세요. 재점검 기록 후에만 마감할 수
+                있습니다.
               </p>
             </section>
           )}
+          <details
+            className="rf-card rm-location-details"
+            open={!draft.recordId || draft.editing}
+          >
+            <summary>유지관리 대상 위치 · 원본 정사영상</summary>
+            <RealSiteMap
+              transform={groundTransform}
+              annotations={annotations}
+              onMapClick={
+                draft.editing
+                  ? (p) =>
+                      setDraft((d) => ({
+                        ...d,
+                        model: {
+                          ...d.model,
+                          easting: p.easting.toFixed(3),
+                          northing: p.northing.toFixed(3),
+                        },
+                      }))
+                  : undefined
+              }
+            />
+            <p className="rf-note">
+              흙막이와 구분되는 유지관리 자산을 지정하세요. GPR 조사 시점과 영상
+              촬영시점은 다를 수 있습니다. 지도 위치는 등록 시 선택할 수 있으며
+              미등록 좌표는 지도에 표시하지 않습니다.
+            </p>
+          </details>
         </main>
       </div>
       {viewer && (

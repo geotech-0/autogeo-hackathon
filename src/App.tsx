@@ -1122,25 +1122,30 @@ export default function App() {
                 </dd>
               </div>
               <div>
-                <dt>출처</dt>
-                <dd>
-                  {selected.source_id} · 개정 {selected.source_revision}
-                </dd>
-              </div>
-              <div>
                 <dt>검토 시각</dt>
                 <dd>{fmtDate(selected.updated_at)}</dd>
               </div>
-              <div>
-                <dt>계산 방법</dt>
-                <dd>{selected.method_version}</dd>
-              </div>
             </dl>
-            <ul className="assumptions">
-              {selected.assumptions.map((a, i) => (
-                <li key={i}>{a}</li>
-              ))}
-            </ul>
+            <details className="record-evidence-details">
+              <summary>근거·적용 가정</summary>
+              <dl className="record-meta">
+                <div>
+                  <dt>출처</dt>
+                  <dd>
+                    {selected.source_id} · 개정 {selected.source_revision}
+                  </dd>
+                </div>
+                <div>
+                  <dt>계산 방법</dt>
+                  <dd>{selected.method_version}</dd>
+                </div>
+              </dl>
+              <ul className="assumptions">
+                {selected.assumptions.map((a, i) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+            </details>
             <details>
               <summary>저장된 입력과 결과</summary>
               <pre className="record-json">

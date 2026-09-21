@@ -793,6 +793,47 @@
   grid-template-columns: 240px minmax(0, 1fr);
   gap: 20px;
 }
+.rm-location-details > summary {
+  font-size: 16px;
+}
+.rm-location-details[open] > summary {
+  margin-bottom: 16px;
+}
+.rm-registration-details {
+  margin-top: 14px;
+}
+.rm-findings {
+  color: #405976;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.rm-findings p {
+  margin: 10px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rm-findings span {
+  display: block;
+  font-size: 12px;
+  color: #718199;
+}
+.rm-attachment-integrity {
+  font-size: 11px;
+}
+.rm-attachment-integrity > summary {
+  font-size: 11px;
+  font-weight: 500;
+}
+.rm-attachment-integrity code {
+  display: block;
+  max-width: 340px;
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+.rm-latest-event p {
+  margin: 7px 0;
+  white-space: pre-wrap;
+}
 .rm-layout > aside {
   align-self: start;
 }

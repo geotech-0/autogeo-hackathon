@@ -26,8 +26,8 @@ export default function FieldPage(props: FeatureProps) {
     <div className="rf-page">
       <header className="rf-page-heading">
         <div>
-          <span className="rf-eyebrow">CONSTRUCTION / 이천자이더리체</span>
-          <h1>현장의 변화를, 근거와 함께.</h1>
+          <span className="rf-eyebrow">이천자이더리체</span>
+          <h1>시공 · 품질 관리</h1>
           <p>27개 계측기 · 월간보고서 3권 · 품질시험 참고자료 4종</p>
         </div>
         <span className="rf-live-label">제공 자료 기준 · 실시간 연동 없음</span>

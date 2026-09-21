@@ -71,7 +71,7 @@ const iconMap = {
 };
 const steps = [
   { name: "자료 확인", note: "출처와 모델 개정" },
-  { name: "제원 설정", note: "허용된 항목만 편집" },
+  { name: "제원 설정", note: "치수와 검토계수" },
   { name: "해석값 채택", note: "수동 최대값·단위" },
   { name: "검토와 저장", note: "결과·근거·비교" },
 ];
@@ -576,15 +576,19 @@ export default function DesignPage({
           />
           <span>{f.unit}</span>
         </div>
-        <small className="design-value-origin">
-          {state.members[member].origins?.[f.key] === "imported_analysis"
-            ? "원문 초기값"
-            : "사용자 수정값"}
-          {Number(state.members[member].values[f.key]) !==
-          preset.inputs[member][f.key]
-            ? ` · 초기 ${preset.inputs[member][f.key]} ${f.unit}`
-            : ""}
-        </small>
+        {(state.members[member].origins?.[f.key] !== "imported_analysis" ||
+          Number(state.members[member].values[f.key]) !==
+            preset.inputs[member][f.key]) && (
+          <small className="design-value-origin">
+            {state.members[member].origins?.[f.key] === "imported_analysis"
+              ? "원문 초기값"
+              : "사용자 수정값"}
+            {Number(state.members[member].values[f.key]) !==
+            preset.inputs[member][f.key]
+              ? ` · 초기 ${preset.inputs[member][f.key]} ${f.unit}`
+              : ""}
+          </small>
+        )}
         {error && <small role="alert">{error}</small>}
       </label>
     );
@@ -604,15 +608,14 @@ export default function DesignPage({
             <ChevronRight size={13} /> {section.label}
           </div>
           <h1>흙막이 부재 검토</h1>
-          <p>
-            외부 해석결과를 채택하고, 부재별 검토 근거를 하나의 기록으로
-            연결합니다.
-          </p>
+          <p>단면과 부재를 선택하고, 입력부터 판정·저장까지 검토하세요.</p>
         </div>
         <div className="design-top-actions">
           <button
             className="btn btn-secondary"
             onClick={() => setShowSaved((v) => !v)}
+            aria-expanded={showSaved}
+            aria-controls="design-saved-records"
           >
             <FolderOpen size={16} />
             저장한 검토안 <span className="design-count">{saved.length}</span>
@@ -659,18 +662,14 @@ export default function DesignPage({
       <section className="panel design-case-selector">
         <div className="design-case-heading">
           <div>
-            <span className="design-section-kicker">
-              실제 단면 · 앵커 단 선택
-            </span>
-            <h2>검토할 위치를 선택하세요</h2>
-            <p>
-              검토안별로 수정값을 따로 보관합니다. H-Pile·토류판은 같은 단면의
-              원문값으로 시작합니다.
-            </p>
+            <h2>검토 위치</h2>
+            <p>단면·앵커 단별로 입력과 검토안을 보관합니다.</p>
           </div>
           <button
             className="btn btn-secondary"
             onClick={() => setCatalogOpen((v) => !v)}
+            aria-expanded={catalogOpen}
+            aria-controls="design-source-catalog"
           >
             <FolderOpen size={16} />
             전체 원문 검토 목록
@@ -729,13 +728,15 @@ export default function DesignPage({
             <button
               className="btn btn-ghost"
               onClick={() => setSourceOpen((v) => !v)}
+              aria-expanded={sourceOpen}
+              aria-controls="design-source-drawing"
             >
               단면 그림 {sourceOpen ? "접기" : "보기"}
             </button>
           </div>
         </div>
         {sourceOpen && (
-          <div className="design-source-drawing">
+          <div className="design-source-drawing" id="design-source-drawing">
             <img
               src={`/data/design/section-${section.id}.png`}
               alt={`${section.label} 원문 표준단면과 지층·사용부재 표`}
@@ -771,12 +772,13 @@ export default function DesignPage({
           </div>
         )}
         {catalogOpen && (
-          <div className="design-source-catalog">
+          <div className="design-source-catalog" id="design-source-catalog">
             <div className="design-catalog-summary">
               <b>6개 단면 중 3개 흙막이 단면을 자동 재계산</b>
               <p>
                 앵커 7개 단 + 띠장 7개 단 + H-Pile 3개 단면 + 토류판 3개 단면.
-                사면·전체 안정·기초·배수 결과는 원문 검토 자료입니다.
+                H-Pile·토류판은 선택 단면의 원문값으로 시작합니다. 사면·전체
+                안정·기초·배수 결과는 원문 검토 자료입니다.
               </p>
             </div>
             {REAL_DESIGN.sections.map((s) => (
@@ -905,7 +907,7 @@ export default function DesignPage({
                   {step === 0
                     ? "계산서에서 옮긴 초기값입니다. 원문 페이지를 확인하고 변경 자료의 출처와 개정을 남기세요."
                     : step === 1
-                      ? "GEOX 입력 화면에서 허용된 제원만 수정합니다. 재료·방법 상수는 읽기 전용입니다."
+                      ? "부재 제원을 입력하세요. 재료와 계산방법은 선택한 단면을 따릅니다."
                       : step === 2
                         ? "같은 모델에서 나온 성분별 최대값을 입력하세요. 지배 시공단계는 서로 다를 수 있습니다."
                         : "계산식과 채택값을 확인한 뒤 네 부재를 함께 저장합니다."}
@@ -922,8 +924,7 @@ export default function DesignPage({
                       {preset.label} · {module.title} 원문 입력
                     </strong>
                     <p>
-                      {preset.verification} · 계산서 PDF p
-                      {preset.pages[member].join("~")} · 개정{" "}
+                      계산서 p{preset.pages[member].join("~")} · 개정{" "}
                       {preset.sourceRevision}
                     </p>
                   </div>
@@ -949,21 +950,20 @@ export default function DesignPage({
                     />
                   </label>
                   <label className="design-field">
-                    <span>자료 구분</span>
-                    <select
-                      value={state.source.origin}
-                      onChange={(e) => patchSource("origin", e.target.value)}
-                    >
-                      <option value="imported_analysis">
-                        원문 / 외부 해석결과 채택
-                      </option>
-                    </select>
-                  </label>
-                  <label className="design-field">
                     <span>해석 프로그램 / 방법</span>
                     <input
                       value={state.source.program}
                       onChange={(e) => patchSource("program", e.target.value)}
+                    />
+                  </label>
+                  <label className="design-field">
+                    <span>해석 모델 개정</span>
+                    <input
+                      value={state.source.modelRevision}
+                      onChange={(e) =>
+                        patchSource("modelRevision", e.target.value)
+                      }
+                      aria-label="해석 모델 개정"
                     />
                   </label>
                   <label className="design-field design-span-2">
@@ -973,32 +973,41 @@ export default function DesignPage({
                       onChange={(e) => patchSource("label", e.target.value)}
                     />
                   </label>
-                  {(
-                    [
-                      ["id", "자료 ID"],
-                      ["revision", "자료 개정"],
-                      ["modelId", "해석 모델 ID"],
-                      ["modelRevision", "해석 모델 개정"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <label className="design-field" key={key}>
-                      <span>{label}</span>
-                      <input
-                        value={state.source[key]}
-                        onChange={(e) => patchSource(key, e.target.value)}
-                        aria-label={label}
-                      />
-                    </label>
-                  ))}
                 </div>
-                <details className="design-details">
+                {current.errors?._source && (
+                  <p className="design-error design-source-error" role="alert">
+                    {current.errors._source} 아래 출처·모델 상세도 확인하세요.
+                  </p>
+                )}
+                <details
+                  className="design-details"
+                  open={Boolean(current.errors?._source) || undefined}
+                >
                   <summary>
-                    해석 출처 상세
+                    출처·모델 상세
                     <ChevronDown size={16} />
                   </summary>
+                  <p className="design-disclosure-note">
+                    {preset.verification}
+                  </p>
                   <div className="design-fields">
+                    <label className="design-field">
+                      <span>자료 구분</span>
+                      <select
+                        value={state.source.origin}
+                        onChange={(e) => patchSource("origin", e.target.value)}
+                      >
+                        <option value="imported_analysis">
+                          원문 / 외부 해석결과 채택
+                        </option>
+                      </select>
+                    </label>
+
                     {(
                       [
+                        ["id", "자료 ID"],
+                        ["revision", "자료 개정"],
+                        ["modelId", "해석 모델 ID"],
                         ["programVersion", "프로그램 / 방법 버전"],
                         ["runDate", "해석 실행일"],
                         ["combination", "하중조합 / 포락방법"],
@@ -1025,9 +1034,8 @@ export default function DesignPage({
                   <div>
                     <strong>이번 검토의 범위</strong>
                     <p>
-                      앵커 · 띠장 · H-Pile · 토류판의 채택 방법을 검토합니다.
-                      외부 탄소성해석을 실행하거나 굴착 전체 안정성을 판정하지
-                      않습니다.
+                      4개 부재를 검토합니다. 외부 탄소성해석과 굴착 전체 안정성
+                      판정은 포함하지 않습니다.
                     </p>
                   </div>
                 </div>
@@ -1064,9 +1072,23 @@ export default function DesignPage({
                   표시 제원을 변경하면 채택 해석결과의 대응 여부를 다시
                   확인합니다.
                 </p>
-                <details className="design-details">
+                <details
+                  className="design-details"
+                  open={
+                    module.fields.some(
+                      (f) => f.group === "advanced" && current.errors?.[f.key],
+                    ) || undefined
+                  }
+                >
                   <summary>
                     세부 검토계수
+                    {module.fields.some(
+                      (f) => f.group === "advanced" && current.errors?.[f.key],
+                    ) && (
+                      <span className="design-disclosure-error" role="alert">
+                        입력 확인 필요
+                      </span>
+                    )}
                     <ChevronDown size={16} />
                   </summary>
                   <div className="design-fields">
@@ -1090,16 +1112,6 @@ export default function DesignPage({
                     ))}
                   </div>
                 </details>
-                {member === "wale" && (
-                  <div className="design-method-options">
-                    <span>지원 방법</span>
-                    <button className="is-selected" disabled>
-                      연속보 · 등분포하중
-                    </button>
-                    <button disabled>단순보 · 준비 중</button>
-                    <button disabled>집중하중 · 준비 중</button>
-                  </div>
-                )}
                 {member === "pile" && (
                   <>
                     <label className="design-field design-qu-evidence">
@@ -1140,11 +1152,16 @@ export default function DesignPage({
                         {fmt(calculated.anchor.results?.jackingForceKn, 3)}{" "}
                         <small>kN/개</small>
                       </strong>
-                      <p>
-                        설치각 {module.fixed.angleDeg}°로 수평성분을 계산한 뒤
-                        c/a로 상단 띠장에 분담합니다. R′와 Treq를 중복 적용하지
-                        않습니다.
-                      </p>
+                      <details className="design-details design-inline-details">
+                        <summary>
+                          하중 전달 방법 <ChevronDown size={16} />
+                        </summary>
+                        <p>
+                          설치각 {module.fixed.angleDeg}°로 수평성분을 계산한 뒤
+                          c/a로 상단 띠장에 분담합니다. R′와 Treq를 중복
+                          적용하지 않습니다.
+                        </p>
+                      </details>
                       <button
                         className="btn btn-secondary"
                         onClick={() => {
@@ -1323,10 +1340,55 @@ export default function DesignPage({
                   </div>
                 ) : (
                   <>
-                    <details
-                      className="design-details design-original-comparison"
-                      open
-                    >
+                    <div className="design-check-list">
+                      {current.checks.map((c) => (
+                        <div className="design-check" key={c.key}>
+                          <div>
+                            <span
+                              className={`design-check-icon ${c.pass ? "is-pass" : "is-fail"}`}
+                            >
+                              {c.pass ? <Check size={15} /> : <X size={15} />}
+                            </span>
+                            <strong>{c.label}</strong>
+                            <span
+                              className={
+                                c.pass
+                                  ? "design-check-pass"
+                                  : "design-check-fail"
+                              }
+                            >
+                              {c.pass ? "만족" : "초과"}
+                            </span>
+                          </div>
+                          <div className="design-check-values">
+                            <span>
+                              {fmt(c.value, 3)} <small>{c.unit}</small>
+                            </span>
+                            <span>{c.relation === ">=" ? "≥" : "≤"}</span>
+                            <span>
+                              {fmt(c.limit, 3)} <small>{c.unit}</small>
+                            </span>
+                            <b>
+                              {c.utilization === null
+                                ? "범위 초과"
+                                : `${fmt(c.utilization * 100, 1)}%`}
+                            </b>
+                          </div>
+                          <div className="design-util-track">
+                            <i
+                              className={c.pass ? "" : "is-exceeded"}
+                              style={{
+                                width: `${Math.min((c.utilization ?? 1.5) * 100, 100)}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="design-small-note">
+                      사용률 100% 이하는 해당 검토 항목을 만족합니다.
+                    </p>
+                    <details className="design-details design-original-comparison">
                       <summary>
                         <FileText size={16} />
                         원문 표시값과 현재 계산 비교
@@ -1404,62 +1466,16 @@ export default function DesignPage({
                         원문 계산 p{preset.pages[member].join("~")} 확인 ↗
                       </a>
                     </details>
-                    <div className="design-check-list">
-                      {current.checks.map((c) => (
-                        <div className="design-check" key={c.key}>
-                          <div>
-                            <span
-                              className={`design-check-icon ${c.pass ? "is-pass" : "is-fail"}`}
-                            >
-                              {c.pass ? <Check size={15} /> : <X size={15} />}
-                            </span>
-                            <strong>{c.label}</strong>
-                            <span
-                              className={
-                                c.pass
-                                  ? "design-check-pass"
-                                  : "design-check-fail"
-                              }
-                            >
-                              {c.pass ? "만족" : "초과"}
-                            </span>
-                          </div>
-                          <div className="design-check-values">
-                            <span>
-                              {fmt(c.value, 3)} <small>{c.unit}</small>
-                            </span>
-                            <span>{c.relation === ">=" ? "≥" : "≤"}</span>
-                            <span>
-                              {fmt(c.limit, 3)} <small>{c.unit}</small>
-                            </span>
-                            <b>
-                              {c.utilization === null
-                                ? "범위 초과"
-                                : `${fmt(c.utilization * 100, 1)}%`}
-                            </b>
-                          </div>
-                          <div className="design-util-track">
-                            <i
-                              className={c.pass ? "" : "is-exceeded"}
-                              style={{
-                                width: `${Math.min((c.utilization ?? 1.5) * 100, 100)}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="design-small-note">
-                      사용률은 요구값/채택값으로 정규화합니다. 하한 검토는
-                      하한/채택값으로 표시하며, 100% 이하는 해당 항목을
-                      만족합니다.
-                    </p>
                     <details className="design-details">
                       <summary>
                         <FileText size={16} />
                         계산 과정 {current.steps.length}개{" "}
                         <ChevronDown size={16} />
                       </summary>
+                      <p className="design-disclosure-note">
+                        사용률은 요구값/채택값이며, 하한 검토는 하한/채택값으로
+                        표시합니다.
+                      </p>
                       <div className="design-calculation-steps">
                         {current.steps.map((s, i) => (
                           <div key={s.key}>
@@ -1502,7 +1518,7 @@ export default function DesignPage({
                   </div>
                 )}
                 <div className="design-limits">
-                  <h4>이 결과를 읽는 방법</h4>
+                  <h4>검토 적용 범위</h4>
                   <ul>
                     {module.limitations.map((text) => (
                       <li key={text}>{text}</li>
@@ -1611,55 +1627,11 @@ export default function DesignPage({
           </section>
         </aside>
       </div>
+
       <section className="panel design-deliverables">
         <div>
-          <span className="design-section-kicker">ORIGINAL INPUT</span>
-          <h3>원문 초기값으로 돌아가기</h3>
-          <p>
-            선택한 {preset.label}의 현재 입력만 복원합니다. 저장한 검토 기록은
-            그대로 남습니다.
-          </p>
-        </div>
-        {resetPending ? (
-          <div className="design-deliverable-actions">
-            <span>현재 입력을 원문 값으로 바꿉니다.</span>
-            <button
-              className="btn btn-secondary"
-              onClick={() => setResetPending(false)}
-            >
-              취소
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                setState(createRealWorkspace(preset.id));
-                setLoadedId(null);
-                setResetPending(false);
-                setStep(0);
-                notify(
-                  "선택한 단면·단의 원문 초기값을 복원했습니다.",
-                  "success",
-                );
-              }}
-            >
-              원문 값 복원
-            </button>
-          </div>
-        ) : (
-          <button
-            className="btn btn-secondary"
-            onClick={() => setResetPending(true)}
-          >
-            <RotateCcw size={15} />
-            초기값 복원
-          </button>
-        )}
-      </section>
-      <section className="panel design-deliverables">
-        <div>
-          <span className="design-section-kicker">REVIEW RECORD</span>
-          <h3>입력부터 검토 근거까지, 한 번에</h3>
-          <p>값·단위·지배단계·모델 개정과 연결 관계를 기록합니다.</p>
+          <h3>보고서와 입력 파일</h3>
+          <p>검토 결과를 보고서로 받거나 입력 파일을 보관하세요.</p>
         </div>
         <div className="design-deliverable-actions">
           <button
@@ -1699,8 +1671,56 @@ export default function DesignPage({
           onChange={importFile}
         />
       </section>
+      <details className="panel design-reset-options">
+        <summary>
+          <RotateCcw size={16} /> 초기값 복원 <ChevronDown size={16} />
+        </summary>
+        <div className="design-deliverables">
+          <div>
+            <h3>원문 초기값으로 돌아가기</h3>
+            <p>
+              선택한 {preset.label}의 현재 입력만 복원합니다. 저장한 검토 기록은
+              그대로 남습니다.
+            </p>
+          </div>
+          {resetPending ? (
+            <div className="design-deliverable-actions">
+              <span>현재 입력을 원문 값으로 바꿉니다.</span>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setResetPending(false)}
+              >
+                취소
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setState(createRealWorkspace(preset.id));
+                  setLoadedId(null);
+                  setResetPending(false);
+                  setStep(0);
+                  notify(
+                    "선택한 단면·단의 원문 초기값을 복원했습니다.",
+                    "success",
+                  );
+                }}
+              >
+                원문 값 복원
+              </button>
+            </div>
+          ) : (
+            <button
+              className="btn btn-secondary"
+              onClick={() => setResetPending(true)}
+            >
+              <RotateCcw size={15} />
+              초기값 복원
+            </button>
+          )}
+        </div>
+      </details>
       {showSaved && (
-        <section className="panel design-saved">
+        <section className="panel design-saved" id="design-saved-records">
           <div className="design-saved-heading">
             <div>
               <h3>저장한 검토안</h3>

@@ -224,11 +224,14 @@ export default function ImageComparison(props: FeatureProps) {
             }))
           }
         />
-        <div className="rf-note">
-          노란 경계는 도면 정합 참고선입니다. 영상·도면의 촬영 시점과 현장
-          변화를 함께 확인하세요. 확대·이동 후 클릭하면 원본 좌표에 주석이
-          연결됩니다.
-        </div>
+        <details className="rf-details rf-explanation">
+          <summary>영상·좌표 확인 안내</summary>
+          <div className="rf-note">
+            노란 경계는 도면 정합 참고선입니다. 영상·도면의 촬영 시점과 현장
+            변화를 함께 확인하세요. 확대·이동 후 클릭하면 원본 좌표에 주석이
+            연결됩니다.
+          </div>
+        </details>
         <div className="rf-grid3">
           <label className="rf-label">
             E (m)
@@ -272,11 +275,8 @@ export default function ImageComparison(props: FeatureProps) {
           </button>
         </div>
       </section>
-      <section className="rf-card">
-        <div className="rf-heading">
-          <h2>다음 촬영 회차 등록</h2>
-          <span className="badge badge-neutral">원본 로컬 보관</span>
-        </div>
+      <details className="rf-card rf-optional-panel" open={!!draft.attachment}>
+        <summary>다음 촬영 회차 등록·비교</summary>
         <p className="rf-note">
           현재는 실영상 1회차만 제공되었습니다. 추가 영상을 첨부하면
           원본·촬영일을 보존합니다. 좌표 정합 전에는 나란히 보는 참고 화면으로만
@@ -340,7 +340,7 @@ export default function ImageComparison(props: FeatureProps) {
               열기
             </div>
           ))}
-      </section>
+      </details>
     </div>
   );
 }

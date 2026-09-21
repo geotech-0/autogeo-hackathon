@@ -4,6 +4,26 @@
   max-width: 1500px;
   margin: auto;
 }
+.rf-label.rf-mobile-sensor-select {
+  display: none;
+}
+.rf-explanation .rf-note {
+  margin-bottom: 0;
+}
+.rf-critical-reason {
+  margin: 6px 0 0;
+}
+.rf-source-details {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #68788b;
+}
+.rf-source-details ul {
+  padding-left: 18px;
+}
+.rf-optional-panel > summary {
+  font-size: 16px;
+}
 .rf-page-heading {
   display: flex;
   justify-content: space-between;
@@ -490,6 +510,9 @@
   }
 }
 @media (max-width: 700px) {
+  .rf-label.rf-mobile-sensor-select {
+    display: grid;
+  }
   .rf-page-heading {
     display: block;
   }
@@ -517,8 +540,7 @@
     display: block;
   }
   .rf-sensor-list {
-    max-height: 240px;
-    margin-bottom: 16px;
+    display: none;
   }
   .rf-sensor-group {
     display: flex;

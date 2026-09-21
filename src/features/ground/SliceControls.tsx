@@ -138,8 +138,7 @@ export default function SliceControls({
     <div className="real-slicer">
       <div className="real-slicer-top">
         <div>
-          <span className="real-eyebrow">MODEL EXPLORER</span>
-          <h3>지층을 잘라 내부를 확인하세요</h3>
+          <h3>단면 탐색</h3>
         </div>
         <div className="real-camera-buttons" aria-label="모델 시점">
           {(
@@ -282,7 +281,7 @@ export default function SliceControls({
               />{" "}
               절단 평면 표시
             </label>
-            <span>숫자 입력 후 Enter · 드래그로 회전</span>
+            <span>숫자 입력 후 Enter로 적용</span>
           </div>
         </>
       )}

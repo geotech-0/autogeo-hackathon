@@ -235,6 +235,20 @@ export default function RealMonitoring(props: FeatureProps) {
           <small>현재 화면의 입력은 저장된 값으로 바뀝니다.</small>
         </div>
       )}
+      <label className="rf-label rf-mobile-sensor-select">
+        계측기 선택
+        <select
+          value={sensor.id}
+          disabled={!state.ready}
+          onChange={(e) => change("sensor", e.target.value)}
+        >
+          {sensors.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.id} · {s.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="rf-monitor-layout">
         <aside className="rf-card rf-sensor-list">
           <div className="rf-heading">
@@ -397,20 +411,27 @@ export default function RealMonitoring(props: FeatureProps) {
               }
               onPoint={setSelectedRow}
             />
-            <div className="rf-note">
-              {sensor.kind === "INC"
-                ? "심도별 변위 중 절댓값 최대값을 날짜별 대표값으로 표시합니다."
-                : sensor.kind === "F"
-                  ? "원시표 일간 변화량을 표시합니다. 누적 계기값의 차이를 측정 간격으로 나눠 교차 확인합니다."
-                  : "표는 원문의 부호와 단위를 보존하며, 관리기준 비교 차트는 변화량 절댓값을 표시합니다."}{" "}
-              기준선은 문서값이며 미확인 항목은 판정을 보류합니다.
-              {sensor.kind === "INC" &&
-                " 토사/암반 속도기준은 적용 구간 미확인으로 별도 확인이 필요하며, 화면 판정은 누적기준 검토 범위입니다."}
-            </div>
+            {sensor.kind === "INC" && (
+              <p className="rf-note">
+                화면 판정은 누적변위 기준입니다. 토사·암반별 속도기준은 적용
+                구간 확인이 필요합니다.
+              </p>
+            )}
+            <details className="rf-details rf-explanation">
+              <summary>차트 지표와 기준선 읽는 방법</summary>
+              <div className="rf-note">
+                {sensor.kind === "INC"
+                  ? "심도별 변위 중 절댓값 최대값을 날짜별 대표값으로 표시합니다."
+                  : sensor.kind === "F"
+                    ? "원시표 일간 변화량을 표시합니다. 누적 계기값의 차이를 측정 간격으로 나눠 교차 확인합니다."
+                    : "표는 원문의 부호와 단위를 보존하며, 관리기준 비교 차트는 변화량 절댓값을 표시합니다."}{" "}
+                기준선은 문서값이며 미확인 항목은 판정을 보류합니다.
+              </div>
+            </details>
           </section>
           <section className="rf-card">
             <div className="rf-heading">
-              <h2>원시값과 근거</h2>
+              <h2>확인할 사항과 조치</h2>
               <a href={sensor.criterionSource} target="_blank" rel="noreferrer">
                 현장 관리기준 · p38 ↗
               </a>
@@ -446,66 +467,6 @@ export default function RealMonitoring(props: FeatureProps) {
                 </ul>
               </div>
             )}
-            <div className="rf-table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>측정일</th>
-                    <th>원시값</th>
-                    <th>비교 지표 ({sensor.unit})</th>
-                    <th>근거</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(showAll ? rows : rows.slice(-8)).map((r, i) => (
-                    <tr
-                      key={r.date}
-                      onClick={() =>
-                        setSelectedRow(
-                          showAll ? i : Math.max(0, rows.length - 8) + i,
-                        )
-                      }
-                    >
-                      <td>{r.date}</td>
-                      <td>{f(r.value)}</td>
-                      <td>
-                        {f(monitoringMetric(sensor, r))}
-                        {r.calculatedRate !== undefined && (
-                          <small>산술 {f(r.calculatedRate)}</small>
-                        )}
-                      </td>
-                      <td>
-                        <a href={r.source.url} target="_blank" rel="noreferrer">
-                          {r.source.report.slice(-2)}월 p{r.source.page} ↗
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <button
-              className="btn btn-ghost"
-              onClick={() => setShowAll(!showAll)}
-            >
-              {showAll ? "최근 8개만 보기" : `${rows.length}개 전체 행 보기`}
-            </button>
-            {sensor.kind === "INC" && (
-              <details>
-                <summary>최근 심도별 변위 상세</summary>
-                <RealChart
-                  points={(sensor.profiles.at(-1)?.readings || []).map((r) => ({
-                    x: r.value,
-                    y: r.depth,
-                    label: `심도 ${r.depth}m`,
-                    detail: `변위 ${r.value}mm`,
-                  }))}
-                  xLabel="수평변위 (mm)"
-                  yLabel="심도 (GL−m)"
-                  invertY
-                />
-              </details>
-            )}
             <details className="rf-details">
               <summary>이상·자료 불일치를 조치 이력으로 등록</summary>
               <div className="rf-grid2">
@@ -533,6 +494,73 @@ export default function RealMonitoring(props: FeatureProps) {
                 이슈 등록 → 조치·재점검
               </button>
             </details>
+            <details className="rf-details">
+              <summary>원시 측정값과 출처 · {rows.length}개 기록</summary>
+              <div className="rf-table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>측정일</th>
+                      <th>원시값</th>
+                      <th>비교 지표 ({sensor.unit})</th>
+                      <th>근거</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(showAll ? rows : rows.slice(-8)).map((r, i) => (
+                      <tr
+                        key={r.date}
+                        onClick={() =>
+                          setSelectedRow(
+                            showAll ? i : Math.max(0, rows.length - 8) + i,
+                          )
+                        }
+                      >
+                        <td>{r.date}</td>
+                        <td>{f(r.value)}</td>
+                        <td>
+                          {f(monitoringMetric(sensor, r))}
+                          {r.calculatedRate !== undefined && (
+                            <small>산술 {f(r.calculatedRate)}</small>
+                          )}
+                        </td>
+                        <td>
+                          <a
+                            href={r.source.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {r.source.report.slice(-2)}월 p{r.source.page} ↗
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setShowAll(!showAll)}
+              >
+                {showAll ? "최근 8개만 보기" : `${rows.length}개 전체 행 보기`}
+              </button>
+            </details>
+            {sensor.kind === "INC" && (
+              <details>
+                <summary>최근 심도별 변위 상세</summary>
+                <RealChart
+                  points={(sensor.profiles.at(-1)?.readings || []).map((r) => ({
+                    x: r.value,
+                    y: r.depth,
+                    label: `심도 ${r.depth}m`,
+                    detail: `변위 ${r.value}mm`,
+                  }))}
+                  xLabel="수평변위 (mm)"
+                  yLabel="심도 (GL−m)"
+                  invertY
+                />
+              </details>
+            )}
           </section>
           <section className="rf-card">
             <details>

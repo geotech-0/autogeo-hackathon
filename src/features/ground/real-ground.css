@@ -438,7 +438,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .real-viewer-workspace > .real-slicer {
-    order: -1;
+    order: 0;
   }
 }
 .real-slicer-top {
@@ -1156,5 +1156,205 @@
   }
   .real-original-links {
     gap: 9px;
+  }
+}
+
+/* Keep the model and its current controls ahead of supporting detail. */
+.real-disclosure {
+  border: 1px solid #dfe6ed;
+  border-radius: 10px;
+  background: #fff;
+  margin: 12px 0;
+  min-width: 0;
+}
+.real-disclosure > summary {
+  padding: 14px 17px;
+  color: #314d64;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.real-disclosure > summary > span {
+  font-size: 11px;
+  font-weight: 400;
+  color: #7a8c9c;
+  margin-left: 10px;
+}
+.real-disclosure[open] > summary {
+  border-bottom: 1px solid #e9eef3;
+}
+.real-disclosure > .real-volume-toolbar {
+  border: 0;
+  padding: 16px 17px 0;
+  margin: 0;
+  background: transparent;
+}
+.real-disclosure > .real-model-controls {
+  padding: 16px 17px;
+}
+.real-disclosure > .real-panel,
+.real-disclosure > .real-model-bottom > .real-panel {
+  border: 0;
+  margin: 0;
+  border-radius: 0 0 10px 10px;
+}
+.real-model-notes > p {
+  padding: 15px 17px;
+  margin: 0 !important;
+}
+.real-view-caption {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  color: #6f8191;
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 10px 0 12px;
+}
+.real-layer-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: #526b80;
+}
+.real-layer-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.real-layer-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.real-inline-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #226ab0;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.real-info-line {
+  flex-wrap: wrap;
+}
+.real-example-entry {
+  margin-top: 22px;
+  border-top: 1px solid #e0e7ed;
+  padding-top: 15px;
+  font-size: 12px;
+  color: #7c8b99;
+}
+.real-example-entry summary {
+  cursor: pointer;
+}
+.real-example-entry p {
+  margin: 10px 0;
+}
+@media (max-width: 1050px) {
+  .real-viewer-workspace .real-ground-scene {
+    height: clamp(340px, 52vh, 480px);
+  }
+  .real-viewer-workspace .real-axis-buttons {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .real-viewer-workspace .real-slice-position {
+    gap: 10px;
+    padding: 14px 0;
+  }
+  .real-viewer-workspace .real-slice-position > label {
+    flex-basis: auto;
+    min-width: 85px;
+  }
+  .real-viewer-workspace .real-slice-position > input {
+    flex-basis: 140px;
+  }
+}
+@media (max-width: 500px) {
+  .real-disclosure > summary > span {
+    display: block;
+    margin: 5px 0 0 17px;
+  }
+  .real-viewer-workspace .real-axis-buttons {
+    gap: 5px;
+  }
+  .real-viewer-workspace .real-axis-buttons button {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .real-viewer-workspace .real-slice-position > input {
+    flex-basis: 100%;
+  }
+  .real-viewer-workspace .real-slice-options {
+    gap: 10px;
+  }
+  .real-model-notes > p {
+    font-size: 12px !important;
+  }
+}
+@media (max-width: 500px) {
+  .real-ground-page .ground-page-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 14px;
+    align-items: center;
+  }
+  .real-ground-page .ground-page-heading > div {
+    display: contents;
+  }
+  .real-ground-page .ground-page-heading h1 {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .real-ground-page .ground-page-heading > div > p {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .real-ground-page .ground-page-heading > .btn {
+    margin-top: 0;
+    grid-column: 2;
+    grid-row: 1;
+    padding: 10px 12px;
+  }
+  .real-ground-page .ground-tabs {
+    scrollbar-width: none;
+  }
+  .real-ground-page .ground-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .real-model-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 40px;
+    gap: 10px;
+  }
+  .real-model-toolbar > .real-select-label {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+  .real-model-toolbar > .real-select-label select {
+    min-width: 0;
+    flex: 1;
+    width: auto;
+  }
+  .real-model-toolbar > .btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+  }
+  .real-model-toolbar > .btn span {
+    display: none;
+  }
+  .real-display-options > summary > span {
+    display: inline;
+    margin-left: 10px;
+  }
+  .real-viewer-workspace .real-ground-scene {
+    height: 380px;
   }
 }

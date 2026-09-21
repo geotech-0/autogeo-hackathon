@@ -740,12 +740,8 @@ export default function RealGroundPage({
     <div className="ground-page real-ground-page">
       <header className="ground-page-heading">
         <div>
-          <p className="ground-kicker">REAL SITE · SOURCE-LINKED GROUND</p>
-          <h1>현장 지반과 공간 자료</h1>
-          <p>
-            이천자이더리체 · 4개 조사차수, 32개 시추공, 96개 지층 구간을 원문과
-            연결했습니다.
-          </p>
+          <h1>지반 모델</h1>
+          <p>이천자이더리체 · 4개 조사차수 · 32공 · 96개 지층 구간</p>
         </div>
         <button
           className="btn btn-primary"
@@ -759,7 +755,7 @@ export default function RealGroundPage({
           onClick={save}
         >
           <Save size={16} />
-          {busy ? "저장 중…" : v.recordId ? "검토 개정 저장" : "지반 검토 저장"}
+          {busy ? "저장 중…" : v.recordId ? "개정 저장" : "검토 저장"}
         </button>
       </header>
       {(draftError || assetError) && (
@@ -767,36 +763,12 @@ export default function RealGroundPage({
           {draftError || assetError}
         </div>
       )}
-      <div className="real-metrics">
-        <div>
-          <span>지반조사</span>
-          <strong>
-            4 <small>차수</small>
-          </strong>
-        </div>
-        <div>
-          <span>원문 연결 시추공</span>
-          <strong>
-            32 <small>공</small>
-          </strong>
-        </div>
-        <div>
-          <span>확인된 지층 구간</span>
-          <strong>
-            96 <small>구간</small>
-          </strong>
-        </div>
-        <div>
-          <span>실제 공간 자료</span>
-          <strong>정사영상 · DSM · LAS</strong>
-        </div>
-      </div>
       <nav className="ground-tabs" aria-label="실제 지반 보기">
         {(
           [
             ["map", "현장 지도", Map],
             ["model", "3D·단면", Layers3],
-            ["sources", "조사자료·원문", FileText],
+            ["sources", "조사자료", FileText],
             ["quality", "정합·검수", SlidersHorizontal],
           ] as const
         ).map(([id, label, Icon]) => (
@@ -875,18 +847,24 @@ export default function RealGroundPage({
             <HoleCard />
           </div>
           <div className="real-info-line">
-            <CheckCircle2 size={16} /> 원본 GeoTIFF 좌표를 유지한 실제
-            정사영상입니다. 촬영일과 수직기준은 미확인입니다. 시추 좌표계는 현장
-            위치를 기준으로 개략 대응했습니다.
+            <AlertTriangle size={16} /> 좌표 정합은 개략 대응입니다.
+            촬영일·수직기준은 미확인입니다.
+            <button
+              className="real-inline-link"
+              onClick={() => set("tab", "quality")}
+            >
+              정합 근거 보기
+            </button>
           </div>
         </>
       )}
       {v.tab === "model" && (
         <>
-          <div className="real-toolbar">
+          <div className="real-toolbar real-model-toolbar">
             <label className="real-select-label">
-              모델 조사차수
+              조사차수
               <select
+                aria-label="모델 조사차수"
                 value={v.modelCampaign}
                 onChange={(e) => {
                   const next = holes.filter(
@@ -941,57 +919,152 @@ export default function RealGroundPage({
             </div>
             <button
               className="btn btn-secondary"
+              aria-label="모델 전체 보기"
+              title="모델 전체 보기"
               onClick={() => setReset(reset + 1)}
             >
-              <RotateCcw size={14} /> 모델 전체 보기
+              <RotateCcw size={14} /> <span>모델 전체 보기</span>
             </button>
           </div>
-          {v.mode === "ground" && (
-            <div className="real-volume-toolbar">
-              <div className="real-mode-buttons" aria-label="지층 표현 방식">
-                {(
-                  [
-                    ["solid", "채운 지층"],
-                    ["surfaces", "경계면"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    className={representation === id ? "active" : ""}
-                    aria-pressed={representation === id}
-                    onClick={() => set("representation", id)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              {representation === "solid" && (
-                <>
-                  <label className="real-opacity-control">
-                    불투명도 {Math.round(meshOpacity * 100)}%
-                    <input
-                      aria-label="지층 메쉬 불투명도"
-                      type="range"
-                      min={0.4}
-                      max={1}
-                      step={0.05}
-                      value={meshOpacity}
-                      onChange={(e) =>
-                        set("meshOpacity", Number(e.target.value))
-                      }
-                    />
-                  </label>
-                </>
-              )}
-            </div>
-          )}
           {v.modelCampaign === "all" && (
             <div className="real-warning">
               <AlertTriangle size={16} />
-              서로 다른 조사 시점의 공구 표고를 함께 비교합니다. 이 모델을 현재
-              지표면이나 시공 변화량으로 해석하지 마세요.
+              조사 시점이 다른 자료의 비교 모델입니다. 현재 지표면이나 시공
+              변화량으로 해석하지 마세요.
             </div>
           )}
+          <details className="real-disclosure real-display-options">
+            <summary>
+              표시 설정{" "}
+              <span>
+                {v.mode === "ground"
+                  ? representation === "solid"
+                    ? "채운 지층"
+                    : "경계면"
+                  : "높이 배율·주상도"}
+              </span>
+            </summary>
+            {v.mode === "ground" && (
+              <div className="real-volume-toolbar">
+                <div className="real-mode-buttons" aria-label="지층 표현 방식">
+                  {(
+                    [
+                      ["solid", "채운 지층"],
+                      ["surfaces", "경계면"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      className={representation === id ? "active" : ""}
+                      aria-pressed={representation === id}
+                      onClick={() => set("representation", id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {representation === "solid" && (
+                  <>
+                    <label className="real-opacity-control">
+                      불투명도 {Math.round(meshOpacity * 100)}%
+                      <input
+                        aria-label="지층 메쉬 불투명도"
+                        type="range"
+                        min={0.4}
+                        max={1}
+                        step={0.05}
+                        value={meshOpacity}
+                        onChange={(e) =>
+                          set("meshOpacity", Number(e.target.value))
+                        }
+                      />
+                    </label>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="real-model-controls">
+              {v.mode === "ground" && (
+                <div className="real-campaign-pills">
+                  {(representation === "solid"
+                    ? [...VOLUME_LAYERS, ROCK_VOLUME_LAYER]
+                    : (analysis.model?.horizons ?? [])
+                  ).map((h, i) => (
+                    <label key={h.id}>
+                      <input
+                        type="checkbox"
+                        checked={
+                          (representation === "solid"
+                            ? solidVisible
+                            : v.visible)[i]
+                        }
+                        onChange={(e) =>
+                          set(
+                            representation === "solid"
+                              ? "solidVisible"
+                              : "visible",
+                            (representation === "solid"
+                              ? solidVisible
+                              : v.visible
+                            ).map((x, j) => (i === j ? e.target.checked : x)),
+                          )
+                        }
+                      />
+                      <i style={{ background: h.color }} />
+                      {h.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+              <div className="real-options">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={v.showHoles}
+                    onChange={(e) => set("showHoles", e.target.checked)}
+                  />{" "}
+                  관측 주상도
+                </label>
+                {v.mode === "ground" && (
+                  <>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={v.extrapolate}
+                        onChange={(e) => set("extrapolate", e.target.checked)}
+                      />{" "}
+                      외삽 영역 표시
+                    </label>
+                    {representation === "surfaces" && (
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={v.showVariance}
+                          onChange={(e) =>
+                            set("showVariance", e.target.checked)
+                          }
+                        />{" "}
+                        보간 분산
+                      </label>
+                    )}
+                  </>
+                )}
+                <label>
+                  높이 배율{" "}
+                  <select
+                    value={v.verticalScale}
+                    onChange={(e) =>
+                      set("verticalScale", Number(e.target.value))
+                    }
+                  >
+                    <option value={1}>1×</option>
+                    <option value={1.5}>1.5×</option>
+                    <option value={2}>2×</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </details>
           <div
             className={
               v.mode === "ground" && representation === "solid"
@@ -1055,213 +1128,189 @@ export default function RealGroundPage({
               />
             )}
           </div>
-          <p className="real-help">
-            드래그: 회전 · 휠/두 손가락: 확대 · 페이지는 3D 밖에서 스크롤 · 모델
-            전체 보기로 시점을 복원합니다.
-          </p>
-          <div className="real-model-controls">
-            <div className="real-campaign-pills">
+          {v.mode === "ground" && (
+            <div className="real-layer-legend" aria-label="지층 범례">
               {(representation === "solid"
                 ? [...VOLUME_LAYERS, ROCK_VOLUME_LAYER]
                 : (analysis.model?.horizons ?? [])
-              ).map((h, i) => (
-                <label key={h.id}>
-                  <input
-                    type="checkbox"
-                    checked={
-                      (representation === "solid" ? solidVisible : v.visible)[i]
-                    }
-                    onChange={(e) =>
-                      set(
-                        representation === "solid" ? "solidVisible" : "visible",
-                        (representation === "solid"
-                          ? solidVisible
-                          : v.visible
-                        ).map((x, j) => (i === j ? e.target.checked : x)),
-                      )
+              ).map(
+                (h, i) =>
+                  (representation === "solid" ? solidVisible : v.visible)[
+                    i
+                  ] && (
+                    <span key={h.id}>
+                      <i style={{ background: h.color }} />
+                      {h.name}
+                    </span>
+                  ),
+              )}
+            </div>
+          )}
+          <div className="real-view-caption">
+            <span>드래그 회전 · 휠 확대</span>
+            <span>
+              {v.mode === "ground"
+                ? `관측자료 보간 · 암반 바닥은 표시 하한 EL. ${f(baseElevation, 1)} m`
+                : "촬영일·수직기준 미확인 · 높이 차이를 침하량으로 해석하지 마세요."}
+            </span>
+          </div>
+          <details className="real-disclosure real-model-notes">
+            <summary>모델 해석과 자료 한계</summary>
+            <p className="real-muted real-under-view">
+              채운 지층은 관측 경계 사이의 보간 영역입니다. 표층 복합층은 공구
+              표고부터 풍화토 상단까지, 풍화토는 암반 출현면까지 표시합니다.
+              암반은 모델 표시 하한 EL. {f(baseElevation, 1)} m까지 연장한
+              가정입니다. 외곽은 시추공 분포에 따른 모델 범위이며 실제 수직 지층
+              경계를 뜻하지 않습니다. DSM·점군 높이와 과거 공구 표고의 차이는
+              침하량이 아닙니다.
+            </p>
+          </details>
+          <details
+            className="real-disclosure real-section-details"
+            open={slice.enabled && v.mode === "ground"}
+          >
+            <summary>
+              평면·단면도{" "}
+              <span>
+                {slice.enabled && v.mode === "ground"
+                  ? "현재 절단면"
+                  : "참고 단면"}
+              </span>
+            </summary>
+            {representation === "solid" && !geometryError ? (
+              <ModelSliceSection
+                layers={slices.layers}
+                slice={slice}
+                visible={solidVisible}
+                bounds={bounds}
+                baseElevation={baseElevation}
+                topElevation={topElevation}
+                holes={modelHoles}
+                linked={v.mode === "ground" && slice.enabled}
+              />
+            ) : (
+              <>
+                <section className="real-panel">
+                  <div className="real-panel-heading">
+                    <div>
+                      <h2>동서 지층 단면</h2>
+                      <p>
+                        {representation === "solid"
+                          ? "색 영역: 경계 사이 지층 · "
+                          : ""}
+                        실선: 내부 보간 · 점선: 외삽 · 막대: 단면 ±12m 내 관측공
+                      </p>
+                    </div>
+                    <label>
+                      N {f(v.sectionNorth, 1)} m
+                      <input
+                        aria-label="실제 지층 단면 북쪽 좌표"
+                        type="range"
+                        min={Math.min(...modelHoles.map((h) => h.northing))}
+                        max={Math.max(...modelHoles.map((h) => h.northing))}
+                        step={0.5}
+                        value={v.sectionNorth}
+                        onChange={(e) =>
+                          set("sectionNorth", Number(e.target.value))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <Section
+                    points={sectionPoints}
+                    horizons={analysis.model?.horizons ?? []}
+                    north={v.sectionNorth}
+                    holes={modelHoles}
+                    selected={selected.id}
+                    onSelect={pick}
+                    extrapolate={v.extrapolate}
+                    filled={representation === "solid"}
+                    solidVisible={solidVisible}
+                    boundaryVisible={
+                      representation === "solid"
+                        ? [
+                            solidVisible[0],
+                            solidVisible[0] || solidVisible[1],
+                            solidVisible[2],
+                          ]
+                        : v.visible
                     }
                   />
-                  <i style={{ background: h.color }} />
-                  {h.name}
-                </label>
-              ))}
-            </div>
-            <div className="real-options">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={v.showHoles}
-                  onChange={(e) => set("showHoles", e.target.checked)}
-                />{" "}
-                관측 주상도
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={v.extrapolate}
-                  onChange={(e) => set("extrapolate", e.target.checked)}
-                />{" "}
-                외삽 영역 표시
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={v.showVariance}
-                  disabled={representation === "solid"}
-                  onChange={(e) => set("showVariance", e.target.checked)}
-                />{" "}
-                보간 분산
-                {representation === "solid" ? " · 경계면 보기에서" : ""}
-              </label>
-              <label>
-                높이 배율{" "}
-                <select
-                  value={v.verticalScale}
-                  onChange={(e) => set("verticalScale", Number(e.target.value))}
-                >
-                  <option value={1}>1×</option>
-                  <option value={1.5}>1.5×</option>
-                  <option value={2}>2×</option>
-                </select>
-              </label>
-            </div>
-          </div>
-          <p className="real-muted real-under-view">
-            채운 지층은 관측 경계 사이의 보간 영역입니다. 표층 복합층은 공구
-            표고부터 풍화토 상단까지, 풍화토는 암반 출현면까지 표시합니다.
-            암반은 모델 표시 하한 EL. {f(baseElevation, 1)} m까지 연장한
-            가정입니다. 외곽은 시추공 분포에 따른 모델 범위이며 실제 수직 지층
-            경계를 뜻하지 않습니다. DSM·점군 높이와 과거 공구 표고의 차이는
-            침하량이 아닙니다.
-          </p>
-          {representation === "solid" && !geometryError ? (
-            <ModelSliceSection
-              layers={slices.layers}
-              slice={slice}
-              visible={solidVisible}
-              bounds={bounds}
-              baseElevation={baseElevation}
-              topElevation={topElevation}
-              holes={modelHoles}
-              linked={v.mode === "ground" && slice.enabled}
-            />
-          ) : (
-            <>
+                </section>
+              </>
+            )}
+          </details>
+          <details className="real-disclosure" open={!!analysis.error}>
+            <summary>
+              보간 설정·검증 <span>베리오그램 · 교차검증</span>
+            </summary>
+            <div className="real-model-bottom">
               <section className="real-panel">
-                <div className="real-panel-heading">
-                  <div>
-                    <h2>동서 지층 단면</h2>
-                    <p>
-                      {representation === "solid"
-                        ? "색 영역: 경계 사이 지층 · "
-                        : ""}
-                      실선: 내부 보간 · 점선: 외삽 · 막대: 단면 ±12m 내 관측공
-                    </p>
-                  </div>
+                <h3>베리오그램 설정</h3>
+                <div className="real-input-grid">
                   <label>
-                    N {f(v.sectionNorth, 1)} m
-                    <input
-                      aria-label="실제 지층 단면 북쪽 좌표"
-                      type="range"
-                      min={Math.min(...modelHoles.map((h) => h.northing))}
-                      max={Math.max(...modelHoles.map((h) => h.northing))}
-                      step={0.5}
-                      value={v.sectionNorth}
-                      onChange={(e) =>
-                        set("sectionNorth", Number(e.target.value))
-                      }
-                    />
-                  </label>
-                </div>
-                <Section
-                  points={sectionPoints}
-                  horizons={analysis.model?.horizons ?? []}
-                  north={v.sectionNorth}
-                  holes={modelHoles}
-                  selected={selected.id}
-                  onSelect={pick}
-                  extrapolate={v.extrapolate}
-                  filled={representation === "solid"}
-                  solidVisible={solidVisible}
-                  boundaryVisible={
-                    representation === "solid"
-                      ? [
-                          solidVisible[0],
-                          solidVisible[0] || solidVisible[1],
-                          solidVisible[2],
-                        ]
-                      : v.visible
-                  }
-                />
-              </section>
-            </>
-          )}
-          <div className="real-model-bottom">
-            <section className="real-panel">
-              <h3>베리오그램 설정</h3>
-              <div className="real-input-grid">
-                <label>
-                  모델
-                  <select
-                    value={v.parameters.model}
-                    onChange={(e) =>
-                      set("parameters", {
-                        ...v.parameters,
-                        model: e.target.value,
-                      })
-                    }
-                  >
-                    <option value="spherical">구형</option>
-                    <option value="exponential">지수형</option>
-                    <option value="gaussian">가우시안</option>
-                  </select>
-                </label>
-                {(
-                  [
-                    ["range", "범위 (m)"],
-                    ["sill", "부분 문턱값 (m²)"],
-                    ["nugget", "너깃 (m²)"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <label key={id}>
-                    {label}
-                    <input
-                      type="number"
-                      min={id === "nugget" ? 0 : 0.001}
-                      value={v.parameters[id]}
+                    모델
+                    <select
+                      value={v.parameters.model}
                       onChange={(e) =>
                         set("parameters", {
                           ...v.parameters,
-                          [id]: e.target.value,
+                          model: e.target.value,
                         })
                       }
-                    />
+                    >
+                      <option value="spherical">구형</option>
+                      <option value="exponential">지수형</option>
+                      <option value="gaussian">가우시안</option>
+                    </select>
                   </label>
-                ))}
-              </div>
-              <p className="real-muted">
-                설정값은 해석자가 선택한 보간 가정입니다. 원문 설계 지반정수와
-                별개입니다.
-              </p>
-            </section>
-            <section className="real-panel">
-              <h3>공 하나씩 제외한 교차검증</h3>
-              {analysis.loo.map(
-                (row: { id: string; name: string; rmse: number | null }) => (
-                  <div className="real-qc-row" key={row.id}>
-                    <span>{row.name}</span>
-                    <strong>
-                      {row.rmse === null ? "관측공 부족" : `${f(row.rmse)} m`}
-                    </strong>
-                  </div>
-                ),
-              )}
-              <p className="real-muted">
-                RMSE는 동일 차수 내 예측 일관성 지표입니다. 측량 정확도나 설계
-                적합 판정이 아닙니다.
-              </p>
-            </section>
-          </div>
+                  {(
+                    [
+                      ["range", "범위 (m)"],
+                      ["sill", "부분 문턱값 (m²)"],
+                      ["nugget", "너깃 (m²)"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <label key={id}>
+                      {label}
+                      <input
+                        type="number"
+                        min={id === "nugget" ? 0 : 0.001}
+                        value={v.parameters[id]}
+                        onChange={(e) =>
+                          set("parameters", {
+                            ...v.parameters,
+                            [id]: e.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                <p className="real-muted">
+                  설정값은 해석자가 선택한 보간 가정입니다. 원문 설계 지반정수와
+                  별개입니다.
+                </p>
+              </section>
+              <section className="real-panel">
+                <h3>공 하나씩 제외한 교차검증</h3>
+                {analysis.loo.map(
+                  (row: { id: string; name: string; rmse: number | null }) => (
+                    <div className="real-qc-row" key={row.id}>
+                      <span>{row.name}</span>
+                      <strong>
+                        {row.rmse === null ? "관측공 부족" : `${f(row.rmse)} m`}
+                      </strong>
+                    </div>
+                  ),
+                )}
+                <p className="real-muted">
+                  RMSE는 동일 차수 내 예측 일관성 지표입니다. 측량 정확도나 설계
+                  적합 판정이 아닙니다.
+                </p>
+              </section>
+            </div>
+          </details>
         </>
       )}
       {v.tab === "sources" && (
@@ -1552,11 +1601,8 @@ export default function RealGroundPage({
       )}
       <section className="real-save-bar">
         <div>
-          <strong>검토 이력과 원자료</strong>
-          <p>
-            저장 시 전체 원자료 스냅샷·차수·보간 설정·정합·보기 상태를 함께
-            보존합니다.
-          </p>
+          <strong>저장한 검토</strong>
+          <p>모델 설정과 보기 상태를 함께 보관합니다.</p>
         </div>
         <div className="real-save-actions">
           <select

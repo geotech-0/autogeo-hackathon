@@ -222,16 +222,14 @@ export default function QualityReview(props: FeatureProps) {
             className={d.id === dataset.id ? "active" : ""}
           >
             <b>{d.name}</b>
-            <span>{d.subtitle}</span>
           </button>
         ))}
       </div>
       <section className="rf-card">
         <div className="rf-heading">
           <div>
-            <span className="rf-eyebrow">PROVIDED REFERENCE · 원본 7파일</span>
+            <span className="rf-eyebrow">품질시험 · 참고자료</span>
             <h2>{dataset.name}</h2>
-            <p>{dataset.provenance}</p>
           </div>
           <span className="badge badge-warning">
             {criterionValid && !isDcpt && dataset.id !== "tension"
@@ -245,11 +243,20 @@ export default function QualityReview(props: FeatureProps) {
           <b>
             <AlertTriangle size={16} /> 현장 적용 확인 전 참고자료
           </b>
-          <ul>
-            {dataset.qc.map((q) => (
-              <li key={q}>{q}</li>
-            ))}
-          </ul>
+          <p className="rf-critical-reason">
+            {
+              (
+                {
+                  plate:
+                    "다른 현장 예시입니다. 항복·극한·허용지지력 판정 근거가 없어 현장 적용을 보류합니다.",
+                  pile: "이미지 후속 행과 말뚝 제원·판정 기준이 없습니다. 허용지지력은 확정할 수 없습니다.",
+                  tension:
+                    "계기 단위를 확인해야 합니다. 원문 단위로 환산한 참고값이며 항복하중 판정은 보류합니다.",
+                  dcpt: "실측 로그가 아닌 문헌 환산표입니다. 토질·장비·현장 상관 검증 전에는 설계값으로 사용할 수 없습니다.",
+                } as Record<string, string>
+              )[dataset.id]
+            }
+          </p>
         </div>
         <div className="rf-controls">
           {!isDcpt && (
@@ -281,18 +288,6 @@ export default function QualityReview(props: FeatureProps) {
               </select>
             </label>
           )}
-          {dataset.sources.map((id) => (
-            <a
-              className="btn btn-secondary"
-              key={id}
-              href={data.sources.find((s) => s.id === id)?.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <ExternalLink size={14} />
-              {id}
-            </a>
-          ))}
           <button
             disabled={!state.ready || saving}
             className="btn btn-primary"
@@ -363,6 +358,39 @@ export default function QualityReview(props: FeatureProps) {
           }
           invertY={!isDcpt && dataset.id === "plate" && draft.view !== "logps"}
         />
+        {dataset.id === "plate" && draft.view === "time" && (
+          <p className="rf-note">
+            전체 경과시간은 하중단계 연결용입니다. 원문에 기록된 시험 시각이
+            아닙니다.
+          </p>
+        )}
+        <details className="rf-details rf-source-details">
+          <summary>
+            자료 출처·시험 조건 · 원본 {dataset.sources.length}개
+          </summary>
+          <p>
+            {dataset.provenance} · {dataset.subtitle}
+          </p>
+          <ul>
+            {dataset.qc.map((q) => (
+              <li key={q}>{q}</li>
+            ))}
+          </ul>
+          <div className="rf-controls">
+            {dataset.sources.map((id, i) => (
+              <a
+                className="btn btn-secondary"
+                key={id}
+                href={data.sources.find((s) => s.id === id)?.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <ExternalLink size={14} /> {dataset.name} 원문{" "}
+                {dataset.sources.length > 1 ? i + 1 : ""}
+              </a>
+            ))}
+          </div>
+        </details>
         {draft.view === "hold" && (
           <p className="rf-note">
             선택한 하중단계의 양수 유지시간만 표시합니다. 0분은 로그 차트에서
@@ -393,6 +421,11 @@ export default function QualityReview(props: FeatureProps) {
               현장 적용 판정 보류
             </div>
           </div>
+        )}
+        {isDcpt && (
+          <p className="rf-note">
+            차트·표는 원문의 반올림값, 입력 환산기는 참고식의 계산값입니다.
+          </p>
         )}
         <details className="rf-details">
           <summary>

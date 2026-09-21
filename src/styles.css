@@ -2306,3 +2306,15 @@ input[type="number"] {
     gap: 1px;
   }
 }
+
+.record-evidence-details {
+  margin: 12px 0;
+}
+.record-evidence-details > summary {
+  color: #405d75;
+  font-size: 13px;
+  cursor: pointer;
+}
+.record-evidence-details > .record-meta {
+  margin-top: 14px;
+}

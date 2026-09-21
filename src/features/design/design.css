@@ -2020,3 +2020,78 @@
     font-size: 12px;
   }
 }
+
+/* Progressive disclosure keeps the working form and verdicts in the foreground. */
+.design-disclosure-note {
+  margin: 0 0 16px !important;
+  color: #62738a;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.design-source-error {
+  margin-top: 16px !important;
+  line-height: 1.7;
+}
+.design-details > summary > .design-disclosure-error {
+  color: #bf4152;
+  font-size: 11px;
+  font-weight: 600;
+}
+.design-details > summary:focus-visible,
+.design-reset-options > summary:focus-visible {
+  outline: 2px solid #0f6fff;
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+.design-inline-details {
+  margin: 12px 0;
+}
+.design-inline-details > summary {
+  padding: 10px 0;
+}
+.design-inline-details p {
+  margin-top: 0;
+}
+.design-reset-options {
+  margin-top: 14px;
+}
+.design-reset-options > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  color: #536983;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.design-reset-options > summary::-webkit-details-marker {
+  display: none;
+}
+.design-reset-options > summary > svg:last-child {
+  margin-left: auto;
+}
+.design-reset-options[open] > summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.design-reset-options > .design-deliverables {
+  margin-top: 0;
+  border-top: 1px solid #e6ebf2;
+}
+.design-limits h4 {
+  color: #53647b;
+  font-size: 12px;
+  font-weight: 600;
+}
+.design-limits ul {
+  color: #65758a;
+  font-size: 12px;
+  line-height: 1.8;
+}
+@media (max-width: 560px) {
+  .design-reset-options > summary {
+    padding: 15px 16px;
+  }
+}
