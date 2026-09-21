@@ -207,7 +207,8 @@ test("legacy imports stay pending and a different sensor starts without their CS
     await change(field(r, "추가 계측 CSV"), "date,value\n2026-01-01,0");
     await change(labelInput(r, "원본·측정 기록 이름"), "QA 새 W-2");
     await act(async () => button(r, "추가 1행 보류 저장").props.onClick());
-    assert.equal(saved.at(-1).id, undefined);
+    assert.ok(saved.at(-1).id);
+    assert.notEqual(saved.at(-1).id, legacy.id);
     assert.equal(saved.at(-1).asset_id, "W-2");
   } finally {
     await act(async () => r.unmount());
@@ -294,15 +295,16 @@ test("an issue save failure reports the saved review and retry retains its ID", 
     await setCriterion(r);
     await act(async () => button(r, "초과 → 구역 이슈 등록").props.onClick());
     assert.equal(saved.length, 1);
-    assert.equal(saved[0].id, "review");
+    assert.ok(saved[0].id);
+    const reviewId = saved[0].id;
     assert.ok(
       notices.some(([message]) => message.includes("추가 계측은 저장했습니다")),
     );
     assert.ok(button(r, "추가 계측 개정 저장"));
     await act(async () => button(r, "초과 → 구역 이슈 등록").props.onClick());
-    assert.equal(saved[1].id, "review");
+    assert.equal(saved[1].id, reviewId);
     assert.equal(saved[1].revision, 2);
-    assert.equal(saved[2].payload.monitoringReviewId, "review");
+    assert.equal(saved[2].payload.monitoringReviewId, reviewId);
     assert.equal(saved[2].payload.monitoringReviewRevision, 2);
   } finally {
     await act(async () => r.unmount());
@@ -383,8 +385,8 @@ test("sensor-specific unsaved CSV and criteria restore with record/issue IDs and
     );
     await act(async () => new Promise((resolve) => setTimeout(resolve, 200)));
     const persisted = await readDraft("real-monitoring-v1");
-    assert.equal(persisted.importRecordId, "f2-review");
-    assert.equal(persisted.importIssueId, "f2-issue");
+    assert.equal(persisted.importRecordId, stored[0].id);
+    assert.equal(persisted.importIssueId, stored[1].id);
     assert.equal(persisted.additionalBySensor["W-2"].importCsv, w2Csv);
     await act(async () => r.unmount());
     r = await render({ ...props, records: stored });
@@ -403,7 +405,7 @@ test("sensor-specific unsaved CSV and criteria restore with record/issue IDs and
         React.createElement(RealMonitoring, {
           ...props,
           records: stored,
-          requestedRecordId: "f2-review",
+          requestedRecordId: stored[0].id,
         }),
       ),
     );

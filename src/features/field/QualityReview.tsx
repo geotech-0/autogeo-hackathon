@@ -162,8 +162,14 @@ export default function QualityReview(props: FeatureProps) {
       const calculation = isDcpt
         ? dcptReviewCalculation(draft.penetration)
         : null;
+      // Reserve the identity while this form is still mounted. The draft hook
+      // flushes it on navigation even if the record save resolves afterwards.
+      const recordId = issue
+        ? undefined
+        : draft.recordId || crypto.randomUUID();
+      if (!issue) setDraft((d) => ({ ...d, recordId: recordId! }));
       const saved = await props.onSave({
-        id: !issue && draft.recordId ? draft.recordId : undefined,
+        id: recordId,
         stage: "construction",
         source_id: `quality-reference-${dataset.id}`,
         origin: "imported_analysis",
@@ -212,7 +218,10 @@ export default function QualityReview(props: FeatureProps) {
             : {}),
         },
       });
-      if (!issue) setDraft((d) => ({ ...d, recordId: saved.id }));
+      if (!issue)
+        setDraft((d) =>
+          d.recordId === recordId ? { ...d, recordId: saved.id } : d,
+        );
       props.notify(
         issue
           ? "자료 확인 이슈를 조치·재점검에 등록했습니다."
@@ -354,7 +363,9 @@ export default function QualityReview(props: FeatureProps) {
                   onClick={() => save()}
                 >
                   <Save size={15} />{" "}
-                  {draft.recordId ? "검토 개정 저장" : "검토 저장"}
+                  {props.records.some((r) => r.id === draft.recordId)
+                    ? "검토 개정 저장"
+                    : "검토 저장"}
                 </button>
               </div>
               <div className="rf-metrics">
@@ -683,10 +694,16 @@ function UserPlateReview(props: FeatureProps) {
     setSaving(true);
     setError("");
     try {
-      const record = await props.onSave(
-        plateInputRecord(draft, issue) as ProjectRecordDraft,
-      );
-      if (!issue) setDraft((d) => ({ ...d, recordId: record.id }));
+      const input = plateInputRecord(draft, issue) as ProjectRecordDraft;
+      if (!issue) {
+        input.id = draft.recordId || crypto.randomUUID();
+        setDraft((d) => ({ ...d, recordId: input.id! }));
+      }
+      const record = await props.onSave(input);
+      if (!issue)
+        setDraft((d) =>
+          d.recordId === input.id ? { ...d, recordId: record.id } : d,
+        );
       props.notify(
         issue
           ? "시험 확인 이슈를 조치·재점검에 등록했습니다."
@@ -1019,7 +1036,7 @@ function UserPlateReview(props: FeatureProps) {
             <Save size={16} />
             {saving
               ? "저장 중…"
-              : draft.recordId
+              : props.records.some((r) => r.id === draft.recordId)
                 ? "CSV 검토 개정 저장"
                 : "CSV 검토 저장"}
           </button>

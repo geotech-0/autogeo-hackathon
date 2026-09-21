@@ -534,6 +534,7 @@ export default function RealGroundPage({
   const saved = records
     .filter((r) => r.payload.kind === "real-ground-model")
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const hasSavedRecord = saved.some((r) => r.id === v.recordId);
   useEffect(() => setLogIndex(0), [selected.id]);
   const pick = (id: string) => {
     const h = holes.find((h) => h.id === id);
@@ -657,15 +658,19 @@ export default function RealGroundPage({
       return;
     setBusy(true);
     try {
+      // Reserve the identity while mounted so route teardown persists it even
+      // when the record transaction finishes after this page has been left.
+      const recordId = v.recordId || crypto.randomUUID();
+      setV((current) => ({ ...current, recordId }));
       const r = await onSave({
-        id: v.recordId,
+        id: recordId,
         site_id: "icheon-xi-deriche",
         zone_id: "IC-EXC",
         asset_id: "icheon-ground-investigations",
         source_id: "icheon-ground-32-r1",
         source_revision: "1",
         stage: "tender",
-        analysis_id: "real-ground-" + (v.recordId ?? Date.now()),
+        analysis_id: "real-ground-" + recordId,
         method_version: REAL_GROUND_VERSION,
         origin: "calculated",
         title: `실제 지반 · ${v.modelCampaign === "all" ? "전체 차수" : v.modelCampaign} · ${modelHoles.length}공 모델`,
@@ -677,7 +682,6 @@ export default function RealGroundPage({
         ],
         payload: getPayload(),
       });
-      setV({ ...v, recordId: r.id });
       setSelectedRecord(r.id);
       notify("실제 지반 모델과 보기·정합 상태를 저장했습니다.", "success");
     } catch (e) {
@@ -852,7 +856,7 @@ export default function RealGroundPage({
           onClick={save}
         >
           <Save size={16} />
-          {busy ? "저장 중…" : v.recordId ? "개정 저장" : "검토 저장"}
+          {busy ? "저장 중…" : hasSavedRecord ? "개정 저장" : "검토 저장"}
         </button>
       </header>
       {(draftError || assetError) && (

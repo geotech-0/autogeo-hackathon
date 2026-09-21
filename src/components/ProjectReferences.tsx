@@ -115,7 +115,25 @@ export default function ProjectReferences({
     recordIds: Record<string, { id: string; revision: number }>;
   }>("project-reference-review", { activeId: refs[0].id, recordIds: {} });
   const active = refs.find((entry) => entry.id === draft.activeId) || refs[0];
-  const savedRecord = draft.recordIds[active.id];
+  const localRecord = draft.recordIds[active.id];
+  const matchingRecords = records
+    .filter(
+      (record) =>
+        record.payload.kind === "standard-adoption" &&
+        record.payload.reference_id === active.id,
+    )
+    .sort(
+      (a, b) =>
+        b.updated_at.localeCompare(a.updated_at) || b.revision - a.revision,
+    );
+  // Keep the committed identity even when the previous page left before the
+  // save promise could write that ID into its draft.
+  const linkedRecord =
+    matchingRecords.find((record) => record.id === localRecord?.id) ||
+    matchingRecords[0];
+  const savedRecord = linkedRecord
+    ? { id: linkedRecord.id, revision: linkedRecord.revision }
+    : localRecord;
   useRequestedRecord(requestedRecordId, records, draftState.ready, (record) => {
     const entry = refs.find((item) => item.id === record.payload.reference_id);
     if (record.payload.kind !== "standard-adoption" || !entry) return;
@@ -140,9 +158,17 @@ export default function ProjectReferences({
   );
   const save = async () => {
     setSaving(true);
+    const savingId = savedRecord?.id || crypto.randomUUID();
+    setDraft((previous) => ({
+      ...previous,
+      recordIds: {
+        ...previous.recordIds,
+        [active.id]: { id: savingId, revision: savedRecord?.revision || 0 },
+      },
+    }));
     try {
       const record = await onSave({
-        ...(savedRecord ? { id: savedRecord.id } : {}),
+        id: savingId,
         stage: "tender",
         title: `${active.subject} · 계산서 채택근거`,
         summary: `${active.code} · PDF ${active.pages}쪽`,
@@ -271,12 +297,20 @@ export default function ProjectReferences({
               <Link2 size={15} />
               {saving
                 ? "저장 중…"
-                : savedRecord
+                : savedRecord?.revision
                   ? "근거 개정 저장"
-                  : "검토 근거로 저장"}
+                  : savedRecord
+                    ? "저장 재시도"
+                    : "검토 근거로 저장"}
             </button>
           </div>
-          {savedRecord && (
+          {savedRecord && savedRecord.revision === 0 && !saving && (
+            <p className="notice notice-warning" role="status">
+              이전 저장 결과를 아직 확인하지 못했습니다. 다시 저장하면 같은
+              검토로 이어집니다.
+            </p>
+          )}
+          {!!savedRecord?.revision && (
             <p className="muted small" role="status">
               이 근거의 저장 이력: 개정 {savedRecord.revision}
             </p>

@@ -302,6 +302,7 @@ export default function DesignPage({
   type DraftLibrary = {
     activePresetId: string;
     workspaces: Record<string, Workspace>;
+    recordIds?: Record<string, string | undefined>;
   };
   const [library, setLibrary, { ready, error: storageError, retry }] =
     useDraft<DraftLibrary>("design-real-library-v1", () => ({
@@ -319,10 +320,18 @@ export default function DesignPage({
       const next = typeof action === "function" ? action(previous) : action;
       const key = next.presetId || lib.activePresetId;
       return {
+        ...lib,
         activePresetId: key,
         workspaces: { ...lib.workspaces, [key]: next },
       };
     });
+  const loadedId = library.recordIds?.[library.activePresetId] ?? null;
+  const hasSavedRecord = records.some((record) => record.id === loadedId);
+  const setLoadedId = (id: string | null, key = library.activePresetId) =>
+    setLibrary((lib) => ({
+      ...lib,
+      recordIds: { ...lib.recordIds, [key]: id ?? undefined },
+    }));
   const preset = getPreset(state)!;
   const section = getSection(state)!;
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -330,13 +339,13 @@ export default function DesignPage({
   const [resetPending, setResetPending] = useState(false);
   const selectPreset = (id: string) => {
     setLibrary((lib) => ({
+      ...lib,
       activePresetId: id,
       workspaces: {
         ...lib.workspaces,
         [id]: lib.workspaces[id] || createRealWorkspace(id),
       },
     }));
-    setLoadedId(null);
     setCompareId("");
     setResetPending(false);
     setStep(0);
@@ -344,7 +353,6 @@ export default function DesignPage({
   const [member, setMember] = useState<MemberId>("anchor");
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [loadedId, setLoadedId] = useState<string | null>(null);
   const [showSaved, setShowSaved] = useState(false);
   const [compareId, setCompareId] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
@@ -505,25 +513,24 @@ export default function DesignPage({
       const draft = makeDesignDraft(state);
       if (loadedId) {
         const previous = records.find((r) => r.id === loadedId);
-        if (previous) {
-          if (!asNew) {
-            draft.id = loadedId;
-          } else {
-            draft.payload.based_on = {
+        if (previous && asNew) {
+          draft.payload.based_on = {
+            analysis_id: previous.analysis_id,
+            revision: previous.revision,
+          };
+          draft.dependencies = [
+            {
               analysis_id: previous.analysis_id,
               revision: previous.revision,
-            };
-            draft.dependencies = [
-              {
-                analysis_id: previous.analysis_id,
-                revision: previous.revision,
-              },
-            ];
-          }
+            },
+          ];
         }
       }
+      // Keep each preset's identity in the durable draft before the save can
+      // finish on another page. A deliberate new alternative gets a new ID.
+      draft.id = !asNew && loadedId ? loadedId : crypto.randomUUID();
+      setLoadedId(draft.id);
       const record = await onSave(draft);
-      setLoadedId(record.id);
       notify(
         `${record.title} · 개정 ${record.revision} 저장했습니다.`,
         "success",
@@ -545,7 +552,7 @@ export default function DesignPage({
       if (!restored.presetId)
         throw new Error("이 화면은 이천자이더리체 원문 검토안만 불러옵니다.");
       setState(restored);
-      setLoadedId(record.id);
+      setLoadedId(record.id, restored.presetId);
       goToStep(3);
       notify(
         "저장한 입력을 불러와 현재 방법으로 다시 계산했습니다.",
@@ -579,10 +586,11 @@ export default function DesignPage({
         throw new Error("이 화면은 이천자이더리체 원문 검토안만 불러옵니다.");
       const key = restored.presetId;
       setLibrary((lib) => ({
+        ...lib,
         activePresetId: key,
         workspaces: { ...lib.workspaces, [key]: restored },
+        recordIds: { ...lib.recordIds, [key]: record.id },
       }));
-      setLoadedId(record.id);
       setStep(3);
       setFocusRequest({ area: "editor" });
       notify(
@@ -606,7 +614,7 @@ export default function DesignPage({
       if (!restored.presetId)
         throw new Error("이천자이더리체 원문 단면이 지정된 JSON을 가져오세요.");
       setState(restored);
-      setLoadedId(null);
+      setLoadedId(null, restored.presetId);
       setCompareId("");
       setResetPending(false);
       setStep(0);
@@ -755,7 +763,7 @@ export default function DesignPage({
             onClick={() => save()}
           >
             <Save size={16} />
-            {busy ? "저장 중…" : loadedId ? "개정 저장" : "검토안 저장"}
+            {busy ? "저장 중…" : hasSavedRecord ? "개정 저장" : "검토안 저장"}
           </button>
         </div>
       </div>
@@ -1032,7 +1040,7 @@ export default function DesignPage({
           <strong>
             {invalid
               ? "입력을 확인하면 저장할 수 있습니다."
-              : loadedId
+              : hasSavedRecord
                 ? "현재 검토안에 새 개정을 저장합니다."
                 : "선택한 위치의 네 부재를 함께 저장합니다."}
           </strong>
@@ -1904,7 +1912,11 @@ export default function DesignPage({
                 onClick={() => save()}
               >
                 <Save size={15} />
-                {busy ? "저장 중…" : loadedId ? "새 개정 저장" : "검토안 저장"}
+                {busy
+                  ? "저장 중…"
+                  : hasSavedRecord
+                    ? "새 개정 저장"
+                    : "검토안 저장"}
               </button>
             )}
           </div>
@@ -2124,7 +2136,7 @@ export default function DesignPage({
                   </div>
                 ))}
               </div>
-              {loadedId && (
+              {hasSavedRecord && (
                 <div className="design-save-new">
                   <p>현재 기록을 바탕으로 별도 대안을 만들 수 있습니다.</p>
                   <button

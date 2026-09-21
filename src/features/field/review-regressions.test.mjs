@@ -6,7 +6,13 @@ import { create, act } from "react-test-renderer";
 import QualityReview from "./QualityReview.tsx";
 import RealMonitoring from "./RealMonitoring.tsx";
 import IssueTracker from "./IssueTracker.tsx";
-import { writeDraft } from "../../storage/database.ts";
+import {
+  writeDraft,
+  saveRecord,
+  listRecords,
+  listRevisions,
+  resetProject,
+} from "../../storage/database.ts";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
@@ -352,6 +358,7 @@ test("issue drafts survive issue switching and remount, and only the successfull
 });
 
 test("quality reference repeated saves revise the current review and a different test starts a new record", async () => {
+  await resetProject([]);
   await writeDraft("real-quality-review-v1", {
     recordId: "",
     test: "plate",
@@ -365,25 +372,36 @@ test("quality reference repeated saves revise the current review and a different
     workspace: "reference",
   });
   const saved = [];
-  const r = await render(QualityReview, {
-    records: [],
-    notify() {},
-    onSave: async (record) => {
-      saved.push(record);
-      return {
-        ...record,
-        id: record.id || `qa-quality-${saved.length}`,
-        revision: saved.length,
-      };
-    },
-  });
+  function ReviewWithRecords() {
+    const [records, setRecords] = React.useState([]);
+    return React.createElement(QualityReview, {
+      records,
+      notify() {},
+      // Match App.onSave: commit first, refresh records, then return the result.
+      onSave: async (input) => {
+        const record = await saveRecord(input);
+        setRecords(await listRecords());
+        saved.push(record);
+        return record;
+      },
+    });
+  }
+  const r = await render(ReviewWithRecords, {});
   try {
     await act(async () => button(r, " 검토 저장").props.onClick());
     await change(input(r, "기준 이름"), "QA 합성 참고 비교");
     await change(input(r, "허용 절대변위"), "10");
     await act(async () => button(r, " 검토 개정 저장").props.onClick());
-    assert.equal(saved[0].id, undefined);
-    assert.equal(saved[1].id, "qa-quality-1");
+    assert.ok(saved[0].id);
+    assert.equal(saved[1].id, saved[0].id);
+    assert.deepEqual(
+      saved.slice(0, 2).map((record) => record.revision),
+      [1, 2],
+    );
+    assert.deepEqual(
+      (await listRevisions(saved[0].id)).map((record) => record.revision),
+      [2, 1],
+    );
     assert.equal(saved[1].payload.criterion.limitMm, 10);
     await act(async () =>
       r.root
@@ -392,11 +410,13 @@ test("quality reference repeated saves revise the current review and a different
         .props.onClick(),
     );
     await act(async () => button(r, " 검토 저장").props.onClick());
-    assert.equal(
+    assert.notEqual(
       saved[2].id,
-      undefined,
+      saved[0].id,
       "different reference dataset must never overwrite previous review",
     );
+    assert.equal(saved[2].revision, 1);
+    assert.equal((await listRecords()).length, 2);
     assert.equal(saved[2].payload.datasetId, "dcpt");
   } finally {
     await act(async () => r.unmount());

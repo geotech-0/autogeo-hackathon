@@ -4,7 +4,12 @@ import assert from "node:assert/strict";
 import { register } from "node:module";
 import React from "react";
 import { act, create } from "react-test-renderer";
-import { writeDraft } from "../../storage/database.ts";
+import {
+  writeDraft,
+  readDraft,
+  saveRecord,
+  listRevisions,
+} from "../../storage/database.ts";
 import { createRealWorkspace } from "./model.mjs";
 
 // This interaction test renders the real page without browser-only CSS or source assets.
@@ -42,11 +47,12 @@ const change = (node, value) =>
 const step = (r, n) =>
   r.root.findByProps({ "aria-label": "검토 단계" }).findAllByType("button")[n];
 const tab = (r, id) => r.root.findByProps({ id: `design-member-${id}` });
-async function render(props = {}) {
-  await writeDraft("design-real-library-v1", {
-    activePresetId: "b-left-1",
-    workspaces: { "b-left-1": createRealWorkspace() },
-  });
+async function render(props = {}, restore = false) {
+  if (!restore)
+    await writeDraft("design-real-library-v1", {
+      activePresetId: "b-left-1",
+      workspaces: { "b-left-1": createRealWorkspace() },
+    });
   let r;
   await act(async () => {
     r = create(
@@ -69,6 +75,90 @@ async function render(props = {}) {
   await act(async () => new Promise((resolve) => setTimeout(resolve, 30)));
   return r;
 }
+
+test("Design save retries keep their per-preset ID without implying success, then survive unmount before response", async () => {
+  let release, committed, pending, first;
+  const response = new Promise((resolve) => {
+    release = resolve;
+  });
+  const persisted = new Promise((resolve) => {
+    committed = resolve;
+  });
+  const records = [],
+    attempts = [];
+  const props = {
+    records,
+    notify() {},
+    async onSave(draft) {
+      attempts.push(draft.id);
+      if (attempts.length === 1) throw new Error("QA initial save failure");
+      const record = await saveRecord(draft);
+      const index = records.findIndex((r) => r.id === record.id);
+      if (index < 0) records.push(record);
+      else records[index] = record;
+      if (!first) {
+        first = record;
+        committed();
+        await response;
+      }
+      return record;
+    },
+  };
+  let r = await render(props);
+  try {
+    await click(button(r, "검토안 저장"));
+    assert.equal(records.length, 0);
+    assert.ok(
+      button(r, "검토안 저장"),
+      "a reserved ID is not a saved revision",
+    );
+    assert.equal(button(r, "개정 저장"), undefined);
+    await act(async () => {
+      pending = button(r, "검토안 저장").props.onClick();
+      await persisted;
+    });
+    await act(async () => r.unmount());
+    await act(async () => {
+      release();
+      await pending;
+    });
+    assert.equal(
+      (await readDraft("design-real-library-v1")).recordIds?.["b-left-1"],
+      first.id,
+    );
+    assert.equal(
+      attempts[0],
+      first.id,
+      "retry reuses the initially reserved ID",
+    );
+    r = await render(props, true);
+    await change(field(r, "흙막이 단면"), "c");
+    assert.ok(
+      button(r, "검토안 저장"),
+      "an untouched preset remains a new review",
+    );
+    await change(field(r, "흙막이 단면"), "b-left");
+    await click(button(r, "개정 저장"));
+    assert.equal(records.length, 1);
+    assert.equal(records[0].id, first.id);
+    assert.equal(records[0].revision, 2);
+    assert.equal((await listRevisions(first.id)).length, 2);
+    await click(button(r, "새 검토안으로 저장"));
+    assert.equal(
+      records.length,
+      2,
+      "an explicit alternative still creates a separate record",
+    );
+    const alternative = records.find((record) => record.id !== first.id);
+    assert.equal(alternative.revision, 1);
+    assert.deepEqual(alternative.dependencies, [
+      { analysis_id: first.analysis_id, revision: 2 },
+    ]);
+  } finally {
+    release();
+    await act(async () => r.unmount());
+  }
+});
 
 test("blank and non-integer geometry blocks all-member saving; linked wale errors lead to the anchor field", async () => {
   const r = await render();

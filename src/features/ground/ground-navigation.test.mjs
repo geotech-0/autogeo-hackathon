@@ -5,7 +5,12 @@ import { registerHooks } from "node:module";
 import { readFile } from "node:fs/promises";
 import React from "react";
 import { create, act } from "react-test-renderer";
-import { writeDraft } from "../../storage/database.ts";
+import {
+  writeDraft,
+  readDraft,
+  saveRecord,
+  listRevisions,
+} from "../../storage/database.ts";
 
 // Only styles are stubbed. Components, data, model calculations and draft storage
 // run unchanged in this isolated in-memory IndexedDB process.
@@ -222,6 +227,82 @@ test("Cross-campaign map selection preserves the active model, explicit model na
     assert.equal(r.root.findByType(RealSiteMap).props.holes.length, 32);
     assert.ok(notices.some(([message]) => message.includes("불러왔습니다")));
   } finally {
+    await act(async () => r.unmount());
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Ground save retries keep their ID without implying success, then survive unmount before the response", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => ({
+    ok: true,
+    json: async () =>
+      String(url).endsWith("site-assets.json") ? assets : { points: [] },
+    arrayBuffer: async () => new ArrayBuffer(0),
+  });
+  await writeDraft("real-ground-view-v2", initial);
+  let release, committed, pending, first, r;
+  const response = new Promise((resolve) => {
+    release = resolve;
+  });
+  const persisted = new Promise((resolve) => {
+    committed = resolve;
+  });
+  const records = [],
+    attempts = [];
+  const props = {
+    records,
+    notify() {},
+    async onSave(draft) {
+      attempts.push(draft.id);
+      if (attempts.length === 1) throw new Error("QA initial save failure");
+      const record = await saveRecord(draft);
+      const index = records.findIndex((r) => r.id === record.id);
+      if (index < 0) records.push(record);
+      else records[index] = record;
+      if (!first) {
+        first = record;
+        committed();
+        await response;
+      }
+      return record;
+    },
+  };
+  const mount = async () => {
+    await act(async () => {
+      r = create(React.createElement(RealGroundPage, props));
+    });
+    await act(settle);
+  };
+  await mount();
+  try {
+    await click(r, "검토 저장");
+    assert.equal(records.length, 0);
+    assert.ok(button(r, "검토 저장"), "a reserved ID is not a saved revision");
+    assert.equal(button(r, "개정 저장"), undefined);
+    await act(async () => {
+      pending = button(r, "검토 저장").props.onClick();
+      await persisted;
+    });
+    await act(async () => r.unmount());
+    await act(async () => {
+      release();
+      await pending;
+    });
+    assert.equal((await readDraft("real-ground-view-v2")).recordId, first.id);
+    assert.equal(
+      attempts[0],
+      first.id,
+      "retry reuses the initially reserved ID",
+    );
+    await mount();
+    await click(r, "개정 저장");
+    assert.equal(records.length, 1);
+    assert.equal(records[0].id, first.id);
+    assert.equal(records[0].revision, 2);
+    assert.equal((await listRevisions(first.id)).length, 2);
+  } finally {
+    release();
     await act(async () => r.unmount());
     globalThis.fetch = originalFetch;
   }

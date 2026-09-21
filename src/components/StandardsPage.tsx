@@ -77,13 +77,32 @@ function OfficialStandards({
   }>("official-standard-review", { activeCode: catalog[0].code, byCode: {} });
   const active =
     catalog.find((entry) => entry.code === draft.activeCode) || catalog[0];
-  const current = draft.byCode[active.code] || {
-    edition: active.edition,
-    clause: "",
-    memo: "",
-    recordId: null,
-    revision: 0,
+  const local = draft.byCode[active.code];
+  const matchingRecords = records
+    .filter(
+      (record) =>
+        record.payload.kind === "standard-adoption" &&
+        !record.payload.reference_id &&
+        record.payload.code === active.code,
+    )
+    .sort(
+      (a, b) =>
+        b.updated_at.localeCompare(a.updated_at) || b.revision - a.revision,
+    );
+  // A committed save can finish after this page unmounts. Recover its identity
+  // from records without replacing the user's current edition or notes.
+  const linkedRecord =
+    matchingRecords.find((record) => record.id === local?.recordId) ||
+    matchingRecords[0];
+  const current = local || {
+    edition: String(linkedRecord?.payload.edition || active.edition),
+    clause: String(linkedRecord?.payload.clause || ""),
+    memo: String(linkedRecord?.payload.memo || ""),
+    recordId: linkedRecord?.id || null,
+    revision: linkedRecord?.revision || 0,
   };
+  const recordId = linkedRecord?.id || current.recordId;
+  const revision = linkedRecord?.revision || current.revision;
   const { edition, clause, memo } = current;
   const update = (patch: Partial<StandardDraft>) =>
     setDraft((previous) => ({
@@ -132,9 +151,13 @@ function OfficialStandards({
       return;
     }
     setSaving(true);
+    const savingId = recordId || crypto.randomUUID();
+    // Persist a provisional identity before waiting for the global record refresh.
+    // A page entered again during that wait must retry this same record.
+    update({ recordId: savingId, revision });
     try {
       const saved = await onSave({
-        ...(current.recordId ? { id: current.recordId } : {}),
+        id: savingId,
         stage: "tender",
         title: `${active.code} 적용판 검토`,
         status: "pending",
@@ -379,13 +402,21 @@ function OfficialStandards({
               <CheckCircle2 size={16} />
               {saving
                 ? "저장 중…"
-                : current.recordId
+                : revision > 0
                   ? "검토 개정 저장"
-                  : "검토 이력에 저장"}
+                  : recordId
+                    ? "저장 재시도"
+                    : "검토 이력에 저장"}
             </button>
-            {current.revision > 0 && (
+            {recordId && revision === 0 && !saving && (
+              <p className="notice notice-warning" role="status">
+                이전 저장 결과를 아직 확인하지 못했습니다. 다시 저장하면 같은
+                검토로 이어집니다.
+              </p>
+            )}
+            {revision > 0 && (
               <p className="muted small" role="status">
-                이 기준의 저장 이력: 개정 {current.revision}
+                이 기준의 저장 이력: 개정 {revision}
               </p>
             )}
             <p className="muted small">

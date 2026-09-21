@@ -165,7 +165,7 @@ test("plate input UI uploads, confirms, saves, restores across remount/history, 
   await writeDraft("user-plate-input-v1", { ...EMPTY_PLATE_INPUT });
   const saved = [];
   const props = {
-    records: [],
+    records: saved,
     notify() {},
     onSave: async (record) => {
       const value = {

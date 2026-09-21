@@ -27,7 +27,12 @@ import {
   advanceRealGpr,
   isDate,
 } from "./real-model.mjs";
-import { navigateGprDraft, committedGprDraft } from "./draft-navigation.mjs";
+import {
+  navigateGprDraft,
+  committedGprDraft,
+  recoverGprDraft,
+  gprDraftConflict,
+} from "./draft-navigation.mjs";
 import "../field/real-field.css";
 import "./maintenance.css";
 type Event = { stage: string; date: string; author: string; note: string };
@@ -37,12 +42,20 @@ type Model = Omit<typeof EMPTY_GPR, "attachments" | "history"> & {
 };
 type Draft = {
   recordId: string | null;
+  pendingRecordId?: string;
+  sourceRevision?: number;
   model: Model;
   event: { date: string; author: string; note: string };
   editing: boolean;
   pendingDrafts?: Record<
     string,
-    { model: Model; event: Draft["event"]; editing: boolean }
+    {
+      model: Model;
+      event: Draft["event"];
+      editing: boolean;
+      pendingRecordId?: string;
+      sourceRevision?: number;
+    }
   >;
 };
 const PdfDocument = lazy(() => import("../../components/PdfDocument"));
@@ -149,6 +162,27 @@ export default function MaintenancePage(props: FeatureProps) {
       (showArchived || !(r.payload.model as Model)?.archived),
   );
   const selected = props.records.find((r) => r.id === draft.recordId);
+  const staleEditing = gprDraftConflict(draft, selected);
+  useEffect(() => {
+    if (!state.ready) return;
+    setDraft((d) =>
+      recoverGprDraft(
+        d,
+        props.records.find(
+          (r) =>
+            r.id === (d.recordId || d.pendingRecordId) &&
+            r.payload.kind === "real_gpr",
+        ),
+      ),
+    );
+  }, [
+    state.ready,
+    props.records,
+    draft.recordId,
+    draft.pendingRecordId,
+    draft.editing,
+    setDraft,
+  ]);
   const stageLabels = REAL_STAGE_LABELS as Record<string, string>;
   const displayedStatus = (item: Model) =>
     `${item.archived ? "보관 · " : ""}${item.closed ? "마감" : stageLabels[item.lifecycle]}`;
@@ -191,13 +225,20 @@ export default function MaintenancePage(props: FeatureProps) {
   }
 
   async function persist(next: Model) {
+    if (staleEditing)
+      throw new Error(
+        "현재 초안의 기준과 저장본이 다릅니다. 필요한 입력을 복사하고 최신 저장본을 불러와 다시 확인해 주세요.",
+      );
     const errs = validateRealGpr(next);
     if (errs.length) {
       setErrors(errs);
       throw new Error(errs[0]);
     }
+    const recordId =
+      draft.recordId || draft.pendingRecordId || crypto.randomUUID();
+    if (!draft.recordId) setDraft((d) => ({ ...d, pendingRecordId: recordId }));
     const saved = await props.onSave({
-      id: draft.recordId || undefined,
+      id: recordId,
       stage: "maintenance",
       asset_id: next.asset,
       source_id: next.attachments[0]?.id || "user-gpr",
@@ -236,7 +277,11 @@ export default function MaintenancePage(props: FeatureProps) {
           : ["좌표 미등록: 위치 설명과 첨부 원문을 확인합니다."]),
       ],
     });
-    setDraft((d) => committedGprDraft(d, saved.id, next));
+    setDraft((d) =>
+      (d.recordId || d.pendingRecordId) === recordId
+        ? committedGprDraft(d, saved.id, next, saved.revision)
+        : d,
+    );
     setErrors([]);
     return saved;
   }
@@ -471,7 +516,10 @@ export default function MaintenancePage(props: FeatureProps) {
                 <h2>{draft.recordId ? "조사 상세" : "새 조사 등록"}</h2>
                 {selected && (
                   <span className="badge badge-neutral">
-                    r{selected.revision} · {displayedStatus(model)}
+                    {staleEditing && draft.sourceRevision === undefined
+                      ? "개정 미확인"
+                      : `r${staleEditing ? draft.sourceRevision : selected.revision}`}
+                    {staleEditing ? " 편집 중" : ""} · {displayedStatus(model)}
                   </span>
                 )}
               </div>
@@ -480,6 +528,20 @@ export default function MaintenancePage(props: FeatureProps) {
                   입력 중인 내용은 초안으로 보관됩니다. 원본 첨부 후 조사 정보를
                   저장하세요.
                 </p>
+              )}
+              {staleEditing && selected && (
+                <div className="rf-warning" role="alert">
+                  편집 기준과 최신 저장본 r{selected.revision}의 개정 또는 수행
+                  이력이 다릅니다. 현재 입력은 보존되어 있으며 이전 개정으로
+                  덮어쓸 수 없습니다. 필요한 입력을 복사한 뒤 다시 불러오세요.
+                  <button
+                    className="btn btn-secondary"
+                    disabled={saving}
+                    onClick={() => load(selected, true)}
+                  >
+                    현재 입력 대신 최신 저장본 불러오기
+                  </button>
+                </div>
               )}
               <div className="rm-steps">
                 {REAL_STAGES.map((s, i) => (

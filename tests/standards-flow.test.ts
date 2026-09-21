@@ -6,7 +6,12 @@ import { act, create } from "react-test-renderer";
 import type { ReactTestInstance } from "react-test-renderer";
 import StandardsPage from "../src/components/StandardsPage";
 import type { ProjectRecord, ProjectRecordDraft } from "../src/contracts";
-import { writeDraft } from "../src/storage/database";
+import {
+  writeDraft,
+  saveRecord,
+  listRecords,
+  resetProject,
+} from "../src/storage/database";
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -169,3 +174,107 @@ test("project-basis history selects the original reference and revises the same 
     await ui.close();
   }
 });
+
+for (const scope of ["official", "project"] as const) {
+  for (const published of [true, false]) {
+    test(`${scope} committed save survives departure with ${published ? "refreshed" : "still empty"} record props and resumes as the same record revision`, async () => {
+      await resetProject([]);
+      await writeDraft("official-standard-review", {
+        activeCode: "KDS 21 30 00",
+        byCode: {},
+      });
+      await writeDraft("project-reference-review", {
+        activeId: "kds-2020",
+        recordIds: {},
+      });
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let first = true;
+      const onSave = async (draft: ProjectRecordDraft) => {
+        const committed = await saveRecord(draft);
+        if (first) {
+          first = false;
+          await gate;
+        }
+        return committed;
+      };
+      const props = { records: [] as ProjectRecord[], onSave, notify() {} };
+      let renderer!: ReturnType<typeof create>;
+      const button = (label: string) =>
+        renderer.root
+          .findAllByType("button")
+          .find((item) => content(item).trim() === label)!;
+      const render = async (records: ProjectRecord[]) => {
+        await act(async () => {
+          renderer = create(
+            createElement(StandardsPage, { ...props, records }),
+          );
+        });
+        await act(settle);
+        if (scope === "official")
+          await act(async () => button("공식 기준·적용판").props.onClick());
+      };
+      const initialLabel =
+        scope === "official" ? "검토 이력에 저장" : "검토 근거로 저장";
+      const revisionLabel =
+        scope === "official" ? "검토 개정 저장" : "근거 개정 저장";
+      await render([]);
+      let pending!: Promise<void>;
+      try {
+        if (scope === "official")
+          await act(async () =>
+            renderer.root
+              .findByProps({ "aria-label": "현장 검토판" })
+              .props.onChange({ target: { value: "QA 별도 확인판" } }),
+          );
+        await act(async () => {
+          pending = button(initialLabel).props.onClick();
+          await settle();
+        });
+        const firstRecords = await listRecords();
+        assert.equal(
+          firstRecords.length,
+          1,
+          "the record must already be committed before navigating away",
+        );
+        await act(async () => renderer.unmount());
+        if (published)
+          await act(async () => {
+            release();
+            await pending;
+          });
+        await render(published ? firstRecords : []);
+        const resumedLabel = published ? revisionLabel : "저장 재시도";
+        assert.ok(
+          button(resumedLabel),
+          "returning must retain the same identity even before record props refresh",
+        );
+        if (!published)
+          assert.equal(
+            button(revisionLabel),
+            undefined,
+            "a provisional ID must not claim a confirmed saved revision",
+          );
+        if (scope === "official")
+          assert.equal(
+            renderer.root.findByProps({ "aria-label": "현장 검토판" }).props
+              .value,
+            "QA 별도 확인판",
+          );
+        await act(async () => button(resumedLabel).props.onClick());
+        const finalRecords = await listRecords();
+        assert.equal(finalRecords.length, 1);
+        assert.equal(finalRecords[0].id, firstRecords[0].id);
+        assert.equal(finalRecords[0].revision, 2);
+      } finally {
+        await act(async () => {
+          release();
+          await pending;
+        });
+        await act(async () => renderer.unmount());
+      }
+    });
+  }
+}

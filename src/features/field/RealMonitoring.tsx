@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Save, AlertTriangle, Upload } from "lucide-react";
 import type {
   FeatureProps,
@@ -58,7 +58,9 @@ const f = (n: number | null | undefined) =>
   n == null ? "—" : n.toLocaleString("ko-KR", { maximumFractionDigits: 3 });
 const emptyAdditionalDraft = () => ({
   importRecordId: "",
+  importPendingRecordId: "",
   importIssueId: "",
+  importPendingIssueId: "",
   importCsv: "date,value\n",
   importSource: "",
   importLocation: "",
@@ -75,8 +77,16 @@ const additionalSnapshot = (draft: Partial<AdditionalDraft>): AdditionalDraft =>
     ]),
   ) as AdditionalDraft;
 export default function RealMonitoring(props: FeatureProps) {
+  const saveLifecycle = useRef(0);
+  useEffect(() => {
+    saveLifecycle.current += 1;
+    return () => {
+      saveLifecycle.current += 1;
+    };
+  }, []);
   const [draft, setDraft, state] = useDraft("real-monitoring-v1", {
     recordId: "",
+    pendingRecordId: "",
     sensor: "F-2",
     month: "all",
     metric: "delta",
@@ -108,6 +118,7 @@ export default function RealMonitoring(props: FeatureProps) {
         },
         ...emptyAdditionalDraft(),
         recordId: r.payload.kind === "real_monitoring_review" ? r.id : "",
+        pendingRecordId: "",
         sensor: sensorId,
         month: String(r.payload.period || "all"),
         metric: "delta",
@@ -155,12 +166,21 @@ export default function RealMonitoring(props: FeatureProps) {
   const selected = selectedRow === null ? last : rows[selectedRow] || last;
   const importCriterion = draft.importCriterion ?? emptyAdditionalCriterion();
   const csv = evaluateAdditionalMonitoring(draft.importCsv, importCriterion);
+  const hasSavedImport = Boolean(
+    draft.importRecordId ||
+      props.records.some(
+        (r) =>
+          r.id === draft.importPendingRecordId &&
+          r.payload.kind === "monitoring_import",
+      ),
+  );
   const linkedIssue = props.records.find(
     (r) =>
       r.payload.kind === "real_field_issue" &&
-      (r.id === draft.importIssueId ||
-        (draft.importRecordId &&
-          r.payload.monitoringReviewId === draft.importRecordId)),
+      (r.id === (draft.importIssueId || draft.importPendingIssueId) ||
+        ((draft.importRecordId || draft.importPendingRecordId) &&
+          r.payload.monitoringReviewId ===
+            (draft.importRecordId || draft.importPendingRecordId))),
   );
   const recent = props.records.filter(
     (r) => r.payload.kind === "monitoring_import" && r.asset_id === sensor.id,
@@ -177,6 +197,7 @@ export default function RealMonitoring(props: FeatureProps) {
           ...additionalSnapshot(additionalBySensor[value] || {}),
           sensor: value,
           recordId: "",
+          pendingRecordId: "",
           metric: "delta",
           additionalBySensor,
         };
@@ -215,6 +236,8 @@ export default function RealMonitoring(props: FeatureProps) {
       ...d,
       ...restoreAdditionalImport(r.payload),
       importRecordId: r.id,
+      importPendingRecordId: "",
+      importPendingIssueId: "",
       importIssueId:
         props.records.find(
           (item) =>
@@ -233,8 +256,13 @@ export default function RealMonitoring(props: FeatureProps) {
         );
       if (issue && (!draft.note.trim() || !draft.author.trim()))
         throw new Error("이슈 내용과 담당자를 입력해 주세요.");
-      await props.onSave({
-        id: !issue && draft.recordId ? draft.recordId : undefined,
+      const recordId = issue
+        ? undefined
+        : draft.recordId || draft.pendingRecordId || crypto.randomUUID();
+      if (!issue && !draft.recordId && !draft.pendingRecordId)
+        setDraft((d) => ({ ...d, pendingRecordId: recordId! }));
+      const saved = await props.onSave({
+        id: recordId,
         stage: "construction",
         asset_id: sensor.id,
         source_id: provenance.source_id,
@@ -279,6 +307,8 @@ export default function RealMonitoring(props: FeatureProps) {
             : {}),
         },
       });
+      if (!issue)
+        setDraft((d) => ({ ...d, recordId: saved.id, pendingRecordId: "" }));
       props.notify(
         issue
           ? "계측 이슈를 조치 이력에 등록했습니다."
@@ -292,6 +322,8 @@ export default function RealMonitoring(props: FeatureProps) {
     }
   }
   async function saveImport(asIssue = false) {
+    const lifecycle = saveLifecycle.current;
+    const isCurrent = () => saveLifecycle.current === lifecycle;
     setSaving(true);
     let reviewSaved = false;
     try {
@@ -308,8 +340,20 @@ export default function RealMonitoring(props: FeatureProps) {
         );
       if (asIssue && draft.importIssueId && !linkedIssue)
         throw new Error("연결된 이슈를 불러온 뒤 다시 저장해 주세요.");
+      const reviewId =
+        draft.importRecordId ||
+        draft.importPendingRecordId ||
+        crypto.randomUUID();
+      const issueId = asIssue
+        ? linkedIssue?.id || draft.importPendingIssueId || crypto.randomUUID()
+        : undefined;
+      setDraft((d) => ({
+        ...d,
+        ...(!draft.importRecordId ? { importPendingRecordId: reviewId } : {}),
+        ...(asIssue && !linkedIssue ? { importPendingIssueId: issueId! } : {}),
+      }));
       const review = await props.onSave({
-        id: draft.importRecordId || undefined,
+        id: reviewId,
         stage: "construction",
         zone_id: SITE.zone_id,
         asset_id: sensor.id,
@@ -330,7 +374,14 @@ export default function RealMonitoring(props: FeatureProps) {
         ],
       });
       reviewSaved = true;
-      setDraft((d) => ({ ...d, importRecordId: review.id }));
+      // The reserved IDs remain in the draft. A returning screen can finish
+      // the issue link; a departed screen must not overwrite its newer review.
+      if (!isCurrent()) return;
+      setDraft((d) => ({
+        ...d,
+        importRecordId: review.id,
+        importPendingRecordId: "",
+      }));
       if (asIssue) {
         const issuePayload = additionalIssuePayload(
           review,
@@ -339,7 +390,7 @@ export default function RealMonitoring(props: FeatureProps) {
         );
         const issue = await props.onSave({
           ...(linkedIssue || {}),
-          id: linkedIssue?.id,
+          id: issueId,
           stage: "construction",
           zone_id: SITE.zone_id,
           asset_id: sensor.id,
@@ -357,23 +408,29 @@ export default function RealMonitoring(props: FeatureProps) {
             : [],
           payload: issuePayload,
         });
-        setDraft((d) => ({ ...d, importIssueId: issue.id }));
+        if (!isCurrent()) return;
+        setDraft((d) => ({
+          ...d,
+          importIssueId: issue.id,
+          importPendingIssueId: "",
+        }));
         props.notify(
           "추가 계측과 초과 이슈를 저장했습니다. 조치·재점검에서 이어 기록하세요.",
           "success",
         );
       } else
         props.notify(
-          `추가 계측을 ${payload.evaluation.status === "pending" ? "보류 상태로 " : ""}${draft.importRecordId ? "개정 " : ""}저장했습니다.`,
+          `추가 계측을 ${payload.evaluation.status === "pending" ? "보류 상태로 " : ""}${hasSavedImport ? "개정 " : ""}저장했습니다.`,
           "success",
         );
     } catch (e) {
+      if (!isCurrent()) return;
       props.notify(
         `${asIssue && reviewSaved ? "추가 계측은 저장했습니다. 이슈 연결을 다시 시도해 주세요. " : ""}${e instanceof Error ? e.message : "저장 실패"}`,
         "error",
       );
     } finally {
-      setSaving(false);
+      if (isCurrent()) setSaving(false);
     }
   }
   return (
@@ -946,7 +1003,7 @@ export default function RealMonitoring(props: FeatureProps) {
                   }
                   onClick={() => saveImport()}
                 >
-                  {draft.importRecordId
+                  {hasSavedImport
                     ? "추가 계측 개정 저장"
                     : csv.status === "pending"
                       ? `추가 ${csv.rows.length}행 보류 저장`
@@ -965,7 +1022,7 @@ export default function RealMonitoring(props: FeatureProps) {
                       : "초과 → 구역 이슈 등록"}
                   </button>
                 )}
-                {draft.importRecordId && (
+                {hasSavedImport && (
                   <button
                     className="btn btn-ghost"
                     disabled={saving}
@@ -977,6 +1034,16 @@ export default function RealMonitoring(props: FeatureProps) {
                   </button>
                 )}
               </div>
+              {hasSavedImport &&
+                csv.status === "exceeded" &&
+                draft.importPendingIssueId &&
+                !linkedIssue &&
+                !saving && (
+                  <p className="rf-warning" role="status">
+                    추가 계측은 저장됐지만 초과 이슈 연결이 완료되지 않았습니다.
+                    ‘초과 → 구역 이슈 등록’으로 이어 저장하세요.
+                  </p>
+                )}
               {(linkedIssue || draft.importIssueId) && (
                 <p className="rf-note">
                   연결된 초과 이슈는 상단 ‘조치·재점검’에서 이어 확인하세요.
