@@ -2,9 +2,9 @@
 
 입찰·설계·시공·유지관리의 원자료, 계산 근거와 검토 이력을 하나의 현장에 연결하는 해커톤 웹 앱입니다. 현재 작업본은 사용자가 제공한 이천자이더리체 실제 자료를 기본으로 사용합니다.
 
-## 현재 릴리스 상태
+## 공개 버전 확인
 
-실자료 통합과 최종 검수에서 확인한 저장·출처·이슈 마감 흐름 보완을 완료했습니다. 기존 [Vercel 공개 주소](https://autogeo-hackathon.vercel.app/)와 [GitHub 저장소](https://github.com/geotech-0/autogeo-hackathon)는 이전 합성판이며, 현재 로컬 작업본과 구분해야 합니다. 실제 수치·좌표·영상의 공개 범위에 맞춰 검증한 소스와 배포물을 함께 갱신합니다.
+공개 대상은 실제 수치·좌표·영상·3D를 포함한 파생자료 앱입니다. [Vercel 공개 주소](https://autogeo-hackathon.vercel.app/)의 배포 소스는 [공개 version.json](https://autogeo-hackathon.vercel.app/version.json)의 커밋 SHA를 [GitHub 저장소](https://github.com/geotech-0/autogeo-hackathon)와 대조해 확인합니다. 배포 진행 및 검수 결과는 `CHECKPOINT.md`에 기록합니다.
 
 ## 대표 흐름
 
