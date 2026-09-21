@@ -1,9 +1,72 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import {restoreGroundPayload} from './record.mjs';
-import {FRAME,syntheticBoreholes,DEFAULT_PARAMETERS} from './engine.mjs';
-const fixture=()=>({kind:'ground-model',frame:FRAME,holes:structuredClone(syntheticBoreholes),parameters:DEFAULT_PARAMETERS,sectionNorth:43,excavation:{depth:12},registration:{east:6,north:-4,rotation:7,scale:.96,height:2,applied:true},view:{selected:'BH-09',layers:[true,false,true,true],showHoles:false,showVariance:true,verticalScale:2},datasetOrigin:'synthetic'});
-test('saved result restores inputs, borehole master, transform and viewing options without mutation',()=>{const p=fixture(),before=structuredClone(p),d=restoreGroundPayload(p);assert.deepEqual(p,before);assert.equal(d.selected,'BH-09');assert.equal(d.parameters.range,'95');assert.equal(d.depth,12);assert.equal(d.sectionNorth,43);assert.equal(d.transform.height,2);assert.equal(d.transformed,true);assert.equal(d.layers[1],false);assert.equal(d.showVariance,true);assert.equal(d.showHoles,false);assert.equal(d.verticalScale,2);assert.equal(d.datasetOrigin,'synthetic');assert.notEqual(d.holes,p.holes);});
-test('restore rejects wrong frame, bad layers, nonfinite parameters and invalid transforms',()=>{for(const corrupt of [p=>p.frame={unit:'ft',id:FRAME.id},p=>p.holes[0].layers[1].from=99,p=>p.parameters={...DEFAULT_PARAMETERS,range:0},p=>p.registration.scale=0,p=>p.excavation.depth=Infinity]){const p=fixture();corrupt(p);assert.throws(()=>restoreGroundPayload(p));}});
-test('missing optional views use defaults; missing selected hole safely falls back',()=>{const p=fixture();delete p.view;const d=restoreGroundPayload(p);assert.equal(d.selected,'BH-01');assert.equal(d.verticalScale,1.5);assert.deepEqual(d.layers,[true,true,true,true]);});
-test('modified user data cannot claim the analytical synthetic truth check through imported metadata',()=>{const p=fixture();p.holes[0].collar+=1;assert.equal(restoreGroundPayload(p).datasetOrigin,'user-provided');});
+import test from "node:test";
+import assert from "node:assert/strict";
+import { restoreGroundPayload } from "./record.mjs";
+import { FRAME, syntheticBoreholes, DEFAULT_PARAMETERS } from "./engine.mjs";
+const fixture = () => ({
+  kind: "ground-model",
+  frame: FRAME,
+  holes: structuredClone(syntheticBoreholes),
+  parameters: DEFAULT_PARAMETERS,
+  sectionNorth: 43,
+  excavation: { depth: 12 },
+  registration: {
+    east: 6,
+    north: -4,
+    rotation: 7,
+    scale: 0.96,
+    height: 2,
+    applied: true,
+  },
+  view: {
+    selected: "BH-09",
+    layers: [true, false, true, true],
+    showHoles: false,
+    showVariance: true,
+    verticalScale: 2,
+  },
+  datasetOrigin: "synthetic",
+});
+test("saved result restores inputs, borehole master, transform and viewing options without mutation", () => {
+  const p = fixture(),
+    before = structuredClone(p),
+    d = restoreGroundPayload(p);
+  assert.deepEqual(p, before);
+  assert.equal(d.selected, "BH-09");
+  assert.equal(d.parameters.range, "95");
+  assert.equal(d.depth, 12);
+  assert.equal(d.sectionNorth, 43);
+  assert.equal(d.transform.height, 2);
+  assert.equal(d.transformed, true);
+  assert.equal(d.layers[1], false);
+  assert.equal(d.showVariance, true);
+  assert.equal(d.showHoles, false);
+  assert.equal(d.verticalScale, 2);
+  assert.equal(d.datasetOrigin, "synthetic");
+  assert.notEqual(d.holes, p.holes);
+});
+test("restore rejects wrong frame, bad layers, nonfinite parameters and invalid transforms", () => {
+  for (const corrupt of [
+    (p) => (p.frame = { unit: "ft", id: FRAME.id }),
+    (p) => (p.holes[0].layers[1].from = 99),
+    (p) => (p.parameters = { ...DEFAULT_PARAMETERS, range: 0 }),
+    (p) => (p.registration.scale = 0),
+    (p) => (p.excavation.depth = Infinity),
+  ]) {
+    const p = fixture();
+    corrupt(p);
+    assert.throws(() => restoreGroundPayload(p));
+  }
+});
+test("missing optional views use defaults; missing selected hole safely falls back", () => {
+  const p = fixture();
+  delete p.view;
+  const d = restoreGroundPayload(p);
+  assert.equal(d.selected, "BH-01");
+  assert.equal(d.verticalScale, 1.5);
+  assert.deepEqual(d.layers, [true, true, true, true]);
+});
+test("modified user data cannot claim the analytical synthetic truth check through imported metadata", () => {
+  const p = fixture();
+  p.holes[0].collar += 1;
+  assert.equal(restoreGroundPayload(p).datasetOrigin, "user-provided");
+});

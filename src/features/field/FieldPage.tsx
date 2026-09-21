@@ -1,87 +1,974 @@
-import { useMemo, useState } from 'react';
-import { Activity, ArrowUpRight, CheckCircle2, ChevronDown, ClipboardCheck, Download, Map, Save, Upload, AlertTriangle, Plus } from 'lucide-react';
-import type { DataOrigin, FeatureProps, RecordStatus } from '../../contracts';
-import { STATUS_LABELS } from '../../contracts';
-import { useDraft } from '../../storage/useDraft';
-import { evaluatePlate, evaluateMonitoring, manualMonitoringTime, PLATE_FIXTURES, MONITORING_FIXTURES } from './engine.mjs';
-import { PlateChart, MonitoringChart } from './Charts';
-import ImageComparison from './ImageComparison';
-import './field.css';
+import { useMemo, useState } from "react";
+import {
+  Activity,
+  ArrowUpRight,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardCheck,
+  Download,
+  Map,
+  Save,
+  Upload,
+  AlertTriangle,
+  Plus,
+} from "lucide-react";
+import type { DataOrigin, FeatureProps, RecordStatus } from "../../contracts";
+import { STATUS_LABELS } from "../../contracts";
+import { useDraft } from "../../storage/useDraft";
+import {
+  evaluatePlate,
+  evaluateMonitoring,
+  manualMonitoringTime,
+  PLATE_FIXTURES,
+  MONITORING_FIXTURES,
+} from "./engine.mjs";
+import { PlateChart, MonitoringChart } from "./Charts";
+import ImageComparison from "./ImageComparison";
+import "./field.css";
 
-type Tab = 'plate' | 'monitoring' | 'imagery';
-type Draft = { tab: Tab; plateCsv: string; monitoringCsv: string; diameterMm: string; limitMm: string; criterion: string; mode: 'load' | 'pressure'; baselineMm: string; warningMm: string; actionMm: string; plateOrigin: '' | 'synthetic' | 'measured'; monitoringOrigin: '' | 'synthetic' | 'measured'; plateSourceName: string; monitoringSourceName: string };
-const initial: Draft = { tab: 'plate', plateCsv: PLATE_FIXTURES.normal, monitoringCsv: MONITORING_FIXTURES.exceeded, diameterMm: '300', limitMm: '10', criterion: 'A현장 예제 · 시험구간 최대 침하 관리기준', mode: 'load', baselineMm: '0', warningMm: '15', actionMm: '20', plateOrigin: 'synthetic', monitoringOrigin: 'synthetic', plateSourceName: 'A현장 합성 평판재하 데이터 v1', monitoringSourceName: 'A현장 합성 계측 데이터 v1' };
-const format = (v: number | null, digits = 2) => v === null ? '—' : v.toLocaleString('ko-KR', { maximumFractionDigits: digits });
-function download(name: string, text: string) { const url = URL.createObjectURL(new Blob(['\uFEFF', text], { type: 'text/csv;charset=utf-8' })); const a = document.createElement('a'); a.href = url; a.download = name; a.click(); URL.revokeObjectURL(url); }
-function Badge({ status }: { status: string }) { const tone = status === 'pass' ? 'success' : status === 'error' || status === 'exceeded' ? 'danger' : 'warning'; return <span className={`badge badge-${tone}`}>{STATUS_LABELS[status as RecordStatus] || status}</span>; }
+type Tab = "plate" | "monitoring" | "imagery";
+type Draft = {
+  tab: Tab;
+  plateCsv: string;
+  monitoringCsv: string;
+  diameterMm: string;
+  limitMm: string;
+  criterion: string;
+  mode: "load" | "pressure";
+  baselineMm: string;
+  warningMm: string;
+  actionMm: string;
+  plateOrigin: "" | "synthetic" | "measured";
+  monitoringOrigin: "" | "synthetic" | "measured";
+  plateSourceName: string;
+  monitoringSourceName: string;
+};
+const initial: Draft = {
+  tab: "plate",
+  plateCsv: PLATE_FIXTURES.normal,
+  monitoringCsv: MONITORING_FIXTURES.exceeded,
+  diameterMm: "300",
+  limitMm: "10",
+  criterion: "A현장 예제 · 시험구간 최대 침하 관리기준",
+  mode: "load",
+  baselineMm: "0",
+  warningMm: "15",
+  actionMm: "20",
+  plateOrigin: "synthetic",
+  monitoringOrigin: "synthetic",
+  plateSourceName: "A현장 합성 평판재하 데이터 v1",
+  monitoringSourceName: "A현장 합성 계측 데이터 v1",
+};
+const format = (v: number | null, digits = 2) =>
+  v === null
+    ? "—"
+    : v.toLocaleString("ko-KR", { maximumFractionDigits: digits });
+function download(name: string, text: string) {
+  const url = URL.createObjectURL(
+    new Blob(["\uFEFF", text], { type: "text/csv;charset=utf-8" }),
+  );
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function Badge({ status }: { status: string }) {
+  const tone =
+    status === "pass"
+      ? "success"
+      : status === "error" || status === "exceeded"
+        ? "danger"
+        : "warning";
+  return (
+    <span className={`badge badge-${tone}`}>
+      {STATUS_LABELS[status as RecordStatus] || status}
+    </span>
+  );
+}
 
 export default function FieldPage({ records, onSave, notify }: FeatureProps) {
-  const [draft, setDraft, draftState] = useDraft<Draft>('field-form-v2', initial);
-  const [selectedPlate, setSelectedPlate] = useState(6); const [selectedMonitoring, setSelectedMonitoring] = useState(7); const [saving, setSaving] = useState(false);
-  const [manual, setManual] = useState({ time: '2026-09-20T09:00', sensor: 'IN-01', value: '' });
-  const [saveMessage, setSaveMessage] = useState('');
-  const plate = useMemo(() => evaluatePlate(draft.plateCsv, draft), [draft.plateCsv, draft.diameterMm, draft.limitMm, draft.criterion, draft.mode]);
-  const monitoring = useMemo(() => evaluateMonitoring(draft.monitoringCsv, draft), [draft.monitoringCsv, draft.baselineMm, draft.warningMm, draft.actionMm]);
-  const selectedP = plate.rows.find(r => r.rowNumber === selectedPlate); const selectedM = monitoring.rows.find(r => r.rowNumber === selectedMonitoring);
-  const update = <K extends keyof Draft>(key: K, value: Draft[K]) => { setDraft(current => ({ ...current, [key]: value })); setSaveMessage(''); };
-  const selectSample = (sample: 'normal' | 'exceeded' | 'invalid' | 'pending') => {
-    const key = sample === 'pending' ? 'normal' : sample;
-    setDraft(current => ({ ...current,
-      ...(current.tab === 'plate' ? { plateOrigin: 'synthetic', plateSourceName: initial.plateSourceName, plateCsv: PLATE_FIXTURES[key], mode: 'load', diameterMm: '300', limitMm: sample === 'pending' ? '' : '10', criterion: sample === 'pending' ? '' : initial.criterion } : { monitoringOrigin: 'synthetic', monitoringSourceName: initial.monitoringSourceName, monitoringCsv: MONITORING_FIXTURES[key], baselineMm: '0', warningMm: sample === 'pending' ? '' : '15', actionMm: sample === 'pending' ? '' : '20' }) }));
-    setSaveMessage('');
+  const [draft, setDraft, draftState] = useDraft<Draft>(
+    "field-form-v2",
+    initial,
+  );
+  const [selectedPlate, setSelectedPlate] = useState(6);
+  const [selectedMonitoring, setSelectedMonitoring] = useState(7);
+  const [saving, setSaving] = useState(false);
+  const [manual, setManual] = useState({
+    time: "2026-09-20T09:00",
+    sensor: "IN-01",
+    value: "",
+  });
+  const [saveMessage, setSaveMessage] = useState("");
+  const plate = useMemo(
+    () => evaluatePlate(draft.plateCsv, draft),
+    [
+      draft.plateCsv,
+      draft.diameterMm,
+      draft.limitMm,
+      draft.criterion,
+      draft.mode,
+    ],
+  );
+  const monitoring = useMemo(
+    () => evaluateMonitoring(draft.monitoringCsv, draft),
+    [draft.monitoringCsv, draft.baselineMm, draft.warningMm, draft.actionMm],
+  );
+  const sensorIds = [
+    ...new Set(monitoring.rows.map((row) => row.sensor).filter(Boolean)),
+  ];
+  const monitoringLabel = sensorIds.length === 1 ? sensorIds[0] : "A-01";
+  const selectedP = plate.rows.find((r) => r.rowNumber === selectedPlate);
+  const selectedM = monitoring.rows.find(
+    (r) => r.rowNumber === selectedMonitoring,
+  );
+  const update = <K extends keyof Draft>(key: K, value: Draft[K]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+    setSaveMessage("");
   };
-  const upload = async (file: File | undefined) => { if (!file) return; if (file.size > 1024 * 1024) { notify('CSV는 1 MB 이하의 파일을 선택해 주세요.', 'error'); return; }
-    try { const text = await file.text(); setDraft(current => ({ ...current, [current.tab === 'plate' ? 'plateCsv' : 'monitoringCsv']: text, [current.tab === 'plate' ? 'plateOrigin' : 'monitoringOrigin']: '', [current.tab === 'plate' ? 'plateSourceName' : 'monitoringSourceName']: file.name })); setSaveMessage(''); notify('파일을 불러왔습니다. 원시 행과 데이터 출처를 확인해 주세요.', 'info'); } catch { notify('파일을 읽지 못했습니다. 다시 선택해 주세요.', 'error'); } };
+  const selectSample = (
+    sample: "normal" | "exceeded" | "invalid" | "pending",
+  ) => {
+    const key = sample === "pending" ? "normal" : sample;
+    setDraft((current) => ({
+      ...current,
+      ...(current.tab === "plate"
+        ? {
+            plateOrigin: "synthetic",
+            plateSourceName: initial.plateSourceName,
+            plateCsv: PLATE_FIXTURES[key],
+            mode: "load",
+            diameterMm: "300",
+            limitMm: sample === "pending" ? "" : "10",
+            criterion: sample === "pending" ? "" : initial.criterion,
+          }
+        : {
+            monitoringOrigin: "synthetic",
+            monitoringSourceName: initial.monitoringSourceName,
+            monitoringCsv: MONITORING_FIXTURES[key],
+            baselineMm: "0",
+            warningMm: sample === "pending" ? "" : "15",
+            actionMm: sample === "pending" ? "" : "20",
+          }),
+    }));
+    setSaveMessage("");
+  };
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      notify("CSV는 1 MB 이하의 파일을 선택해 주세요.", "error");
+      return;
+    }
+    const isPlateUpload = draft.tab === "plate";
+    try {
+      const text = await file.text();
+      setDraft((current) => ({
+        ...current,
+        [isPlateUpload ? "plateCsv" : "monitoringCsv"]: text,
+        [isPlateUpload ? "plateOrigin" : "monitoringOrigin"]: "",
+        [isPlateUpload ? "plateSourceName" : "monitoringSourceName"]: file.name,
+      }));
+      setSaveMessage("");
+      notify(
+        "파일을 불러왔습니다. 원시 행과 데이터 출처를 확인해 주세요.",
+        "info",
+      );
+    } catch {
+      notify("파일을 읽지 못했습니다. 다시 선택해 주세요.", "error");
+    }
+  };
   const save = async (asIssue = false) => {
-    if (!activeOrigin) { notify('데이터 출처가 합성인지 실측인지 선택해 주세요.', 'error'); return; }
-    setSaving(true); const isPlate = draft.tab === 'plate'; const result = isPlate ? plate : monitoring;
-    if (asIssue && result.status === 'error') { setSaving(false); notify('입력 오류를 먼저 확인한 뒤 구역 이슈로 남겨 주세요.', 'error'); return; }
-    try { const saved = await onSave({ stage: 'construction', title: asIssue ? isPlate ? 'PLT-01 평판재하 구역 이슈' : 'IN-01 계측 구역 이슈' : isPlate ? 'PLT-01 평판재하 사전검토' : 'IN-01 계측 추세 검토', status: result.status as RecordStatus,
-      summary: isPlate ? `최대 침하 ${format(plate.maxSettlement)} mm · ${STATUS_LABELS[plate.status as RecordStatus]}` : `최대 변위 ${format(monitoring.maxMagnitude)} mm · 조치 기준 초과 ${monitoring.exceededCount}건`,
-      origin: activeOrigin as DataOrigin, asset_id: isPlate ? 'a01-test-plt01' : 'a01-sensor-in01', source_id: activeOrigin === 'synthetic' ? 'synthetic-a-field-v1' : 'user-local-field-data', source_revision: '1', method_version: result.method,
-      assumptions: isPlate ? ['최대 침하 관리기준에 따른 사전검토이며 허용지지력 산정 또는 시험 최종판정을 대신하지 않습니다.', '원시 CSV를 보존하며 오류 행은 그래프 산출에서 제외하고 검토 상태에 반영합니다.'] : ['기준값 대비 변위 절댓값으로 예제 관리기준을 비교합니다.', '수동 또는 CSV 기록이며 자동 센서 수집이 연결되지 않았습니다.'],
-      payload: { kind: asIssue ? isPlate ? 'plate_issue' : 'monitoring_issue' : isPlate ? 'plate_review' : 'monitoring_review', sourceName: activeSourceName, csv: isPlate ? draft.plateCsv : draft.monitoringCsv, config: isPlate ? { mode: draft.mode, diameterMm: draft.diameterMm, limitMm: draft.limitMm, criterion: draft.criterion } : { baselineMm: draft.baselineMm, warningMm: draft.warningMm, actionMm: draft.actionMm }, result, location: { x: 85, y: 50, frame: 'local-synthetic-meters' }, nextAction: asIssue ? isPlate ? '재하판·시험 원시값 및 적용 관리기준을 확인하고 현장 담당자 검토' : '계측기 영점·현장 상태 확인 후 담당자 검토' : '원시 자료 및 적용 기준 확인', draftSnapshot: draft } });
-      setSaveMessage(`저장 완료 · ${new Date(saved.updated_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}`); notify(asIssue ? 'A-01 구역 이슈로 저장했습니다.' : '검토 결과를 현장 이력에 저장했습니다.', 'success');
-    } catch { notify('저장하지 못했습니다. 입력을 유지한 상태로 다시 시도해 주세요.', 'error'); } finally { setSaving(false); }
+    if (!activeOrigin) {
+      notify("데이터 출처가 합성인지 실측인지 선택해 주세요.", "error");
+      return;
+    }
+    setSaving(true);
+    const isPlate = draft.tab === "plate";
+    const result = isPlate ? plate : monitoring;
+    if (asIssue && result.status === "error") {
+      setSaving(false);
+      notify("입력 오류를 먼저 확인한 뒤 구역 이슈로 남겨 주세요.", "error");
+      return;
+    }
+    try {
+      const saved = await onSave({
+        stage: "construction",
+        title: asIssue
+          ? isPlate
+            ? "PLT-01 평판재하 구역 이슈"
+            : `${monitoringLabel} 계측 구역 이슈`
+          : isPlate
+            ? "PLT-01 평판재하 사전검토"
+            : `${monitoringLabel} 계측 추세 검토`,
+        status: result.status as RecordStatus,
+        summary: isPlate
+          ? `최대 침하 ${format(plate.maxSettlement)} mm · ${STATUS_LABELS[plate.status as RecordStatus]}`
+          : `최대 변위 ${format(monitoring.maxMagnitude)} mm · 조치 기준 초과 ${monitoring.exceededCount}건`,
+        origin: activeOrigin as DataOrigin,
+        asset_id: isPlate
+          ? "a01-test-plt01"
+          : sensorIds.length === 1 && sensorIds[0] === "IN-01"
+            ? "a01-sensor-in01"
+            : undefined,
+        source_id:
+          activeOrigin === "synthetic"
+            ? "synthetic-a-field-v1"
+            : "user-local-field-data",
+        source_revision: "1",
+        method_version: result.method,
+        assumptions: isPlate
+          ? [
+              "최대 침하 관리기준에 따른 사전검토이며 허용지지력 산정 또는 시험 최종판정을 대신하지 않습니다.",
+              "원시 CSV를 보존하며 오류 행은 그래프 산출에서 제외하고 검토 상태에 반영합니다.",
+            ]
+          : [
+              "기준값 대비 변위 절댓값으로 예제 관리기준을 비교합니다.",
+              "수동 또는 CSV 기록이며 자동 센서 수집이 연결되지 않았습니다.",
+            ],
+        payload: {
+          kind: asIssue
+            ? isPlate
+              ? "plate_issue"
+              : "monitoring_issue"
+            : isPlate
+              ? "plate_review"
+              : "monitoring_review",
+          sourceName: activeSourceName,
+          csv: isPlate ? draft.plateCsv : draft.monitoringCsv,
+          config: isPlate
+            ? {
+                mode: draft.mode,
+                diameterMm: draft.diameterMm,
+                limitMm: draft.limitMm,
+                criterion: draft.criterion,
+              }
+            : {
+                baselineMm: draft.baselineMm,
+                warningMm: draft.warningMm,
+                actionMm: draft.actionMm,
+              },
+          result,
+          location: { x: 85, y: 50, frame: "local-synthetic-meters" },
+          nextAction: asIssue
+            ? isPlate
+              ? "재하판·시험 원시값 및 적용 관리기준을 확인하고 현장 담당자 검토"
+              : "계측기 영점·현장 상태 확인 후 담당자 검토"
+            : "원시 자료 및 적용 기준 확인",
+          draftSnapshot: draft,
+        },
+      });
+      setSaveMessage(
+        `저장 완료 · ${new Date(saved.updated_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}`,
+      );
+      notify(
+        asIssue
+          ? "A-01 구역 이슈로 저장했습니다."
+          : "검토 결과를 현장 이력에 저장했습니다.",
+        "success",
+      );
+    } catch {
+      notify(
+        "저장하지 못했습니다. 입력을 유지한 상태로 다시 시도해 주세요.",
+        "error",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
   const addManual = () => {
-    if (!manual.time || !manual.sensor.trim() || !manual.value.trim() || !Number.isFinite(Number(manual.value))) { notify('측정 시각·센서 ID·숫자 계측값을 모두 입력해 주세요.', 'error'); return; }
-    if (/[\n,]/.test(manual.sensor)) { notify('센서 ID에는 쉼표나 줄바꿈을 사용할 수 없습니다.', 'error'); return; }
+    if (
+      !manual.time ||
+      !manual.sensor.trim() ||
+      !manual.value.trim() ||
+      !Number.isFinite(Number(manual.value))
+    ) {
+      notify("측정 시각·센서 ID·숫자 계측값을 모두 입력해 주세요.", "error");
+      return;
+    }
+    if (/[\n,]/.test(manual.sensor)) {
+      notify("센서 ID에는 쉼표나 줄바꿈을 사용할 수 없습니다.", "error");
+      return;
+    }
     const timestamp = manualMonitoringTime(manual.time);
-    if (!timestamp) { notify('달력에 존재하는 측정 날짜와 올바른 시각을 입력해 주세요.', 'error'); return; }
-    update('monitoringCsv', `${draft.monitoringCsv.trim()}\n${timestamp},${manual.sensor.trim()},${manual.value}`); setManual(v => ({ ...v, value: '' })); notify('원시 표에 측정값을 추가했습니다. 시간 순서와 출처를 확인해 주세요.', 'success');
+    if (!timestamp) {
+      notify(
+        "달력에 존재하는 측정 날짜와 올바른 시각을 입력해 주세요.",
+        "error",
+      );
+      return;
+    }
+    setDraft((current) => ({
+      ...current,
+      monitoringCsv: `${current.monitoringCsv.trim()}\n${timestamp},${manual.sensor.trim()},${manual.value}`,
+      monitoringOrigin: "",
+      monitoringSourceName: "CSV · 수동 측정값 추가",
+    }));
+    setSaveMessage("");
+    setManual((v) => ({ ...v, value: "" }));
+    notify(
+      "원시 표에 측정값을 추가했습니다. 시간 순서와 데이터 출처를 선택해 주세요.",
+      "success",
+    );
   };
-  const result = draft.tab === 'plate' ? plate : monitoring;
-  const activeOrigin = draft.tab === 'plate' ? draft.plateOrigin : draft.monitoringOrigin;
-  const activeSourceName = draft.tab === 'plate' ? draft.plateSourceName : draft.monitoringSourceName;
-  const savedRecords = records.filter(r => r.stage === 'construction' && ['plate_review', 'plate_issue', 'monitoring_review', 'monitoring_issue'].includes(String(r.payload.kind))).slice(0, 5);
-  return <div className="field-page">
-    <div className="field-page-heading"><div><div className="eyebrow">CONSTRUCTION · A-01</div><h1>현장의 변화를, 먼저 확인합니다</h1><p className="muted">시험과 계측의 원시값을 검토하고 필요한 조치를 같은 구역 이력에 남깁니다.</p></div><span className="field-source-pill">{draft.tab === 'imagery' || activeOrigin === 'synthetic' ? '합성 A현장 예제' : activeOrigin === 'measured' ? '사용자 실측 데이터' : '데이터 출처 확인 필요'}</span></div>
-    <div className="field-tabs" role="tablist" aria-label="시공 업무"><button role="tab" aria-selected={draft.tab === 'plate'} className={draft.tab === 'plate' ? 'active' : ''} onClick={() => update('tab', 'plate')}><ClipboardCheck size={18}/>평판재하</button><button role="tab" aria-selected={draft.tab === 'monitoring'} className={draft.tab === 'monitoring' ? 'active' : ''} onClick={() => update('tab', 'monitoring')}><Activity size={18}/>계측 모니터링</button><button role="tab" aria-selected={draft.tab === 'imagery'} className={draft.tab === 'imagery' ? 'active' : ''} onClick={() => update('tab', 'imagery')}><Map size={18}/>회차 영상 비교</button></div>
-    {draftState.error && <div className="notice notice-error">작성 내용 자동 복원에 문제가 있습니다. 저장한 현장 이력에서 다시 불러올 수 있습니다.</div>}
-    {!draftState.ready ? <div className="panel field-loading">작성 중인 내용을 불러오고 있습니다…</div> : draft.tab === 'imagery' ? <ImageComparison records={records} onSave={onSave} notify={notify}/> : <>
-      <div className="field-sample-bar"><span>예제로 빠르게 확인</span><div>{([['normal', '정상'], ['exceeded', '기준 초과'], ['invalid', '입력 오류'], ['pending', '기준 미설정']] as const).map(([key, label]) => <button key={key} className="field-sample-btn" onClick={() => selectSample(key)}>{label}</button>)}</div><span className="field-sample-note">예제 전환 시 현재 입력을 바꿉니다</span></div>
-      <div className="field-workspace"><section className="panel field-main-panel">
-        <div className="panel-header"><div><div className="eyebrow">{draft.tab === 'plate' ? 'PLT-01 · 기초 저면' : 'IN-01 · 동측 계측 구간'}</div><h2>{draft.tab === 'plate' ? '압력–침하 곡선' : '기준 대비 변위 추세'}</h2></div><Badge status={result.status}/></div>
-        <div className="field-metrics">{draft.tab === 'plate' ? <><div><span>최대 침하</span><strong>{format(plate.maxSettlement)}<small>mm</small></strong></div><div><span>최대 압력</span><strong>{format(plate.maxPressure, 1)}<small>kPa</small></strong></div><div><span>검토 가능한 측정</span><strong>{plate.validCount}<small>/ {plate.totalCount}행</small></strong></div></> : <><div><span>최대 변위 |Δ|</span><strong>{format(monitoring.maxMagnitude)}<small>mm</small></strong></div><div><span>조치 기준 초과</span><strong className={monitoring.exceededCount ? 'field-danger-text' : ''}>{monitoring.exceededCount}<small>건</small></strong></div><div><span>기록 방식</span><strong className="field-metric-text">수동 · CSV</strong></div></>}</div>
-        {draft.tab === 'plate' ? <PlateChart rows={plate.rows} limit={plate.limit} selected={selectedPlate} onSelect={setSelectedPlate}/> : <MonitoringChart rows={monitoring.rows} warning={monitoring.warning} action={monitoring.action} selected={selectedMonitoring} onSelect={setSelectedMonitoring}/>}
-        <div className="field-point-detail" aria-live="polite">{draft.tab === 'plate' ? selectedP ? <><span className="field-point-row">원시 {selectedP.rowNumber}행</span><strong>{selectedP.stage} · {format(selectedP.time)}분</strong><span>{format(selectedP.load)} kN → {format(selectedP.pressure)} kPa</span><span>침하 <b>{format(selectedP.settlement)} mm</b></span></> : '측정점을 선택하면 원시 행이 연결됩니다.' : selectedM ? <><span className="field-point-row">원시 {selectedM.rowNumber}행</span><strong>{selectedM.sensor}</strong><span>{selectedM.time.replace('T', ' ').replace('+09:00', ' KST')}</span><span>원시 {format(selectedM.value)} − 기준 {format(monitoring.baseline)} = <b>{format(selectedM.displacement)} mm</b></span></> : '측정점을 선택하면 원시 행이 연결됩니다.'}</div>
-        {result.errors.length > 0 && <div className="field-qc-errors" role="alert"><strong><AlertTriangle size={16}/>입력 확인 {result.errors.length}건 · 오류 행은 그래프에서 제외됩니다</strong><ul>{result.errors.map((error, i) => <li key={i}>{error}</li>)}</ul><a href="#field-raw-editor">원시 CSV 수정하기 <ArrowUpRight size={14}/></a></div>}
-        {result.status === 'pending' && <div className="notice notice-warning">관리기준이 설정되지 않아 판정을 보류합니다. 측정 곡선은 확인할 수 있습니다.</div>}
-        <p className="field-chart-footnote">{draft.tab === 'plate' ? '침하는 아래쪽이 증가 방향입니다. 프로젝트 최대 침하 관리기준으로 사전 검토하며, 허용지지력을 산정하지 않습니다.' : '기준값 대비 변위의 절댓값을 표시합니다. 기준을 넘은 기록은 계측기와 현장 상태를 함께 확인해 주세요.'}</p>
-      </section><aside className="field-sidebar"><section className="panel field-settings"><div className="panel-header"><h2>검토 조건</h2><span className="field-small-tag">직접 설정</span></div>
-        {draft.tab === 'plate' ? <><label className="field">입력값 종류<select value={draft.mode} onChange={e => update('mode', e.target.value as Draft['mode'])}><option value="load">하중 · kN</option><option value="pressure">압력 · kPa</option></select></label><label className="field">재하판 직경 <span>mm</span><input type="number" min="1" value={draft.diameterMm} onChange={e => update('diameterMm', e.target.value)}/></label><div className="field-derived">원형 재하판 면적 <b>{format(plate.area, 5)} m²</b><small>압력 q = 하중 Q / 면적 A</small></div><label className="field">최대 침하 관리기준 <span>mm</span><input type="number" min="0.01" step="0.1" value={draft.limitMm} placeholder="미설정" onChange={e => update('limitMm', e.target.value)}/></label><label className="field">기준 이름·근거<textarea rows={2} value={draft.criterion} placeholder="적용할 프로젝트 기준을 입력하세요" onChange={e => update('criterion', e.target.value)}/></label><p className="field-help">예제의 10 mm는 시연용 조건입니다. 현장 적용 기준을 별도로 확인해 주세요.</p></> : <><label className="field">초기 기준값 <span>mm</span><input type="number" value={draft.baselineMm} onChange={e => update('baselineMm', e.target.value)}/></label><label className="field">주의 기준 |Δ| <span>mm 초과</span><input type="number" min="0" value={draft.warningMm} placeholder="미설정" onChange={e => update('warningMm', e.target.value)}/></label><label className="field">조치 기준 |Δ| <span>mm 초과</span><input type="number" min="0" value={draft.actionMm} placeholder="미설정" onChange={e => update('actionMm', e.target.value)}/></label><div className="field-derived">평가 변위 <b>|계측값 − 기준값|</b><small>동일 센서와 시간대 기준으로 비교합니다</small></div><p className="field-help">15 / 20 mm는 합성 예제 관리기준입니다. 자동 센서 수집은 연결되어 있지 않습니다.</p></>}
-        <label className="field">데이터 출처<select value={activeOrigin} onChange={e => update(draft.tab === 'plate' ? 'plateOrigin' : 'monitoringOrigin', e.target.value as Draft['plateOrigin'])}><option value="">출처를 선택하세요</option><option value="synthetic">합성·시연 데이터</option><option value="measured">실측 데이터 · 사용자 확인</option></select></label><p className="field-source-name">{activeSourceName}</p>
-        <button className="btn btn-primary field-save-btn" disabled={saving || !activeOrigin} onClick={() => save()}><Save size={17}/>{saving ? '저장 중…' : '검토 결과 저장'}</button>
-        <button className="btn btn-secondary field-save-btn" disabled={saving || result.status === 'error' || !activeOrigin} onClick={() => save(true)}><AlertTriangle size={16}/>구역 이슈로 남기기</button>
-        {saveMessage && <p className="field-save-message" role="status"><CheckCircle2 size={15}/>{saveMessage}</p>}
-      </section></aside></div>
-      {draft.tab === 'monitoring' && <section className="panel field-manual-entry"><div><h2>측정값 직접 추가</h2><p className="muted">측정 시각은 한국 표준시(KST)입니다.</p></div><label className="field">측정 시각<input type="datetime-local" value={manual.time} onChange={e => setManual(v => ({ ...v, time: e.target.value }))}/></label><label className="field">센서 ID<input value={manual.sensor} onChange={e => setManual(v => ({ ...v, sensor: e.target.value }))}/></label><label className="field">계측값 (mm)<input type="number" step="0.1" value={manual.value} onChange={e => setManual(v => ({ ...v, value: e.target.value }))} placeholder="예: 18.5"/></label><button className="btn btn-secondary" onClick={addManual}><Plus size={17}/>행 추가</button></section>}
-      <section className="panel field-raw-panel"><div className="panel-header"><div><h2>원시 측정값</h2><p className="muted">CSV {result.totalCount}행 · 원본 순서를 유지합니다. 행을 선택하면 그래프와 연결됩니다.</p></div><div className="toolbar"><label className="btn btn-secondary field-file-label"><Upload size={16}/>CSV 불러오기<input type="file" accept=".csv,text/csv" onChange={e => { void upload(e.target.files?.[0]); e.target.value = ''; }}/></label><button className="btn btn-ghost" onClick={() => download(draft.tab === 'plate' ? 'A현장_평판재하.csv' : 'A현장_계측.csv', draft.tab === 'plate' ? draft.plateCsv : draft.monitoringCsv)}><Download size={16}/>CSV 저장</button></div></div>
-        <div className="table-wrap"><table className="data-table field-data-table"><caption className="field-sr-only">{draft.tab === 'plate' ? '평판재하 원시 측정값과 변환 결과' : '센서별 계측 원시 측정값'}</caption><thead>{draft.tab === 'plate' ? <tr><th>원시 행</th><th>시간 (min)</th><th>단계</th><th>하중 (kN)</th><th>압력 (kPa)</th><th>침하 (mm)</th><th>입력 검토</th></tr> : <tr><th>원시 행</th><th>측정 시각</th><th>센서</th><th>계측값 (mm)</th><th>변위 Δ (mm)</th><th>검토</th></tr>}</thead><tbody>{draft.tab === 'plate' ? plate.rows.map(r => <tr key={r.rowNumber} className={r.rowNumber === selectedPlate ? 'field-selected-row' : ''}><td><button onClick={() => setSelectedPlate(r.rowNumber)} aria-label={`${r.rowNumber}행 그래프에서 선택`}>{r.rowNumber}</button></td><td>{format(r.time)}</td><td>{r.stage}</td><td>{format(r.load, 4)}</td><td>{format(r.pressure)}</td><td>{format(r.settlement)}</td><td>{r.problems.length ? <span className="field-danger-text">{r.problems.join(' · ')}</span> : '확인'}</td></tr>) : monitoring.rows.map(r => <tr key={r.rowNumber} className={r.rowNumber === selectedMonitoring ? 'field-selected-row' : ''}><td><button onClick={() => setSelectedMonitoring(r.rowNumber)} aria-label={`${r.rowNumber}행 그래프에서 선택`}>{r.rowNumber}</button></td><td>{r.time.replace('T', ' ').replace('+09:00', ' KST')}</td><td>{r.sensor || '—'}</td><td>{format(r.value)}</td><td>{format(r.displacement)}</td><td>{r.problems.length ? <span className="field-danger-text">{r.problems.join(' · ')}</span> : r.level === 'warning' ? <span className="badge badge-warning">주의 기준 초과</span> : <Badge status={r.level}/>}</td></tr>)}</tbody></table></div>
-        <details className="field-csv-details" id="field-raw-editor"><summary>CSV 내용 직접 수정 <ChevronDown size={16}/></summary><p className="field-help">{draft.tab === 'plate' ? `필수 열: time_min, stage, ${draft.mode === 'load' ? 'load_kN' : 'pressure_kPa'}, settlement_mm · 단계: 재하/유지/제하` : '필수 열: time, sensor, value_mm · 시간 예: 2026-09-21T09:00:00+09:00'}</p><label className="field-sr-only" htmlFor="field-csv-text">원시 CSV 내용</label><textarea id="field-csv-text" rows={9} spellCheck={false} value={draft.tab === 'plate' ? draft.plateCsv : draft.monitoringCsv} onChange={e => update(draft.tab === 'plate' ? 'plateCsv' : 'monitoringCsv', e.target.value)}/></details>
-      </section>
-      {savedRecords.length > 0 && <section className="panel field-saved-reviews"><div className="panel-header"><h2>저장한 시공 검토</h2><span className="muted">최근 {savedRecords.length}건</span></div>{savedRecords.map(r => <div className="field-saved-row" key={r.id}><div><strong>{r.title}</strong><span>{r.summary}</span></div><Badge status={r.status}/><button className="btn btn-ghost" onClick={() => { const snapshot = r.payload.draftSnapshot as Draft | undefined; if (snapshot) { setDraft(snapshot); notify('저장한 검토의 입력을 불러왔습니다.', 'info'); } }}>불러오기</button></div>)}</section>}
-    </>}
-  </div>;
+  const result = draft.tab === "plate" ? plate : monitoring;
+  const activeOrigin =
+    draft.tab === "plate" ? draft.plateOrigin : draft.monitoringOrigin;
+  const activeSourceName =
+    draft.tab === "plate" ? draft.plateSourceName : draft.monitoringSourceName;
+  const savedRecords = records
+    .filter(
+      (r) =>
+        r.stage === "construction" &&
+        [
+          "plate_review",
+          "plate_issue",
+          "monitoring_review",
+          "monitoring_issue",
+        ].includes(String(r.payload.kind)),
+    )
+    .slice(0, 5);
+  return (
+    <div className="field-page">
+      <div className="field-page-heading">
+        <div>
+          <div className="eyebrow">CONSTRUCTION · A-01</div>
+          <h1>현장의 변화를, 먼저 확인합니다</h1>
+          <p className="muted">
+            시험과 계측의 원시값을 검토하고 필요한 조치를 같은 구역 이력에
+            남깁니다.
+          </p>
+        </div>
+        <span className="field-source-pill">
+          {draft.tab === "imagery" || activeOrigin === "synthetic"
+            ? "합성 A현장 예제"
+            : activeOrigin === "measured"
+              ? "사용자 실측 데이터"
+              : "데이터 출처 확인 필요"}
+        </span>
+      </div>
+      <div className="field-tabs" role="tablist" aria-label="시공 업무">
+        <button
+          role="tab"
+          aria-selected={draft.tab === "plate"}
+          className={draft.tab === "plate" ? "active" : ""}
+          onClick={() => update("tab", "plate")}
+        >
+          <ClipboardCheck size={18} />
+          평판재하
+        </button>
+        <button
+          role="tab"
+          aria-selected={draft.tab === "monitoring"}
+          className={draft.tab === "monitoring" ? "active" : ""}
+          onClick={() => update("tab", "monitoring")}
+        >
+          <Activity size={18} />
+          계측 모니터링
+        </button>
+        <button
+          role="tab"
+          aria-selected={draft.tab === "imagery"}
+          className={draft.tab === "imagery" ? "active" : ""}
+          onClick={() => update("tab", "imagery")}
+        >
+          <Map size={18} />
+          회차 영상 비교
+        </button>
+      </div>
+      {draftState.error && (
+        <div className="notice notice-error" role="alert">
+          작성 내용 자동 보관에 문제가 있습니다. {draftState.error}
+          <p>다시 불러오면 현재 화면의 변경 내용이 저장된 입력으로 바뀝니다.</p>
+          <button
+            className="btn btn-secondary"
+            onClick={draftState.retry}
+            disabled={!draftState.ready}
+          >
+            저장된 입력 다시 불러오기
+          </button>
+        </div>
+      )}
+      {!draftState.ready ? (
+        <div className="panel field-loading">
+          작성 중인 내용을 불러오고 있습니다…
+        </div>
+      ) : draft.tab === "imagery" ? (
+        <ImageComparison records={records} onSave={onSave} notify={notify} />
+      ) : (
+        <>
+          <div className="field-sample-bar">
+            <span>예제로 빠르게 확인</span>
+            <div>
+              {(
+                [
+                  ["normal", "정상"],
+                  ["exceeded", "기준 초과"],
+                  ["invalid", "입력 오류"],
+                  ["pending", "기준 미설정"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  className="field-sample-btn"
+                  onClick={() => selectSample(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="field-sample-note">
+              예제 전환 시 현재 입력을 바꿉니다
+            </span>
+          </div>
+          <div className="field-workspace">
+            <section className="panel field-main-panel">
+              <div className="panel-header">
+                <div>
+                  <div className="eyebrow">
+                    {draft.tab === "plate"
+                      ? "PLT-01 · 기초 저면"
+                      : `${monitoringLabel} · A-01 계측 구간`}
+                  </div>
+                  <h2>
+                    {draft.tab === "plate"
+                      ? "압력–침하 곡선"
+                      : "기준 대비 변위 추세"}
+                  </h2>
+                </div>
+                <Badge status={result.status} />
+              </div>
+              <div className="field-metrics">
+                {draft.tab === "plate" ? (
+                  <>
+                    <div>
+                      <span>최대 침하</span>
+                      <strong>
+                        {format(plate.maxSettlement)}
+                        <small>mm</small>
+                      </strong>
+                    </div>
+                    <div>
+                      <span>최대 압력</span>
+                      <strong>
+                        {format(plate.maxPressure, 1)}
+                        <small>kPa</small>
+                      </strong>
+                    </div>
+                    <div>
+                      <span>검토 가능한 측정</span>
+                      <strong>
+                        {plate.validCount}
+                        <small>/ {plate.totalCount}행</small>
+                      </strong>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <span>최대 변위 |Δ|</span>
+                      <strong>
+                        {format(monitoring.maxMagnitude)}
+                        <small>mm</small>
+                      </strong>
+                    </div>
+                    <div>
+                      <span>조치 기준 초과</span>
+                      <strong
+                        className={
+                          monitoring.exceededCount ? "field-danger-text" : ""
+                        }
+                      >
+                        {monitoring.exceededCount}
+                        <small>건</small>
+                      </strong>
+                    </div>
+                    <div>
+                      <span>기록 방식</span>
+                      <strong className="field-metric-text">수동 · CSV</strong>
+                    </div>
+                  </>
+                )}
+              </div>
+              {draft.tab === "plate" ? (
+                <PlateChart
+                  rows={plate.rows}
+                  limit={plate.limit}
+                  selected={selectedPlate}
+                  onSelect={setSelectedPlate}
+                />
+              ) : (
+                <MonitoringChart
+                  rows={monitoring.rows}
+                  warning={monitoring.warning}
+                  action={monitoring.action}
+                  selected={selectedMonitoring}
+                  onSelect={setSelectedMonitoring}
+                />
+              )}
+              <div className="field-point-detail" aria-live="polite">
+                {draft.tab === "plate" ? (
+                  selectedP ? (
+                    <>
+                      <span className="field-point-row">
+                        원시 {selectedP.rowNumber}행
+                      </span>
+                      <strong>
+                        {selectedP.stage} · {format(selectedP.time)}분
+                      </strong>
+                      <span>
+                        {format(selectedP.load)} kN →{" "}
+                        {format(selectedP.pressure)} kPa
+                      </span>
+                      <span>
+                        침하 <b>{format(selectedP.settlement)} mm</b>
+                      </span>
+                    </>
+                  ) : (
+                    "측정점을 선택하면 원시 행이 연결됩니다."
+                  )
+                ) : selectedM ? (
+                  <>
+                    <span className="field-point-row">
+                      원시 {selectedM.rowNumber}행
+                    </span>
+                    <strong>{selectedM.sensor}</strong>
+                    <span>
+                      {selectedM.time
+                        .replace("T", " ")
+                        .replace("+09:00", " KST")}
+                    </span>
+                    <span>
+                      원시 {format(selectedM.value)} − 기준{" "}
+                      {format(monitoring.baseline)} ={" "}
+                      <b>{format(selectedM.displacement)} mm</b>
+                    </span>
+                  </>
+                ) : (
+                  "측정점을 선택하면 원시 행이 연결됩니다."
+                )}
+              </div>
+              {result.errors.length > 0 && (
+                <div className="field-qc-errors" role="alert">
+                  <strong>
+                    <AlertTriangle size={16} />
+                    입력 확인 {result.errors.length}건 · 오류 행은 그래프에서
+                    제외됩니다
+                  </strong>
+                  <ul>
+                    {result.errors.map((error, i) => (
+                      <li key={i}>{error}</li>
+                    ))}
+                  </ul>
+                  <a href="#field-raw-editor">
+                    원시 CSV 수정하기 <ArrowUpRight size={14} />
+                  </a>
+                </div>
+              )}
+              {result.status === "pending" && (
+                <div className="notice notice-warning">
+                  관리기준이 설정되지 않아 판정을 보류합니다. 측정 곡선은 확인할
+                  수 있습니다.
+                </div>
+              )}
+              <p className="field-chart-footnote">
+                {draft.tab === "plate"
+                  ? "침하는 아래쪽이 증가 방향입니다. 프로젝트 최대 침하 관리기준으로 사전 검토하며, 허용지지력을 산정하지 않습니다."
+                  : "기준값 대비 변위의 절댓값을 표시합니다. 기준을 넘은 기록은 계측기와 현장 상태를 함께 확인해 주세요."}
+              </p>
+            </section>
+            <aside className="field-sidebar">
+              <section className="panel field-settings">
+                <div className="panel-header">
+                  <h2>검토 조건</h2>
+                  <span className="field-small-tag">직접 설정</span>
+                </div>
+                {draft.tab === "plate" ? (
+                  <>
+                    <label className="field">
+                      입력값 종류
+                      <select
+                        value={draft.mode}
+                        onChange={(e) =>
+                          update("mode", e.target.value as Draft["mode"])
+                        }
+                      >
+                        <option value="load">하중 · kN</option>
+                        <option value="pressure">압력 · kPa</option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      재하판 직경 <span>mm</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={draft.diameterMm}
+                        onChange={(e) => update("diameterMm", e.target.value)}
+                      />
+                    </label>
+                    <div className="field-derived">
+                      원형 재하판 면적 <b>{format(plate.area, 5)} m²</b>
+                      <small>압력 q = 하중 Q / 면적 A</small>
+                    </div>
+                    <label className="field">
+                      최대 침하 관리기준 <span>mm</span>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.1"
+                        value={draft.limitMm}
+                        placeholder="미설정"
+                        onChange={(e) => update("limitMm", e.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      기준 이름·근거
+                      <textarea
+                        rows={2}
+                        value={draft.criterion}
+                        placeholder="적용할 프로젝트 기준을 입력하세요"
+                        onChange={(e) => update("criterion", e.target.value)}
+                      />
+                    </label>
+                    <p className="field-help">
+                      예제의 10 mm는 시연용 조건입니다. 현장 적용 기준을 별도로
+                      확인해 주세요.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <label className="field">
+                      초기 기준값 <span>mm</span>
+                      <input
+                        type="number"
+                        value={draft.baselineMm}
+                        onChange={(e) => update("baselineMm", e.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      주의 기준 |Δ| <span>mm 초과</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={draft.warningMm}
+                        placeholder="미설정"
+                        onChange={(e) => update("warningMm", e.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      조치 기준 |Δ| <span>mm 초과</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={draft.actionMm}
+                        placeholder="미설정"
+                        onChange={(e) => update("actionMm", e.target.value)}
+                      />
+                    </label>
+                    <div className="field-derived">
+                      평가 변위 <b>|계측값 − 기준값|</b>
+                      <small>동일 센서와 시간대 기준으로 비교합니다</small>
+                    </div>
+                    <p className="field-help">
+                      15 / 20 mm는 합성 예제 관리기준입니다. 자동 센서 수집은
+                      연결되어 있지 않습니다.
+                    </p>
+                  </>
+                )}
+                <label className="field">
+                  데이터 출처
+                  <select
+                    value={activeOrigin}
+                    onChange={(e) =>
+                      update(
+                        draft.tab === "plate"
+                          ? "plateOrigin"
+                          : "monitoringOrigin",
+                        e.target.value as Draft["plateOrigin"],
+                      )
+                    }
+                  >
+                    <option value="">출처를 선택하세요</option>
+                    <option value="synthetic">합성·시연 데이터</option>
+                    <option value="measured">실측 데이터 · 사용자 확인</option>
+                  </select>
+                </label>
+                <p className="field-source-name">{activeSourceName}</p>
+                <button
+                  className="btn btn-primary field-save-btn"
+                  disabled={saving || !activeOrigin}
+                  onClick={() => save()}
+                >
+                  <Save size={17} />
+                  {saving ? "저장 중…" : "검토 결과 저장"}
+                </button>
+                <button
+                  className="btn btn-secondary field-save-btn"
+                  disabled={
+                    saving || result.status === "error" || !activeOrigin
+                  }
+                  onClick={() => save(true)}
+                >
+                  <AlertTriangle size={16} />
+                  구역 이슈로 남기기
+                </button>
+                {saveMessage && (
+                  <p className="field-save-message" role="status">
+                    <CheckCircle2 size={15} />
+                    {saveMessage}
+                  </p>
+                )}
+              </section>
+            </aside>
+          </div>
+          {draft.tab === "monitoring" && (
+            <section className="panel field-manual-entry">
+              <div>
+                <h2>측정값 직접 추가</h2>
+                <p className="muted">측정 시각은 한국 표준시(KST)입니다.</p>
+              </div>
+              <label className="field">
+                측정 시각
+                <input
+                  type="datetime-local"
+                  value={manual.time}
+                  onChange={(e) =>
+                    setManual((v) => ({ ...v, time: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                센서 ID
+                <input
+                  value={manual.sensor}
+                  onChange={(e) =>
+                    setManual((v) => ({ ...v, sensor: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                계측값 (mm)
+                <input
+                  type="number"
+                  step="0.1"
+                  value={manual.value}
+                  onChange={(e) =>
+                    setManual((v) => ({ ...v, value: e.target.value }))
+                  }
+                  placeholder="예: 18.5"
+                />
+              </label>
+              <button className="btn btn-secondary" onClick={addManual}>
+                <Plus size={17} />행 추가
+              </button>
+            </section>
+          )}
+          <section className="panel field-raw-panel">
+            <div className="panel-header">
+              <div>
+                <h2>원시 측정값</h2>
+                <p className="muted">
+                  CSV {result.totalCount}행 · 원본 순서를 유지합니다. 행을
+                  선택하면 그래프와 연결됩니다.
+                </p>
+              </div>
+              <div className="toolbar">
+                <label className="btn btn-secondary field-file-label">
+                  <Upload size={16} />
+                  CSV 불러오기
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={(e) => {
+                      void upload(e.target.files?.[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() =>
+                    download(
+                      draft.tab === "plate"
+                        ? "A현장_평판재하.csv"
+                        : "A현장_계측.csv",
+                      draft.tab === "plate"
+                        ? draft.plateCsv
+                        : draft.monitoringCsv,
+                    )
+                  }
+                >
+                  <Download size={16} />
+                  CSV 저장
+                </button>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table className="data-table field-data-table">
+                <caption className="field-sr-only">
+                  {draft.tab === "plate"
+                    ? "평판재하 원시 측정값과 변환 결과"
+                    : "센서별 계측 원시 측정값"}
+                </caption>
+                <thead>
+                  {draft.tab === "plate" ? (
+                    <tr>
+                      <th>원시 행</th>
+                      <th>시간 (min)</th>
+                      <th>단계</th>
+                      <th>하중 (kN)</th>
+                      <th>압력 (kPa)</th>
+                      <th>침하 (mm)</th>
+                      <th>입력 검토</th>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <th>원시 행</th>
+                      <th>측정 시각</th>
+                      <th>센서</th>
+                      <th>계측값 (mm)</th>
+                      <th>변위 Δ (mm)</th>
+                      <th>검토</th>
+                    </tr>
+                  )}
+                </thead>
+                <tbody>
+                  {draft.tab === "plate"
+                    ? plate.rows.map((r) => (
+                        <tr
+                          key={r.rowNumber}
+                          className={
+                            r.rowNumber === selectedPlate
+                              ? "field-selected-row"
+                              : ""
+                          }
+                        >
+                          <td>
+                            <button
+                              onClick={() => setSelectedPlate(r.rowNumber)}
+                              aria-label={`${r.rowNumber}행 그래프에서 선택`}
+                            >
+                              {r.rowNumber}
+                            </button>
+                          </td>
+                          <td>{format(r.time)}</td>
+                          <td>{r.stage}</td>
+                          <td>{format(r.load, 4)}</td>
+                          <td>{format(r.pressure)}</td>
+                          <td>{format(r.settlement)}</td>
+                          <td>
+                            {r.problems.length ? (
+                              <span className="field-danger-text">
+                                {r.problems.join(" · ")}
+                              </span>
+                            ) : (
+                              "확인"
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    : monitoring.rows.map((r) => (
+                        <tr
+                          key={r.rowNumber}
+                          className={
+                            r.rowNumber === selectedMonitoring
+                              ? "field-selected-row"
+                              : ""
+                          }
+                        >
+                          <td>
+                            <button
+                              onClick={() => setSelectedMonitoring(r.rowNumber)}
+                              aria-label={`${r.rowNumber}행 그래프에서 선택`}
+                            >
+                              {r.rowNumber}
+                            </button>
+                          </td>
+                          <td>
+                            {r.time.replace("T", " ").replace("+09:00", " KST")}
+                          </td>
+                          <td>{r.sensor || "—"}</td>
+                          <td>{format(r.value)}</td>
+                          <td>{format(r.displacement)}</td>
+                          <td>
+                            {r.problems.length ? (
+                              <span className="field-danger-text">
+                                {r.problems.join(" · ")}
+                              </span>
+                            ) : r.level === "warning" ? (
+                              <span className="badge badge-warning">
+                                주의 기준 초과
+                              </span>
+                            ) : (
+                              <Badge status={r.level} />
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                </tbody>
+              </table>
+            </div>
+            <details className="field-csv-details" id="field-raw-editor">
+              <summary>
+                CSV 내용 직접 수정 <ChevronDown size={16} />
+              </summary>
+              <p className="field-help">
+                {draft.tab === "plate"
+                  ? `필수 열: time_min, stage, ${draft.mode === "load" ? "load_kN" : "pressure_kPa"}, settlement_mm · 단계: 재하/유지/제하`
+                  : "필수 열: time, sensor, value_mm · 시간 예: 2026-09-21T09:00:00+09:00"}
+              </p>
+              <label className="field-sr-only" htmlFor="field-csv-text">
+                원시 CSV 내용
+              </label>
+              <textarea
+                id="field-csv-text"
+                rows={9}
+                spellCheck={false}
+                value={
+                  draft.tab === "plate" ? draft.plateCsv : draft.monitoringCsv
+                }
+                onChange={(e) =>
+                  update(
+                    draft.tab === "plate" ? "plateCsv" : "monitoringCsv",
+                    e.target.value,
+                  )
+                }
+              />
+            </details>
+          </section>
+          {savedRecords.length > 0 && (
+            <section className="panel field-saved-reviews">
+              <div className="panel-header">
+                <h2>저장한 시공 검토</h2>
+                <span className="muted">최근 {savedRecords.length}건</span>
+              </div>
+              {savedRecords.map((r) => (
+                <div className="field-saved-row" key={r.id}>
+                  <div>
+                    <strong>{r.title}</strong>
+                    <span>{r.summary}</span>
+                  </div>
+                  <Badge status={r.status} />
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      const snapshot = r.payload.draftSnapshot as
+                        | Draft
+                        | undefined;
+                      if (snapshot) {
+                        setDraft(snapshot);
+                        notify("저장한 검토의 입력을 불러왔습니다.", "info");
+                      }
+                    }}
+                  >
+                    불러오기
+                  </button>
+                </div>
+              ))}
+            </section>
+          )}
+        </>
+      )}
+    </div>
+  );
 }

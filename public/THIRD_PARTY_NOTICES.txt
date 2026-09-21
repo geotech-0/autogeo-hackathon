@@ -1,0 +1,10 @@
+AutoGeo third-party notices
+
+react 19.3.0 — MIT — licenses/react.txt
+react-dom 19.3.0 — MIT — licenses/react-dom.txt
+scheduler 0.28.0 — MIT — licenses/scheduler.txt
+three 0.180.0 — MIT — licenses/three.txt
+lucide-react 0.468.0 — ISC — licenses/lucide-react.txt
+
+PretendardVariable — SIL Open Font License — fonts/LICENSE
+GS corporate artwork: supplied design reference for this hackathon demonstration. Not an official corporate service.
