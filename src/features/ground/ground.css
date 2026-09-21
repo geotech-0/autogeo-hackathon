@@ -446,6 +446,14 @@
   fill: #31537b;
   font-size: 10px;
 }
+.ground-page .ground-section-chart text {
+  font-size: 11px;
+  fill: #52647a;
+}
+.ground-page .ground-section-chart .ground-chart-strong {
+  font-size: 11px;
+  fill: #31537b;
+}
 .ground-section-note {
   font-size: 10px;
   color: #8b96a5;
@@ -962,9 +970,6 @@
   }
   .ground-section-panel {
     padding: 17px;
-  }
-  .ground-section-chart {
-    min-height: 170px;
   }
   .ground-data-panel,
   .ground-import-panel,

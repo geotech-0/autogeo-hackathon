@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Layers3,
   RotateCcw,
@@ -157,17 +157,32 @@ function Section({
   holes: Hole[];
   selected: string;
 }) {
-  const width = 870,
-    height = 245,
-    left = 52,
-    right = 25,
-    top = 20,
+  const chartRef = useRef<SVGSVGElement>(null);
+  const [width, setWidth] = useState(870);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const measure = () => {
+      const available = chart.getBoundingClientRect().width;
+      if (available > 0) setWidth(Math.min(870, Math.round(available)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(chart);
+    return () => observer.disconnect();
+  }, []);
+  const compact = width < 500;
+  const height = 245,
+    left = compact ? 38 : 52,
+    right = compact ? 16 : 25,
+    top = compact ? 26 : 20,
     bottom = 32,
     x = (e: number) => left + (e / 120) * (width - left - right),
     y = (h: number) =>
       height - bottom - ((h - 6) / 35) * (height - top - bottom);
   return (
     <svg
+      ref={chartRef}
       className="ground-section-chart"
       viewBox={`0 0 ${width} ${height}`}
       role="img"
@@ -276,7 +291,7 @@ function Section({
             </text>
           </g>
         ))}
-      {[0, 20, 40, 60, 80, 100, 120].map((e) => (
+      {(compact ? [0, 40, 80, 120] : [0, 20, 40, 60, 80, 100, 120]).map((e) => (
         <text key={e} x={x(e)} y={height - 12} textAnchor="middle">
           {e}
         </text>
@@ -285,7 +300,7 @@ function Section({
         표고 m
       </text>
       <text x={width - 6} y="15" textAnchor="end">
-        동쪽 좌표 E (m)
+        {compact ? "동쪽 E (m)" : "동쪽 좌표 E (m)"}
       </text>
     </svg>
   );
